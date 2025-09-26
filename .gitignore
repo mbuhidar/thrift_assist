@@ -178,7 +178,8 @@ cython_debug/
 # Reference Materials
 Sandbox/
 image/
-
+secrets/
+credentials/
 # Video files
 *.mp4
 
