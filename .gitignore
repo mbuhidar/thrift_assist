@@ -180,6 +180,8 @@ Sandbox/
 image/
 secrets/
 credentials/
+Archive/
+archive/
 # Video files
 *.mp4
 

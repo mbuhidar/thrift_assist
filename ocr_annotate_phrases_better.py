@@ -20,6 +20,11 @@ os.environ['GOOGLE_CLOUD_DISABLE_GRPC_FOR_GAE'] = 'true'
 os.environ['GLOG_minloglevel'] = '3'
 warnings.filterwarnings("ignore")
 
+# Set credentials path directly in the script (optional)
+credentials_path = "credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json"
+if os.path.exists(credentials_path):
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+
 try:
     from rapidfuzz import fuzz
     FUZZY_AVAILABLE = True
@@ -27,23 +32,12 @@ except ImportError:
     FUZZY_AVAILABLE = False
 
 # Configuration
-IMAGE_PATH = "image/iCloud_Photos/IMG_4984.JPEG"
+IMAGE_PATH = "image/iCloud_Photos/IMG_4918.JPEG"
 
 SEARCH_TERMS = [
-    'Maxi Priest',
-    'Harry Connick',
-    'Toad the Wet Sprocket',
-    'Tracy Chapman',
-    'The The',           # Band name with repeated word - should be detected
-    'The Cranberries',   # Has meaningful word "Cranberries"
-    'Dean Martin',
-    'Tool',
-    'Randy Travis',            # Single meaningful word - should work
-    'U2',
-    'Third Day',
-    'Natalie Merchant',
-    'The Crystal Method',
-]
+    'Homecoming',
+    'Circle of Three',
+    ]
 
 FUZZ_THRESHOLD = 80  # Similarity threshold for phrase matching
 
@@ -666,6 +660,7 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
         error_msg = str(e)
         if ("DefaultCredentialsError" in error_msg or
                 "credentials" in error_msg.lower()):
+            print(error_msg)
             print("❌ Google Cloud Authentication Error!")
             print("Please set up authentication or use local OCR scripts.")
         else:
