@@ -31,15 +31,29 @@ try:
 except ImportError:
     FUZZY_AVAILABLE = False
 
+'''
 # Configuration
 IMAGE_PATH = "image/iCloud_Photos/IMG_4918.JPEG"
 
 SEARCH_TERMS = [
     'Homecoming',
     'Circle of Three',
+    'Lee Child',
+    'Homegoing',
+    'Beginnings',
+    'Tom Clancy',
+    ]
+'''
+
+# Configuration
+IMAGE_PATH = "image/iCloud_Photos/IMG_4968.JPEG"
+
+SEARCH_TERMS = [
+    'True North',
+    'James Taylor',
     ]
 
-FUZZ_THRESHOLD = 80  # Similarity threshold for phrase matching
+FUZZ_THRESHOLD = 75  # Similarity threshold for phrase matching
 
 # Common words to de-emphasize when searching (only filter if appear alone)
 COMMON_WORDS = {
@@ -301,7 +315,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
     """
     Find complete phrase matches in text lines and full text.
     Only returns matches for complete phrases, not individual words.
-    Enhanced to handle text at various angles including upside down.
+    Enhanced to handle text at various angles including upside down and phrases spanning multiple lines.
     
     Args:
         phrase: Target phrase to find
@@ -321,7 +335,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
         if not is_meaningful_phrase(phrase):
             return matches
     
-    # Search in text lines for complete phrases
+    # Search in individual text lines for complete phrases
     for line in text_lines:
         line_text_normalized = normalize_text_for_search(line['text'])
         
@@ -354,13 +368,143 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                 if partial_sim >= 90:  # High threshold for partial matches
                     matches.append((line, partial_sim, "partial_phrase"))
     
+    # NEW: Search for phrases that span multiple lines
+    if len(phrase_words) > 1 and len(text_lines) > 1:
+        for i in range(len(text_lines)):
+            current_line = text_lines[i]
+            current_text_normalized = normalize_text_for_search(current_line['text'])
+            
+            # Check if current line contains any words from our phrase
+            current_words = current_text_normalized.split()
+            phrase_word_matches = []
+            
+            for pw in phrase_words:
+                for j, cw in enumerate(current_words):
+                    if pw == cw or (FUZZY_AVAILABLE and fuzz.ratio(pw, cw) > 85):
+                        phrase_word_matches.append((pw, j, cw))
+            
+            # If current line has some phrase words, look in nearby lines for the rest
+            if phrase_word_matches:
+                # Check next few lines (look ahead up to 3 lines)
+                for next_offset in range(1, min(4, len(text_lines) - i)):
+                    next_line = text_lines[i + next_offset]
+                    
+                    # Skip if lines are too far apart vertically (different sections)
+                    y_distance = abs(next_line['y_position'] - current_line['y_position'])
+                    if y_distance > 100:  # Adjust this threshold as needed
+                        continue
+                    
+                    # Skip if angles are very different (different orientations)
+                    angle_diff = abs(next_line.get('angle', 0) - current_line.get('angle', 0))
+                    if angle_diff > 30:  # Allow some angle variation
+                        continue
+                    
+                    next_text_normalized = normalize_text_for_search(next_line['text'])
+                    next_words = next_text_normalized.split()
+                    
+                    # Check if next line contains remaining phrase words
+                    remaining_phrase_words = [pw for pw in phrase_words 
+                                            if not any(pw == match[0] for match in phrase_word_matches)]
+                    
+                    next_line_matches = []
+                    for pw in remaining_phrase_words:
+                        for j, nw in enumerate(next_words):
+                            if pw == nw or (FUZZY_AVAILABLE and fuzz.ratio(pw, nw) > 85):
+                                next_line_matches.append((pw, j, nw))
+                    
+                    # If we found matches for remaining words, create a spanning match
+                    if next_line_matches:
+                        total_matched_words = len(phrase_word_matches) + len(next_line_matches)
+                        match_percentage = (total_matched_words / len(phrase_words)) * 100
+                        
+                        if match_percentage >= 70:  # At least 70% of phrase words found
+                            # Create combined line data
+                            combined_text = current_line['text'] + ' ' + next_line['text']
+                            combined_annotations = current_line.get('annotations', []) + next_line.get('annotations', [])
+                            
+                            spanning_match = {
+                                'text': combined_text,
+                                'annotations': combined_annotations,
+                                'y_position': current_line['y_position'],
+                                'angle': current_line.get('angle', 0),
+                                'span_info': {
+                                    'line_indices': [i, i + next_offset],
+                                    'matched_words': phrase_word_matches + next_line_matches,
+                                    'total_lines': next_offset + 1
+                                }
+                            }
+                            
+                            match_type = "exact_spanning" if match_percentage >= 95 else "fuzzy_spanning"
+                            matches.append((spanning_match, match_percentage, match_type))
+                            
+                            # Break after finding first spanning match for this line
+                            break
+                
+                # Also check previous lines (look back up to 2 lines)
+                for prev_offset in range(1, min(3, i + 1)):
+                    prev_line = text_lines[i - prev_offset]
+                    
+                    # Skip if lines are too far apart vertically
+                    y_distance = abs(prev_line['y_position'] - current_line['y_position'])
+                    if y_distance > 100:
+                        continue
+                    
+                    # Skip if angles are very different
+                    angle_diff = abs(prev_line.get('angle', 0) - current_line.get('angle', 0))
+                    if angle_diff > 30:
+                        continue
+                    
+                    prev_text_normalized = normalize_text_for_search(prev_line['text'])
+                    prev_words = prev_text_normalized.split()
+                    
+                    # Check if previous line contains remaining phrase words
+                    remaining_phrase_words = [pw for pw in phrase_words 
+                                            if not any(pw == match[0] for match in phrase_word_matches)]
+                    
+                    prev_line_matches = []
+                    for pw in remaining_phrase_words:
+                        for j, pw_word in enumerate(prev_words):
+                            if pw == pw_word or (FUZZY_AVAILABLE and fuzz.ratio(pw, pw_word) > 85):
+                                prev_line_matches.append((pw, j, pw_word))
+                    
+                    if prev_line_matches:
+                        total_matched_words = len(phrase_word_matches) + len(prev_line_matches)
+                        match_percentage = (total_matched_words / len(phrase_words)) * 100
+                        
+                        if match_percentage >= 70:
+                            # Create combined line data (previous line first)
+                            combined_text = prev_line['text'] + ' ' + current_line['text']
+                            combined_annotations = prev_line.get('annotations', []) + current_line.get('annotations', [])
+                            
+                            spanning_match = {
+                                'text': combined_text,
+                                'annotations': combined_annotations,
+                                'y_position': prev_line['y_position'],
+                                'angle': prev_line.get('angle', 0),
+                                'span_info': {
+                                    'line_indices': [i - prev_offset, i],
+                                    'matched_words': prev_line_matches + phrase_word_matches,
+                                    'total_lines': prev_offset + 1
+                                }
+                            }
+                            
+                            match_type = "exact_spanning" if match_percentage >= 95 else "fuzzy_spanning"
+                            matches.append((spanning_match, match_percentage, match_type))
+                            break
+    
     # Remove duplicates and sort by score
     seen_texts = set()
     unique_matches = []
     for match in sorted(matches, key=lambda x: x[1], reverse=True):
         match_text = match[0]['text'] if 'text' in match[0] else str(match[0])
-        if match_text not in seen_texts:
-            seen_texts.add(match_text)
+        # Create a unique key that includes span info if available
+        if 'span_info' in match[0]:
+            match_key = f"{normalize_text_for_search(match_text)}_span_{match[0]['span_info']['line_indices']}"
+        else:
+            match_key = normalize_text_for_search(match_text)
+        
+        if match_key not in seen_texts:
+            seen_texts.add(match_key)
             unique_matches.append(match)
     
     return unique_matches
@@ -369,6 +513,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
 def draw_phrase_annotations(image, phrase_matches, phrase_colors=None):
     """
     Draw bounding boxes around detected complete phrases.
+    Enhanced to align bounding boxes with text direction and orientation.
     
     Args:
         image: Input image (BGR format)
@@ -378,7 +523,6 @@ def draw_phrase_annotations(image, phrase_matches, phrase_colors=None):
     Returns:
         Annotated image
     """
-
     if phrase_colors is None:
         # All phrases use green color
         green_color = (0, 255, 0)  # Green in BGR format
@@ -397,76 +541,203 @@ def draw_phrase_annotations(image, phrase_matches, phrase_colors=None):
             if not annotations:
                 continue
             
+            # Get the text angle from the match data
+            text_angle = match_data.get('angle', 0)
+            
             # Find the specific words in line that match the phrase
             line_text_normalized = normalize_text_for_search(match_data.get('text', ''))
             phrase_normalized = normalize_text_for_search(phrase)
             phrase_words = phrase_normalized.split()
             
-            # Calculate precise bounding box for the phrase
+            # Calculate precise bounding box for ONLY the phrase words
             phrase_annotations = []
             
             if phrase_normalized in line_text_normalized:
-                # Find the starting position of the phrase in the line
-                phrase_start = line_text_normalized.find(phrase_normalized)
-                phrase_end = phrase_start + len(phrase_normalized)
+                # Find exact phrase match - get only the words that are part of the phrase
+                phrase_start_idx = line_text_normalized.find(phrase_normalized)
                 
-                # Map character positions to word annotations
-                char_pos = 0
-                for annotation in annotations:
-                    word = annotation.description.lower()
-                    word_start = char_pos
-                    word_end = char_pos + len(word)
-                    
-                    # Check if this word overlaps with our phrase
-                    if (word_start < phrase_end and word_end > phrase_start):
-                        phrase_annotations.append(annotation)
-                    
-                    char_pos = word_end + 1  # +1 for space
+                # Split the line into words and find which words correspond to the phrase
+                line_words = line_text_normalized.split()
+                phrase_word_list = phrase_normalized.split()
+                
+                # Find the starting word index
+                for start_idx in range(len(line_words) - len(phrase_word_list) + 1):
+                    window = ' '.join(line_words[start_idx:start_idx + len(phrase_word_list)])
+                    if window == phrase_normalized:
+                        # Found the exact phrase - get corresponding annotations
+                        phrase_annotations = annotations[start_idx:start_idx + len(phrase_word_list)]
+                        break
+                
+                # Fallback: if we couldn't match exactly, try fuzzy word matching
+                if not phrase_annotations:
+                    for phrase_word in phrase_word_list:
+                        for i, annotation in enumerate(annotations):
+                            word_normalized = normalize_text_for_search(annotation.description)
+                            if (phrase_word == word_normalized or 
+                                (FUZZY_AVAILABLE and fuzz.ratio(phrase_word, word_normalized) > 85)):
+                                if annotation not in phrase_annotations:
+                                    phrase_annotations.append(annotation)
             else:
-                # For fuzzy matches, try to match individual words
+                # For fuzzy matches, try to match individual words more precisely
                 line_words = [normalize_text_for_search(ann.description) for ann in annotations]
-                for phrase_word in phrase_words:
-                    for i, (line_word, annotation) in enumerate(zip(line_words, annotations)):
-                        if (phrase_word in line_word or line_word in phrase_word or
-                            (FUZZY_AVAILABLE and fuzz.ratio(phrase_word, line_word) > 80)):
-                            if annotation not in phrase_annotations:
-                                phrase_annotations.append(annotation)
+                
+                # Try to find consecutive words that match the phrase
+                for start_idx in range(len(line_words) - len(phrase_words) + 1):
+                    match_count = 0
+                    temp_annotations = []
+                    
+                    for i, phrase_word in enumerate(phrase_words):
+                        if start_idx + i < len(line_words):
+                            line_word = line_words[start_idx + i]
+                            if (phrase_word in line_word or line_word in phrase_word or
+                                (FUZZY_AVAILABLE and fuzz.ratio(phrase_word, line_word) > 75)):
+                                match_count += 1
+                                temp_annotations.append(annotations[start_idx + i])
+                    
+                    # If we matched most of the phrase words consecutively
+                    if match_count >= len(phrase_words) * 0.7:  # 70% match threshold
+                        phrase_annotations = temp_annotations
+                        break
+                
+                # Fallback: individual word matching if consecutive matching failed
+                if not phrase_annotations:
+                    for phrase_word in phrase_words:
+                        for i, (line_word, annotation) in enumerate(zip(line_words, annotations)):
+                            if (phrase_word in line_word or line_word in phrase_word or
+                                (FUZZY_AVAILABLE and fuzz.ratio(phrase_word, line_word) > 80)):
+                                if annotation not in phrase_annotations:
+                                    phrase_annotations.append(annotation)
             
-            # If we couldn't find specific words, use all annotations as fallback
-            if not phrase_annotations:
+            # If we still couldn't find specific words, limit to reasonable subset
+            if not phrase_annotations and len(annotations) > 3:
+                # Take only the first few words to avoid huge bounding boxes
+                max_words = min(len(phrase_words) + 1, len(annotations), 3)
+                phrase_annotations = annotations[:max_words]
+            elif not phrase_annotations:
                 phrase_annotations = annotations
             
-            # Calculate tighter bounding box
-            all_points = []
-            for annotation in phrase_annotations:
+            # Create aligned bounding box based on text direction
+            if len(phrase_annotations) == 1:
+                # Single word - use original oriented bounding box vertices
+                annotation = phrase_annotations[0]
                 if annotation.bounding_poly.vertices:
-                    for vertex in annotation.bounding_poly.vertices:
-                        all_points.append((vertex.x, vertex.y))
+                    vertices = annotation.bounding_poly.vertices
+                    pts = np.array([(v.x, v.y) for v in vertices], dtype=np.int32)
+                    
+                    # Draw the oriented bounding box
+                    cv2.polylines(annotated, [pts], True, color, 3)
+                    
+                    # Calculate label position based on text orientation
+                    if abs(text_angle) < 15:  # Horizontal text
+                        label_x = min(v.x for v in vertices)
+                        label_y = min(v.y for v in vertices)
+                    elif abs(text_angle - 90) < 15:  # Vertical text (90°)
+                        label_x = max(v.x for v in vertices)
+                        label_y = min(v.y for v in vertices)
+                    elif abs(text_angle + 90) < 15:  # Vertical text (-90°)
+                        label_x = min(v.x for v in vertices)
+                        label_y = max(v.y for v in vertices)
+                    else:  # Diagonal text
+                        # Use center point for diagonal orientations
+                        label_x = sum(v.x for v in vertices) // 4
+                        label_y = min(v.y for v in vertices)
+            else:
+                # Multiple words - create oriented bounding rectangle aligned with text
+                all_points = []
+                for annotation in phrase_annotations:
+                    if annotation.bounding_poly.vertices:
+                        for vertex in annotation.bounding_poly.vertices:
+                            all_points.append([vertex.x, vertex.y])
+                
+                if len(all_points) >= 4:
+                    points = np.array(all_points, dtype=np.float32)
+                    
+                    # Always use minimum area rectangle to align with text direction
+                    rect = cv2.minAreaRect(points)
+                    box_points = cv2.boxPoints(rect)
+                    box_points = np.int32(box_points)
+                    
+                    # Draw the oriented bounding box
+                    cv2.polylines(annotated, [box_points], True, color, 3)
+                    
+                    # Calculate label position based on text orientation
+                    center_x, center_y = rect[0]
+                    angle_rad = np.radians(rect[2])
+                    
+                    if abs(text_angle) < 15:  # Horizontal text
+                        label_x = int(min(box_points[:, 0]))
+                        label_y = int(min(box_points[:, 1]))
+                    elif abs(text_angle - 90) < 15:  # Vertical text (90°)
+                        label_x = int(max(box_points[:, 0]))
+                        label_y = int(min(box_points[:, 1]))
+                    elif abs(text_angle + 90) < 15:  # Vertical text (-90°)
+                        label_x = int(min(box_points[:, 0]))
+                        label_y = int(max(box_points[:, 1]))
+                    elif abs(abs(text_angle) - 180) < 15:  # Upside-down text
+                        label_x = int(max(box_points[:, 0]))
+                        label_y = int(max(box_points[:, 1]))
+                    else:  # Diagonal text
+                        # For diagonal text, place label at the "top" relative to reading direction
+                        label_x = int(min(box_points[:, 0]))
+                        label_y = int(min(box_points[:, 1]))
+                else:
+                    continue
             
-            if len(all_points) >= 4:
-                # Create combined bounding box
-                min_x = min(p[0] for p in all_points)
-                max_x = max(p[0] for p in all_points)
-                min_y = min(p[1] for p in all_points)
-                max_y = max(p[1] for p in all_points)
+            # Add text label with background, positioned based on text orientation
+            label = f"{phrase} ({score:.0f}%)"
+            
+            # Calculate text size for background
+            (text_w, text_h), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+            
+            # Position label based on text orientation
+            if abs(text_angle) < 15:  # Horizontal text
+                # Place label above the text
+                bg_x1, bg_y1 = label_x, label_y - text_h - 10
+                bg_x2, bg_y2 = label_x + text_w + 4, label_y - 4
+                text_x, text_y = label_x + 2, label_y - 7
+            elif abs(text_angle - 90) < 15:  # Vertical text (90°)
+                # Place label to the right of vertical text
+                bg_x1, bg_y1 = label_x + 5, label_y
+                bg_x2, bg_y2 = label_x + text_w + 9, label_y + text_h + 4
+                text_x, text_y = label_x + 7, label_y + text_h
+            elif abs(text_angle + 90) < 15:  # Vertical text (-90°)
+                # Place label to the left of vertical text
+                bg_x1, bg_y1 = label_x - text_w - 9, label_y - text_h - 4
+                bg_x2, bg_y2 = label_x - 5, label_y
+                text_x, text_y = label_x - text_w - 7, label_y - 4
+            elif abs(abs(text_angle) - 180) < 15:  # Upside-down text
+                # Place label below upside-down text
+                bg_x1, bg_y1 = label_x - text_w - 4, label_y + 4
+                bg_x2, bg_y2 = label_x, label_y + text_h + 10
+                text_x, text_y = label_x - text_w - 2, label_y + text_h + 7
+            else:  # Diagonal text
+                # For diagonal text, use offset positioning
+                offset_x = int(20 * np.cos(np.radians(text_angle + 90)))
+                offset_y = int(20 * np.sin(np.radians(text_angle + 90)))
                 
-                # Draw bounding box
-                pts = np.array([(min_x, min_y), (max_x, min_y),
-                               (max_x, max_y), (min_x, max_y)], dtype=np.int32)
-                cv2.polylines(annotated, [pts], True, color, 3)
-                
-                # Add text label
-                label = f"{phrase} ({score:.0f}%)"
-                
-                # Add background for text
-                (text_w, text_h), _ = cv2.getTextSize(
-                    label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                cv2.rectangle(annotated, (min_x, min_y-text_h-8),
-                             (min_x+text_w+4, min_y-2), color, -1)
-                
-                # Add text
-                cv2.putText(annotated, label, (min_x+2, min_y-5),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                bg_x1 = label_x + offset_x
+                bg_y1 = label_y + offset_y
+                bg_x2 = bg_x1 + text_w + 4
+                bg_y2 = bg_y1 + text_h + 4
+                text_x = bg_x1 + 2
+                text_y = bg_y1 + text_h
+            
+            # Ensure label stays within image bounds
+            img_h, img_w = annotated.shape[:2]
+            bg_x1 = max(0, min(bg_x1, img_w - text_w - 4))
+            bg_y1 = max(0, min(bg_y1, img_h - text_h - 4))
+            bg_x2 = max(text_w + 4, min(bg_x2, img_w))
+            bg_y2 = max(text_h + 4, min(bg_y2, img_h))
+            text_x = bg_x1 + 2
+            text_y = bg_y1 + text_h
+            
+            # Draw background rectangle for text
+            cv2.rectangle(annotated, (bg_x1, bg_y1), (bg_x2, bg_y2), color, -1)
+            
+            # Draw the label text
+            cv2.putText(annotated, label, (text_x, text_y),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     
     return annotated
 
@@ -511,7 +782,6 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
         
         # Extract both text annotations and document structure
         text_annotations = response.text_annotations
-        document = response.full_text_annotation
         
         # Also try regular text_detection as fallback
         if not text_annotations:
@@ -553,37 +823,6 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
             print("❌ No search phrases provided. Please specify phrases to search for.")
             return None
         
-        # Debug: Show more detected text lines to find missing artists
-        print(f"\nFound {len(text_lines)} total text lines")
-        print(f"🔍 DEBUG: Showing all text lines (looking for Dean Martin, etc.):")
-        for i, line in enumerate(text_lines):
-            line_text = line['text']
-            angle = line.get('angle', 0)
-            
-            # Check for potential upside-down matches and common OCR errors
-            upside_down_score = 0
-            potential_dean_martin = False
-            if FUZZY_AVAILABLE:
-                for term in ['Dean Martin', 'Toad the Wet Sprocket', 'James Taylor']:
-                    score = try_reverse_text_matching(term, line_text)
-                    if score > upside_down_score:
-                        upside_down_score = score
-                
-                # Special check for Dean Martin fragments (common OCR errors)
-                dean_fragments = ['dean', 'martin', 'naeđ', 'nitram', 'ɴɪʇɹɐɯ', 'uɐǝp']
-                if any(frag in line_text.lower() for frag in dean_fragments):
-                    potential_dean_martin = True
-            
-            # Highlight lines that might contain our search terms or be upside down
-            if any(term.lower() in line_text.lower() for term in ['dean', 'martin', 'toad', 'james', 'taylor']):
-                print(f"   ⭐ {i+1}: \"{line_text}\" (angle: {angle:.1f}°)")
-            elif potential_dean_martin:
-                print(f"   🔍 {i+1}: \"{line_text}\" (angle: {angle:.1f}°, dean_fragments)")
-            elif upside_down_score > 70:
-                print(f"   🔄 {i+1}: \"{line_text}\" (angle: {angle:.1f}°, reverse_match: {upside_down_score:.1f}%)")
-            else:
-                print(f"   {i+1}: \"{line_text}\" (angle: {angle:.1f}°)")
-        
         # Find complete phrase matches only
         phrase_matches = {}
         total_matches = 0
@@ -594,13 +833,22 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
                 print(f"⏭️  Skipping common word phrase: '{phrase}'")
                 continue
                 
-            print(f"\n🔍 Searching for: '{phrase}'")
+            print(f"🔍 Searching for: '{phrase}'")
+            
             matches = find_complete_phrases(phrase, text_lines, full_text, 
                                            threshold)
             if matches:
                 phrase_matches[phrase] = matches
                 total_matches += len(matches)
                 print(f"🎯 Found {len(matches)} complete matches for '{phrase}'")
+                
+                # Show what was actually matched
+                for match_data, score, match_type in matches:
+                    match_text = match_data.get('text', 'Unknown')
+                    if 'span_info' in match_data:
+                        print(f"   📍 Spanning match: '{match_text}' ({score:.1f}% {match_type})")
+                    else:
+                        print(f"   📍 Match: '{match_text}' ({score:.1f}% {match_type})")
             else:
                 print(f"❌ No matches found for '{phrase}'")
         
@@ -704,7 +952,7 @@ def main():
     # Search terms for music CDs (meaningful phrases only)
     search_terms = SEARCH_TERMS
     
-    print("🎵 CD DETECTION AND ANNOTATION")
+    print("🎵 MEDIA DETECTION AND ANNOTATION")
     print("=" * 50)
     
     results = detect_and_annotate_phrases(
