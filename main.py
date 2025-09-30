@@ -4,7 +4,8 @@ Optimized for Render.com deployment
 """
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Query
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -52,6 +53,7 @@ except ImportError as e:
     COMMON_WORDS = set()
     OCR_MODULE_AVAILABLE = False
 
+# Render.com specific configuration
 app = FastAPI(
     title="ThriftAssist Text Detection API",
     description="REST API for detecting and annotating phrases in images using Google Cloud Vision API",
@@ -68,6 +70,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files directory
+try:
+    app.mount("/static", StaticFiles(directory="public"), name="static")
+except RuntimeError:
+    # Directory doesn't exist, create it
+    import os
+    os.makedirs("public", exist_ok=True)
+    app.mount("/static", StaticFiles(directory="public"), name="static")
 
 
 # Data models
@@ -442,9 +453,42 @@ async def upload_and_detect_phrases(
         })
 
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    """Root endpoint with API information."""
+    """Serve the web application."""
+    try:
+        # Try to serve the web app HTML file
+        return FileResponse("public/web_app.html")
+    except FileNotFoundError:
+        # Fallback to API info if web app not found
+        return JSONResponse({
+            "message": "ThriftAssist OCR API",
+            "status": "running",
+            "version": "1.0.0",
+            "platform": "Render.com",
+            "ocr_available": OCR_MODULE_AVAILABLE,
+            "web_app": "Web app not found at /public/web_app.html",
+            "endpoints": {
+                "health": "GET /health",
+                "docs": "GET /docs",
+                "web": "GET /web",
+                "detect_phrases": "POST /detect-phrases"
+            }
+        })
+
+
+@app.get("/web", response_class=HTMLResponse)
+async def web_app():
+    """Serve the web application interface."""
+    try:
+        return FileResponse("public/web_app.html")
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Web application not found")
+
+
+@app.get("/api", response_class=JSONResponse)
+async def api_info():
+    """API information endpoint."""
     return {
         "message": "ThriftAssist OCR API",
         "status": "running",
@@ -459,6 +503,7 @@ async def root():
         "endpoints": {
             "health": "GET /health",
             "docs": "GET /docs",
+            "web": "GET /web",
             "detect_phrases": "POST /detect-phrases"
         }
     }
