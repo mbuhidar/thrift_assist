@@ -39,7 +39,7 @@ source venv/bin/activate
 # Upgrade pip and install dependencies
 echo "📥 Installing dependencies..."
 python -m pip install --upgrade pip
-pip install fastapi uvicorn[standard] opencv-python numpy pydantic python-multipart matplotlib google-cloud-vision rapidfuzz
+pip install fastapi uvicorn[standard] opencv-python numpy pydantic python-multipart
 
 # Set Google Cloud credentials if available
 if [ -f "credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json" ]; then
@@ -72,7 +72,8 @@ fi
 echo ""
 echo "🌐 Starting server on http://$HOST:$PORT"
 echo "📖 API Documentation: http://localhost:$PORT/docs"
-echo "🌍 Web App: file://$SCRIPT_DIR/web_app.html"
+echo "🌍 Web App (integrated): http://localhost:$PORT/"
+echo "🌍 Web App (standalone): file://$SCRIPT_DIR/public/web_app.html"
 echo "⏹️  Press Ctrl+C to stop"
 echo ""
 

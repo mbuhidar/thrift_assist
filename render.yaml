@@ -4,13 +4,13 @@ services:
     env: python
     region: oregon
     plan: starter
-    buildCommand: |
-      python -m pip install --upgrade pip setuptools wheel
-      pip install -r requirements.txt
+    buildCommand: ./build.sh
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
-      - key: PORT
-        value: 10000
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false  # Set this manually in Render dashboard
+      - key: SETUPTOOLS_USE_DISTUTILS
+        value: stdlib
     healthCheckPath: /health
