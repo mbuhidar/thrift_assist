@@ -1,6 +1,6 @@
-# Build tools (fix for Render)
-setuptools==69.0.3
-wheel==0.42.0
+# Build tools (fix for Render setuptools issue)
+setuptools==67.8.0
+wheel==0.40.0
 
 # Core Web Framework and API
 fastapi==0.116.1

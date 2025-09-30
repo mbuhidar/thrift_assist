@@ -5,12 +5,16 @@ set -e
 
 echo "🔧 Starting build process for Render..."
 
-# Upgrade core build tools first
-echo "⬆️ Upgrading build tools..."
-python -m pip install --upgrade pip setuptools wheel
+# Force reinstall of build tools to fix setuptools.build_meta issue
+echo "⬆️ Installing compatible build tools..."
+python -m pip install --force-reinstall pip==23.2.1
+python -m pip install --force-reinstall setuptools==67.8.0 wheel==0.40.0
+
+# Clear pip cache
+pip cache purge
 
 # Install dependencies
-echo "📥 Installing dependencies..."
-pip install -r requirements.txt
+echo "📥 Installing dependencies from requirements.txt..."
+pip install --no-cache-dir -r requirements.txt
 
 echo "✅ Build complete!"
