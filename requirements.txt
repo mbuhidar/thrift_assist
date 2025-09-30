@@ -1,4 +1,3 @@
-pip-requirements
 # Build tools (fix for Render)
 setuptools==69.0.3
 wheel==0.42.0
