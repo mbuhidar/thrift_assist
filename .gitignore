@@ -185,3 +185,44 @@ archive/
 # Video files
 *.mp4
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Test files
+test_*.py
+*_test.py
+
+# Credentials (DO NOT COMMIT)
+credentials/
+*.json
+*.key
+
+# Temporary files
+temp/
+tmp/
+uploads/
+

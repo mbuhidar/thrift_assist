@@ -1,43 +1,80 @@
 #!/bin/bash
-# ThriftAssist Text Detection Web Service Startup Script
+# ThriftAssist Web Service Startup Script
 
-echo "🚀 Starting ThriftAssist Text Detection Web Service"
-echo "================================================"
+set -e  # Exit on any error
 
-# Check if virtual environment exists
-if [ ! -d "venv" ]; then
-    echo "📦 Create a virtual environment...exiting..."
+echo "🚀 Starting ThriftAssist Web Service"
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Configuration
+HOST="0.0.0.0"
+PORT="8000"
+
+# Clean up function
+cleanup() {
+    echo "🛑 Stopping service..."
+    jobs -p | xargs -r kill
+    exit 0
+}
+trap cleanup SIGINT SIGTERM
+
+# Check Python
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python 3 not found. Please install Python 3.8+"
     exit 1
 fi
 
-# Activate virtual environment
+# Create and activate virtual environment
+if [ ! -d "venv" ]; then
+    echo "📦 Creating virtual environment..."
+    python3 -m venv venv
+fi
+
 echo "🔧 Activating virtual environment..."
 source venv/bin/activate
 
-# Install/update dependencies
-echo "📥 Installing web service dependencies..."
-pip install -r requirements_web.txt
+# Upgrade pip and install dependencies
+echo "📥 Installing dependencies..."
+python -m pip install --upgrade pip
+pip install fastapi uvicorn[standard] opencv-python numpy pydantic python-multipart matplotlib google-cloud-vision rapidfuzz
 
-# Check for Google Cloud credentials
-if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-    echo "⚠️  Warning: GOOGLE_APPLICATION_CREDENTIALS not set"
-    echo "   Make sure your Google Cloud credentials are configured"
+# Set Google Cloud credentials if available
+if [ -f "credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json" ]; then
+    export GOOGLE_APPLICATION_CREDENTIALS="$SCRIPT_DIR/credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json"
+    echo "✅ Google Cloud credentials configured"
 fi
 
-# Display access information
+# Find main.py
+if [ -f "main.py" ]; then
+    MAIN_FILE="main.py"
+    MODULE="main:app"
+elif [ -f "src/main.py" ]; then
+    MAIN_FILE="src/main.py"
+    MODULE="src.main:app"
+else
+    echo "❌ main.py not found"
+    exit 1
+fi
+
+echo "📂 Using: $MAIN_FILE"
+
+# Kill any process on port
+if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "💀 Killing processes on port $PORT..."
+    lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
+    sleep 2
+fi
+
+# Start server
 echo ""
-echo "🌐 ThriftAssist Application URLs:"
-echo "   API Service: http://localhost:8000"
-echo "   API Docs: http://localhost:8000/docs"
-echo "   Web App: file://$(pwd)/web_app.html"
-echo ""
-echo "📖 To use the web app:"
-echo "   1. Open web_app.html in your browser"
-echo "   2. Upload an image and enter search phrases"
-echo "   3. View results with annotated images"
+echo "🌐 Starting server on http://$HOST:$PORT"
+echo "📖 API Documentation: http://localhost:$PORT/docs"
+echo "🌍 Web App: file://$SCRIPT_DIR/web_app.html"
+echo "⏹️  Press Ctrl+C to stop"
 echo ""
 
-# Start the web service
-echo "🌐 Starting FastAPI server..."
-python3 ocr_web_service.py
+uvicorn $MODULE --host $HOST --port $PORT --reload
 

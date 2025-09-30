@@ -1,0 +1,42 @@
+# Core Web Framework and API
+fastapi==0.116.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+
+# OCR and Computer Vision
+opencv-python-headless==4.8.1.78
+numpy==1.24.3
+google-cloud-vision==3.4.5
+rapidfuzz==3.5.2
+Pillow==10.0.1
+
+# Data Visualization (headless for server)
+matplotlib==3.7.2
+
+# Web Framework (alternative)
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Production Web Server
+gunicorn==21.2.0
+
+# Development and Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+requests==2.31.0
+
+# Environment and Configuration
+python-dotenv==1.0.0
+pydantic-settings==2.1.0
+
+# File Handling and Utilities
+aiofiles==23.2.1
+python-dateutil==2.8.2
+
+# Logging and Monitoring
+structlog==23.2.0
+
+# Additional utilities for development
+click==8.1.7
+click==8.1.7

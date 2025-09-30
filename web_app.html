@@ -311,7 +311,68 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:8000';
+        // Fix API URL detection for local file:// protocol
+        const API_BASE_URL = (() => {
+            const protocol = window.location.protocol;
+            const hostname = window.location.hostname;
+            
+            // When opening HTML file directly (file:// protocol)
+            if (protocol === 'file:') {
+                return 'http://localhost:8000';
+            }
+            
+            // Local development
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return `${protocol}//${hostname}:8000`;
+            }
+            
+            // Render.com deployment (same origin)
+            if (hostname.includes('.onrender.com')) {
+                return window.location.origin;
+            }
+            
+            // Production deployment
+            return window.location.origin;
+        })();
+        
+        console.log('Detected protocol:', window.location.protocol);
+        console.log('Using API Base URL:', API_BASE_URL);
+        
+        // Test connection on page load with better error handling
+        window.addEventListener('load', async function() {
+            const textarea = document.getElementById('searchPhrases');
+            textarea.placeholder = `Enter phrases separated by commas
+Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
+            
+            // Test API connection
+            console.log('Testing API connection...');
+            const isConnected = await testConnection();
+            
+            if (!isConnected) {
+                showError(`API not available at ${API_BASE_URL}. Start the service with: ./start_web_service.sh`);
+            }
+        });
+        
+        // Add connection test function
+        async function testConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`, {
+                    method: 'GET',
+                    timeout: 5000
+                });
+                if (response.ok) {
+                    console.log('✅ API connection successful');
+                    return true;
+                } else {
+                    console.warn('⚠️ API responded with error:', response.status);
+                    return false;
+                }
+            } catch (error) {
+                console.error('❌ API connection failed:', error);
+                showError(`Cannot connect to API at ${API_BASE_URL}. Please ensure the service is running.`);
+                return false;
+            }
+        }
         
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -464,13 +525,6 @@
                 const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
                 console.log(`Selected file: ${file.name} (${fileSizeMB} MB)`);
             }
-        });
-        
-        // Add some example phrases when the page loads
-        window.addEventListener('load', function() {
-            const textarea = document.getElementById('searchPhrases');
-            textarea.placeholder = `Enter phrases separated by commas
-Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         });
     </script>
 </body>

@@ -1,6 +1,6 @@
 """
 FastAPI Web Service for OCR Phrase Detection
-Provides REST API endpoints for phrase detection and annotation using Google Cloud Vision API.
+Optimized for Render.com deployment
 """
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Query
@@ -18,32 +18,52 @@ import tempfile
 import json
 from datetime import datetime
 import uuid
+import socket
+import subprocess
+import signal
 
 # Import the OCR detection function and its dependencies
-from thriftassist_googlevision import (
-    detect_and_annotate_phrases,
-    suppress_stderr_warnings,
-    group_text_into_lines,
-    find_complete_phrases,
-    draw_phrase_annotations,
-    normalize_text_for_search,
-    is_meaningful_phrase,
-    try_reverse_text_matching,
-    calculate_text_angle,
-    FUZZY_AVAILABLE,
-    COMMON_WORDS
-)
+try:
+    from thriftassist_googlevision import (
+        detect_and_annotate_phrases,
+        suppress_stderr_warnings,
+        group_text_into_lines,
+        find_complete_phrases,
+        draw_phrase_annotations,
+        normalize_text_for_search,
+        is_meaningful_phrase,
+        try_reverse_text_matching,
+        calculate_text_angle,
+        FUZZY_AVAILABLE,
+        COMMON_WORDS
+    )
+    OCR_MODULE_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ OCR module not available: {e}")
+    # Create stub functions for deployment testing
+    def detect_and_annotate_phrases(*args, **kwargs):
+        return {
+            'total_matches': 0,
+            'matches': {},
+            'annotated_image': np.zeros((100, 100, 3), dtype=np.uint8),
+            'all_text': 'OCR module not available'
+        }
+    FUZZY_AVAILABLE = False
+    COMMON_WORDS = set()
+    OCR_MODULE_AVAILABLE = False
 
 app = FastAPI(
     title="ThriftAssist Text Detection API",
     description="REST API for detecting and annotating phrases in images using Google Cloud Vision API",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
 # Enable CORS for web applications
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -97,6 +117,54 @@ def save_temp_image(image: np.ndarray) -> str:
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
     cv2.imwrite(temp_file.name, image)
     return temp_file.name
+
+
+def is_port_available(host: str, port: int) -> bool:
+    """Check if a port is available for binding."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, port))
+            return True
+    except OSError:
+        return False
+
+
+def find_available_port(host: str, start_port: int = 8080) -> int:
+    """Find the next available port starting from start_port."""
+    for port in range(start_port, start_port + 100):
+        if is_port_available(host, port):
+            return port
+    raise RuntimeError(f"No available ports found starting from {start_port}")
+
+
+def kill_process_on_port(port: int) -> bool:
+    """Kill any process running on the specified port."""
+    try:
+        # Find process using the port
+        result = subprocess.run(['lsof', '-ti', f':{port}'], 
+                              capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0 and result.stdout.strip():
+            pids = result.stdout.strip().split('\n')
+            for pid in pids:
+                if pid:
+                    print(f"💀 Killing process {pid} on port {port}")
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                        # Give it a moment to terminate gracefully
+                        subprocess.run(['sleep', '1'])
+                        # Force kill if still running
+                        try:
+                            os.kill(int(pid), signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass  # Process already terminated
+                    except (ProcessLookupError, ValueError) as e:
+                        print(f"⚠️ Could not kill process {pid}: {e}")
+            return True
+        return False
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+        print(f"⚠️ Could not check/kill processes on port {port}: {e}")
+        return False
 
 
 # API endpoints
@@ -378,31 +446,19 @@ async def upload_and_detect_phrases(
 async def root():
     """Root endpoint with API information."""
     return {
-        "message": "OCR Phrase Detection API",
+        "message": "ThriftAssist OCR API",
+        "status": "running",
         "version": "1.0.0",
-        "endpoints": {
-            "health": "GET /health - Health check",
-            "detect_phrases": "POST /detect-phrases - Detect phrases from base64 image",
-            "detect_with_annotation": "POST /detect-phrases-with-annotation - Detect phrases and return annotated image",
-            "upload_and_detect": "POST /upload-and-detect - Upload file and detect phrases"
+        "platform": "Render.com",
+        "ocr_available": OCR_MODULE_AVAILABLE,
+        "environment": {
+            "port": os.getenv("PORT", "10000"),
+            "host": "0.0.0.0",
+            "render_service": os.getenv("RENDER_SERVICE_NAME", "thriftassist-api")
         },
-        "documentation": "/docs"
+        "endpoints": {
+            "health": "GET /health",
+            "docs": "GET /docs",
+            "detect_phrases": "POST /detect-phrases"
+        }
     }
-
-if __name__ == "__main__":
-    # Configuration
-    HOST = os.getenv("HOST", "0.0.0.0")
-    PORT = int(os.getenv("PORT", 8000))
-    
-    print("🚀 Starting OCR Phrase Detection API Server")
-    print(f"📍 Server will run on http://{HOST}:{PORT}")
-    print("📖 API Documentation: http://localhost:8000/docs")
-    print("🔍 Interactive API: http://localhost:8000/redoc")
-    
-    uvicorn.run(
-        "thriftassist_web_service:app",
-        host=HOST,
-        port=PORT,
-        reload=True,
-        log_level="info"
-    )
