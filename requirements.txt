@@ -1,3 +1,8 @@
+pip-requirements
+# Build tools (fix for Render)
+setuptools==69.0.3
+wheel==0.42.0
+
 # Core Web Framework and API
 fastapi==0.116.1
 uvicorn[standard]==0.24.0
@@ -38,5 +43,4 @@ python-dateutil==2.8.2
 structlog==23.2.0
 
 # Additional utilities for development
-click==8.1.7
 click==8.1.7
