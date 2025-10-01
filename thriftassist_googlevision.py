@@ -272,6 +272,16 @@ def try_reverse_text_matching(phrase, text):
     Try matching text that might be upside down or reversed.
     Returns similarity score if a good match is found.
     Enhanced to be more precise for exact phrase matching.
+    
+    THRESHOLD EXPLANATION:
+    - Score ranges from 0-100 (percentage match)
+    - Higher threshold = more strict matching
+    - Lower threshold = more lenient matching
+    
+    Examples:
+    - threshold=90: "Lee Child" matches "Lee Child" (100%) but not "L. Child" (85%)
+    - threshold=75: "Lee Child" matches both "Lee Child" (100%) and "L. Child" (85%)
+    - threshold=50: Very lenient, matches partial/fuzzy text
     """
 
     if not FUZZY_AVAILABLE:
@@ -323,10 +333,20 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
         phrase: Target phrase to find
         text_lines: List of text lines from group_text_into_lines()
         full_text: Complete text from first annotation
-        threshold: Minimum similarity for fuzzy matching
+        threshold: Minimum similarity for fuzzy matching (50-100)
+                  - 50-60: Very lenient (catches many false positives)
+                  - 70-80: Balanced (good for most use cases)
+                  - 85-95: Strict (fewer false positives, may miss variations)
+                  - 95-100: Very strict (only near-exact matches)
     
     Returns:
         List of matching text segments with scores
+        
+    THRESHOLD BEHAVIOR:
+    - Exact substring matches always return 100% regardless of threshold
+    - Fuzzy matching uses threshold to filter results
+    - Common word phrases (like "the", "and") use stricter matching
+    - Non-common phrases use the specified threshold
     """
     matches = []
     phrase_normalized = normalize_text_for_search(phrase)
@@ -752,8 +772,23 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
     Args:
         image_path: Path to image file
         search_phrases: List of phrases to search for (required)
-        threshold: Fuzzy matching threshold
-        show_plot: Whether to display the result
+        threshold: Fuzzy matching threshold (50-100, default=75)
+                  
+    THRESHOLD GUIDE:
+    - 50: Very lenient - finds many matches but may include false positives
+    - 60: Lenient - good for finding variations and partial matches
+    - 70: Balanced - good default for most images with clear text
+    - 75: Default - balanced between accuracy and completeness
+    - 80: Stricter - reduces false positives, good for noisy images
+    - 85: Strict - high confidence matches only
+    - 90: Very strict - near-exact matches, may miss valid variations
+    - 95: Extremely strict - only exact or near-exact matches
+    
+    EXAMPLES:
+    - For book spines with clear text: threshold=75-85
+    - For handwritten or unclear text: threshold=60-70
+    - For high-quality printed text: threshold=85-95
+    - For testing/experimentation: threshold=50-60
     
     Returns:
         Dictionary with results and annotated image, or None if no search phrases

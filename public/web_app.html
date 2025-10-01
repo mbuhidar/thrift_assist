@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR Phrase Detection</title>
+    <title>ThriftAssist - AI Media Finder</title>
     <style>
         * {
             margin: 0;
@@ -240,8 +240,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔍 OCR Phrase Detection</h1>
-            <p>Upload an image and search for specific phrases using advanced OCR technology</p>
+            <h1>🔍 ThriftAssist - AI Media Finder</h1>
+            <p>Upload an image and search for media titles using advanced AI text detection</p>
         </div>
 
         <div class="main-content">
@@ -264,7 +264,13 @@
                     <div class="form-group">
                         <label for="threshold">Detection Threshold (%)</label>
                         <input type="number" id="threshold" min="50" max="100" value="80">
-                        <div class="help-text">Higher values require more exact matches (50-100)</div>
+                        <div class="help-text">
+                            <strong>Threshold Guide:</strong><br>
+                            • 50-60: Very lenient (may include false matches)<br>
+                            • 70-80: Balanced (recommended for most images)<br>
+                            • 85-95: Strict (high confidence matches only)<br>
+                            Higher values = more exact matches required
+                        </div>
                     </div>
 
                     <button type="submit" class="btn" id="submitBtn">
@@ -520,12 +526,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     Supported formats: JPG, PNG, GIF, BMP<br>
                     Selected file: ${file.name} (${fileSizeMB} MB, ${fileType})
                 `;
-            }
-        });
-    </script>
-
-
-</html></body>                console.log(`Selected file: ${file.name} (${fileSizeMB} MB)`);
             }
         });
     </script>
