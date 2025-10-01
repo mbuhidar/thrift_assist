@@ -227,8 +227,10 @@ def setup_google_credentials():
         print(f"❌ Error setting up credentials: {e}")
         return False
 
+
 # Setup credentials at startup
 setup_google_credentials()
+
 
 # API endpoints
 @app.get("/health", response_model=HealthResponse)
