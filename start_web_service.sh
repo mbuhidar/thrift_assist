@@ -3,43 +3,25 @@
 
 set -e  # Exit on any error
 
-echo "🚀 Starting ThriftAssist Web Service"
+echo "  Starting ThriftAssist Web Service"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Configuration
+# Configure for access via http://localhost:8000 or http://<server-ip>:8000
 HOST="0.0.0.0"
 PORT="8000"
 
-# Clean up function
+# Clean up function to stop background jobs on exit 
 cleanup() {
     echo "🛑 Stopping service..."
     jobs -p | xargs -r kill
     exit 0
 }
+
+# Invoke cleanup on script exit via Ctrl+C or termination
 trap cleanup SIGINT SIGTERM
-
-# Check Python
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 not found. Please install Python 3.8+"
-    exit 1
-fi
-
-# Create and activate virtual environment
-if [ ! -d "venv" ]; then
-    echo "📦 Creating virtual environment..."
-    python3 -m venv venv
-fi
-
-echo "🔧 Activating virtual environment..."
-source venv/bin/activate
-
-# Upgrade pip and install dependencies
-echo "📥 Installing dependencies..."
-python -m pip install --upgrade pip
-pip install fastapi uvicorn[standard] opencv-python numpy pydantic python-multipart
 
 # Set Google Cloud credentials if available
 if [ -f "credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json" ]; then
@@ -78,4 +60,3 @@ echo "⏹️  Press Ctrl+C to stop"
 echo ""
 
 uvicorn $MODULE --host $HOST --port $PORT --reload
-
