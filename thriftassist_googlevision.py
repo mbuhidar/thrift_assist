@@ -442,10 +442,22 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                         match_percentage = (total_matched_words / len(phrase_words)) * 100
                         
                         if match_percentage >= 70:  # At least 70% of phrase words found
+                            # Cap the percentage at 100% to prevent over-counting
+                            match_percentage = min(match_percentage, 100)
+                            
                             # Create combined line data
                             combined_text = current_line['text'] + ' ' + next_line['text']
                             combined_annotations = current_line.get('annotations', []) + next_line.get('annotations', [])
                             
+                            # Filter annotations to only matched words for exact spanning matches
+                            if match_percentage == 100:
+                                matched_word_texts = [match[2] for match in phrase_word_matches + next_line_matches]
+                                filtered_annotations = []
+                                for annotation in combined_annotations:
+                                    if annotation.description.lower() in matched_word_texts:
+                                        filtered_annotations.append(annotation)
+                                combined_annotations = filtered_annotations if filtered_annotations else combined_annotations
+            
                             spanning_match = {
                                 'text': combined_text,
                                 'annotations': combined_annotations,
@@ -458,7 +470,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                                 }
                             }
                             
-                            match_type = "exact_spanning" if match_percentage >= 95 else "fuzzy_spanning"
+                            match_type = "exact_spanning" if match_percentage == 100 else "fuzzy_spanning"
                             matches.append((spanning_match, match_percentage, match_type))
                             
                             # Break after finding first spanning match for this line
@@ -496,10 +508,22 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                         match_percentage = (total_matched_words / len(phrase_words)) * 100
                         
                         if match_percentage >= 70:
+                            # Cap the percentage at 100% to prevent over-counting
+                            match_percentage = min(match_percentage, 100)
+                            
                             # Create combined line data (previous line first)
                             combined_text = prev_line['text'] + ' ' + current_line['text']
                             combined_annotations = prev_line.get('annotations', []) + current_line.get('annotations', [])
                             
+                            # Filter annotations to only matched words for exact spanning matches
+                            if match_percentage == 100:
+                                matched_word_texts = [match[2] for match in prev_line_matches + phrase_word_matches]
+                                filtered_annotations = []
+                                for annotation in combined_annotations:
+                                    if annotation.description.lower() in matched_word_texts:
+                                        filtered_annotations.append(annotation)
+                                combined_annotations = filtered_annotations if filtered_annotations else combined_annotations
+            
                             spanning_match = {
                                 'text': combined_text,
                                 'annotations': combined_annotations,
@@ -512,7 +536,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                                 }
                             }
                             
-                            match_type = "exact_spanning" if match_percentage >= 95 else "fuzzy_spanning"
+                            match_type = "exact_spanning" if match_percentage == 100 else "fuzzy_spanning"
                             matches.append((spanning_match, match_percentage, match_type))
                             break
     
@@ -537,7 +561,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
 def draw_phrase_annotations(image, phrase_matches, phrase_colors=None, text_scale=100):
     """
     Draw bounding boxes around detected complete phrases.
-    Enhanced to fit text phrases more closely using exact word boundaries.
+    Enhanced to fit text phrases more closely using exact word boundaries with smart label placement.
     """
     annotated = image.copy()
     
@@ -621,32 +645,144 @@ def draw_phrase_annotations(image, phrase_matches, phrase_colors=None, text_scal
             (text_w, text_h), baseline = cv2.getTextSize(
                 label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
             
-            # Calculate initial label position
-            label_x = x1
-            label_y = max(text_h + 5, y1 - 10)
+            # Smart label positioning to avoid bounding boxes
+            height, width = annotated.shape[:2]
+            box_width = x2 - x1
+            box_height = y2 - y1
             
-            # Check for overlaps and adjust position with leader lines
+            # Define label positions with better spacing and priority
+            label_positions_to_try = [
+                # Above the box with centered alignment
+                (max(5, min(x1 + (box_width - text_w) // 2, width - text_w - 5)), 
+                 max(text_h + 10, y1 - text_h - 20)),
+                
+                # Below the box with centered alignment
+                (max(5, min(x1 + (box_width - text_w) // 2, width - text_w - 5)), 
+                 min(height - 15, y2 + text_h + 20)),
+                
+                # Left of the box, vertically centered
+                (max(5, x1 - text_w - 20), 
+                 max(text_h + 10, min(y1 + (box_height + text_h) // 2, height - 10))),
+                
+                # Right of the box, vertically centered
+                (min(width - text_w - 5, x2 + 20), 
+                 max(text_h + 10, min(y1 + (box_height + text_h) // 2, height - 10))),
+                
+                # Top-left corner with more spacing
+                (max(5, x1 - text_w - 20), max(text_h + 10, y1 - text_h - 20)),
+                
+                # Top-right corner with more spacing
+                (min(width - text_w - 5, x2 + 20), max(text_h + 10, y1 - text_h - 20)),
+                
+                # Bottom-left corner with more spacing
+                (max(5, x1 - text_w - 20), min(height - 15, y2 + text_h + 20)),
+                
+                # Bottom-right corner with more spacing
+                (min(width - text_w - 5, x2 + 20), min(height - 15, y2 + text_h + 20)),
+                
+                # Fallback: top-left of image
+                (10, text_h + 20)
+            ]
+            
+            # Find the best position that doesn't overlap with the bounding box
+            label_x, label_y = None, None
+            best_distance = 0
+            
+            for pos_x, pos_y in label_positions_to_try:
+                # Ensure position is within image bounds
+                if (pos_x < 5 or pos_y < text_h + 10 or 
+                    pos_x + text_w + 10 > width - 5 or pos_y > height - 10):
+                    continue
+                
+                label_rect_test = (pos_x, pos_y - text_h - 5, pos_x + text_w + 10, pos_y + 5)
+                box_rect = (x1, y1, x2, y2)
+                
+                # Check if this position overlaps with the bounding box
+                if not rectangles_overlap(label_rect_test, box_rect):
+                    # Calculate distance from box center for better placement
+                    box_center_x = (x1 + x2) // 2
+                    box_center_y = (y1 + y2) // 2
+                    label_center_x = pos_x + text_w // 2
+                    label_center_y = pos_y - text_h // 2
+                    
+                    distance = ((box_center_x - label_center_x) ** 2 + 
+                               (box_center_y - label_center_y) ** 2) ** 0.5
+                    
+                    # Prefer positions that are reasonably close but not overlapping
+                    if label_x is None or (distance > 20 and distance < best_distance):
+                        label_x, label_y = pos_x, pos_y
+                        best_distance = distance
+                        # If we found a good close position, use it
+                        if distance < 100:
+                            break
+            
+            # If no good position found, use the first valid one
+            if label_x is None or label_y is None:
+                for pos_x, pos_y in label_positions_to_try:
+                    if (pos_x >= 5 and pos_y >= text_h + 10 and 
+                        pos_x + text_w + 10 <= width - 5 and pos_y <= height - 10):
+                        label_x, label_y = pos_x, pos_y
+                        break
+                
+                # Last resort: force within bounds
+                if label_x is None or label_y is None:
+                    label_x = max(5, min(x1, width - text_w - 15))
+                    label_y = max(text_h + 10, min(y1 - text_h - 10, height - 10))
+            
+            # Check for overlaps with other labels and adjust position
             label_rect = (label_x, label_y - text_h - 5, label_x + text_w + 10, label_y + 5)
             adjusted_position = find_non_overlapping_position(label_rect, label_positions, annotated.shape)
             
-            if adjusted_position != label_rect:
-                # Draw leader line from bounding box to adjusted label position
+            # Ensure adjusted position is within bounds
+            adj_x1, adj_y1, adj_x2, adj_y2 = adjusted_position
+            adj_x1 = max(5, min(adj_x1, width - (adj_x2 - adj_x1) - 5))
+            adj_y1 = max(5, min(adj_y1, height - (adj_y2 - adj_y1) - 5))
+            adjusted_position = (adj_x1, adj_y1, adj_x1 + text_w + 10, adj_y1 + text_h + 10)
+            
+            # Check if we need a leader line
+            box_rect = (x1, y1, x2, y2)
+            needs_leader = (rectangles_overlap(adjusted_position, box_rect) or 
+                           adjusted_position != label_rect)
+            
+            if needs_leader:
+                # Draw leader line from closest edge of bounding box to label
                 box_center = ((x1 + x2) // 2, (y1 + y2) // 2)
-                label_center = (adjusted_position[0] + text_w // 2, adjusted_position[1] + text_h // 2)
+                label_center = (adjusted_position[0] + text_w // 2, 
+                               adjusted_position[1] + text_h // 2)
                 
-                # Draw thin leader line
-                cv2.line(annotated, box_center, label_center, color, 2)
+                # Find the closest point on the bounding box edge to the label
+                if label_center[0] < x1:  # Label is to the left
+                    line_start = (x1, max(y1, min(y2, label_center[1])))
+                elif label_center[0] > x2:  # Label is to the right
+                    line_start = (x2, max(y1, min(y2, label_center[1])))
+                elif label_center[1] < y1:  # Label is above
+                    line_start = (max(x1, min(x2, label_center[0])), y1)
+                else:  # Label is below
+                    line_start = (max(x1, min(x2, label_center[0])), y2)
+                
+                # Draw leader line with a small gap
+                cv2.line(annotated, line_start, label_center, color, 1)
                 
                 # Update label position
                 label_x = adjusted_position[0]
                 label_y = adjusted_position[1] + text_h
+            else:
+                # Use original position if no leader needed
+                if adjusted_position == label_rect:
+                    pass  # Keep original position
+                else:
+                    label_x = adjusted_position[0]
+                    label_y = adjusted_position[1] + text_h
             
             # Store the final position
             label_positions.append((label_x, label_y - text_h - 5, label_x + text_w + 10, label_y + 5))
             
-            # Draw background rectangle for text
-            cv2.rectangle(annotated, (label_x, label_y - text_h - 5), 
-                         (label_x + text_w + 10, label_y + 5), color, -1)
+            # Draw background rectangle for text with rounded corners effect
+            padding = 2
+            cv2.rectangle(annotated, 
+                         (label_x - padding, label_y - text_h - 5 - padding), 
+                         (label_x + text_w + 10 + padding, label_y + 5 + padding), 
+                         color, -1)
             
             # Draw the label text
             cv2.putText(annotated, label, (label_x + 5, label_y),
@@ -656,61 +792,67 @@ def draw_phrase_annotations(image, phrase_matches, phrase_colors=None, text_scal
 
 def find_non_overlapping_position(rect, existing_positions, image_shape):
     """
-    Find a position for the label that doesn't overlap with existing labels.
-    
-    Args:
-        rect: (x1, y1, x2, y2) - desired rectangle position
-        existing_positions: List of existing label rectangles
-        image_shape: (height, width, channels) of the image
-    
-    Returns:
-        Adjusted rectangle position (x1, y1, x2, y2)
+    Enhanced position finder that better avoids overlaps with improved spacing.
     """
     x1, y1, x2, y2 = rect
     width = x2 - x1
     height = y2 - y1
+    img_height, img_width = image_shape[:2]
     
     # Check if current position overlaps with any existing label
     for existing_rect in existing_positions:
         if rectangles_overlap(rect, existing_rect):
-            # Try positions around the original location
+            # Try positions with better spacing
+            spacing = 15  # Increased spacing between labels
             offsets = [
-                (0, -height - 10),    # Above
-                (0, height + 10),     # Below
-                (-width - 10, 0),     # Left
-                (width + 10, 0),      # Right
-                (-width - 10, -height - 10),  # Top-left
-                (width + 10, -height - 10),   # Top-right
-                (-width - 10, height + 10),   # Bottom-left
-                (width + 10, height + 10),    # Bottom-right
+                (0, -height - spacing),              # Above
+                (0, height + spacing),               # Below
+                (-width - spacing, 0),               # Left
+                (width + spacing, 0),                # Right
+                (-width - spacing, -height - spacing),   # Top-left
+                (width + spacing, -height - spacing),    # Top-right
+                (-width - spacing, height + spacing),    # Bottom-left
+                (width + spacing, height + spacing),     # Bottom-right
+                # Additional diagonal positions
+                (-width//2, -height - spacing),      # Top-center-left
+                (width//2, -height - spacing),       # Top-center-right
+                (-width//2, height + spacing),       # Bottom-center-left
+                (width//2, height + spacing),        # Bottom-center-right
             ]
             
             for dx, dy in offsets:
-                new_x1 = max(0, min(x1 + dx, image_shape[1] - width))
-                new_y1 = max(0, min(y1 + dy, image_shape[0] - height))
-                new_rect = (new_x1, new_y1, new_x1 + width, new_y1 + height)
+                new_x1 = x1 + dx
+                new_y1 = y1 + dy
                 
-                # Check if this position is clear
-                if not any(rectangles_overlap(new_rect, existing) for existing in existing_positions):
-                    return new_rect
+                # Ensure the new position stays within image bounds with margin
+                margin = 5
+                if (new_x1 >= margin and new_y1 >= margin and 
+                    new_x1 + width <= img_width - margin and 
+                    new_y1 + height <= img_height - margin):
+                    
+                    new_rect = (new_x1, new_y1, new_x1 + width, new_y1 + height)
+                    
+                    # Check if this position is clear of all existing positions
+                    if not any(rectangles_overlap(new_rect, existing) for existing in existing_positions):
+                        return new_rect
             
-            # If no clear position found, use a stacked position
+            # If no clear position found, use improved stacked position
             return find_stacked_position(rect, existing_positions, image_shape)
     
-    return rect
-
-def rectangles_overlap(rect1, rect2):
-    """Check if two rectangles overlap."""
-    x1a, y1a, x2a, y2a = rect1
-    x1b, y1b, x2b, y2b = rect2
-    
-    return not (x2a <= x1b or x2b <= x1a or y2a <= y1b or y2b <= y1a)
+    # If no overlap, ensure the original position is within bounds
+    margin = 5
+    x1 = max(margin, min(x1, img_width - width - margin))
+    y1 = max(margin, min(y1, img_height - height - margin))
+    return (x1, y1, x1 + width, y1 + height)
 
 def find_stacked_position(rect, existing_positions, image_shape):
-    """Find a position by stacking labels vertically."""
+    """
+    Find a position by stacking labels vertically within image bounds.
+    """
     x1, y1, x2, y2 = rect
     width = x2 - x1
     height = y2 - y1
+    img_height, img_width = image_shape[:2]
     
     # Find the lowest existing label in the area
     max_y = 0
@@ -720,16 +862,27 @@ def find_stacked_position(rect, existing_positions, image_shape):
         if not (x2 <= ex1 or ex2 <= x1):
             max_y = max(max_y, ey2)
     
-    # Place new label below the lowest one
-    new_y1 = max_y + 5
+    # Place new label below the lowest one, but within image bounds
+    new_y1 = min(max_y + 5, img_height - height - 5)
     new_y2 = new_y1 + height
     
-    # Ensure it fits in the image
-    if new_y2 > image_shape[0]:
-        new_y1 = max(0, image_shape[0] - height)
-        new_y2 = new_y1 + height
+    # Ensure x coordinates are within bounds
+    new_x1 = max(0, min(x1, img_width - width))
     
-    return (x1, new_y1, x2, new_y2)
+    # If we can't fit vertically, try horizontally
+    if new_y1 <= 0:
+        # Find rightmost label and place to the right
+        max_x = 0
+        for existing_rect in existing_positions:
+            ex1, ey1, ex2, ey2 = existing_rect
+            # Check if labels are in similar vertical area
+            if not (y2 <= ey1 or ey2 <= y1):
+                max_x = max(max_x, ex2)
+        
+        new_x1 = min(max_x + 5, img_width - width - 5)
+        new_y1 = max(0, min(y1, img_height - height))
+    
+    return (new_x1, new_y1, new_x1 + width, new_y1 + height)
 
 def detect_and_annotate_phrases(image_path, search_phrases=None, 
                                threshold=75, show_plot=True, text_scale=100):
@@ -1004,3 +1157,10 @@ def enhance_match_with_word_boundaries(line, original_phrase, phrase_normalized,
             enhanced_line['annotations'] = phrase_annotations
     
     return enhanced_line
+
+def rectangles_overlap(rect1, rect2):
+    """Check if two rectangles overlap."""
+    x1a, y1a, x2a, y2a = rect1
+    x1b, y1b, x2b, y2b = rect2
+    
+    return not (x2a <= x1b or x2b <= x1a or y2a <= y1b or y2b <= y1a)
