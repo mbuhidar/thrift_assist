@@ -790,6 +790,99 @@ def draw_phrase_annotations(image, phrase_matches, phrase_colors=None, text_scal
     
     return annotated
 
+def find_safe_label_position(x1, y1, x2, y2, text_w, text_h, all_boxes, existing_labels, img_width, img_height):
+    """
+    Find a safe position for the label that doesn't overlap with any bounding boxes or existing labels.
+    Prioritizes positions closer to the bounding box.
+    """
+    box_width = x2 - x1
+    box_height = y2 - y1
+    
+    # Reduced spacing for closer placement - prioritize proximity over distance
+    close_spacing = 15  # Closer to bounding box
+    medium_spacing = 25  # Medium distance
+    far_spacing = 40    # Farther away as fallback
+    
+    # Prioritized positions - closest first, then medium, then far
+    positions_to_try = [
+        # CLOSE positions - prioritize these
+        # Above box - close
+        (max(5, min(x1 + (box_width - text_w) // 2, img_width - text_w - 5)), 
+         max(text_h + 10, y1 - text_h - close_spacing)),
+        
+        # Below box - close
+        (max(5, min(x1 + (box_width - text_w) // 2, img_width - text_w - 5)), 
+         min(img_height - 15, y2 + text_h + close_spacing)),
+        
+        # Left of box - close
+        (max(5, x1 - text_w - close_spacing), 
+         max(text_h + 10, min(y1 + (box_height + text_h) // 2, img_height - 10))),
+        
+        # Right of box - close
+        (min(img_width - text_w - 5, x2 + close_spacing), 
+         max(text_h + 10, min(y1 + (box_height + text_h) // 2, img_height - 10))),
+        
+        # MEDIUM positions
+        # Above box - medium
+        (max(5, min(x1 + (box_width - text_w) // 2, img_width - text_w - 5)), 
+         max(text_h + 10, y1 - text_h - medium_spacing)),
+        
+        # Below box - medium
+        (max(5, min(x1 + (box_width - text_w) // 2, img_width - text_w - 5)), 
+         min(img_height - 15, y2 + text_h + medium_spacing)),
+        
+        # Left of box - medium
+        (max(5, x1 - text_w - medium_spacing), 
+         max(text_h + 10, min(y1 + (box_height + text_h) // 2, img_height - 10))),
+        
+        # Right of box - medium
+        (min(img_width - text_w - 5, x2 + medium_spacing), 
+         max(text_h + 10, min(y1 + (box_height + text_h) // 2, img_height - 10))),
+        
+        # Corner positions - close first
+        (max(5, x1 - text_w - close_spacing), max(text_h + 10, y1 - text_h - close_spacing)),  # Top-left close
+        (min(img_width - text_w - 5, x2 + close_spacing), max(text_h + 10, y1 - text_h - close_spacing)),  # Top-right close
+        (max(5, x1 - text_w - close_spacing), min(img_height - 15, y2 + text_h + close_spacing)),  # Bottom-left close
+        (min(img_width - text_w - 5, x2 + close_spacing), min(img_height - 15, y2 + text_h + close_spacing)),  # Bottom-right close
+        
+        # FAR positions - only as fallback
+        (max(5, min(x1 + (box_width - text_w) // 2, img_width - text_w - 5)), 
+         max(text_h + 10, y1 - text_h - far_spacing)),  # Above far
+        
+        (max(5, min(x1 + (box_width - text_w) // 2, img_width - text_w - 5)), 
+         min(img_height - 15, y2 + text_h + far_spacing)),  # Below far
+    ]
+    
+    for pos_x, pos_y in positions_to_try:
+        # Ensure position is within image bounds
+        if (pos_x < 5 or pos_y < text_h + 10 or 
+            pos_x + text_w + 10 > img_width - 5 or pos_y > img_height - 10):
+            continue
+        
+        test_rect = (pos_x, pos_y - text_h - 5, pos_x + text_w + 10, pos_y + 5)
+        
+        # Check if this position is safe from all constraints
+        is_safe = True
+        
+        # Check against all bounding boxes
+        for box in all_boxes:
+            if rectangles_overlap(test_rect, box):
+                is_safe = False
+                break
+        
+        # Check against existing labels
+        if is_safe:
+            for existing_label in existing_labels:
+                if rectangles_overlap(test_rect, existing_label):
+                    is_safe = False
+                    break
+        
+        if is_safe:
+            return pos_x, pos_y
+    
+    # If no safe position found, return a fallback position that will trigger leader line
+    return max(5, min(x1, img_width - text_w - 15)), max(text_h + 10, y1 - text_h - 10)
+
 def find_non_overlapping_position(rect, existing_positions, image_shape):
     """
     Enhanced position finder that better avoids overlaps with improved spacing.
@@ -883,6 +976,50 @@ def find_stacked_position(rect, existing_positions, image_shape):
         new_y1 = max(0, min(y1, img_height - height))
     
     return (new_x1, new_y1, new_x1 + width, new_y1 + height)
+
+def rectangles_overlap(rect1, rect2):
+    """Check if two rectangles overlap."""
+    x1a, y1a, x2a, y2a = rect1
+    x1b, y1b, x2b, y2b = rect2
+    
+    return not (x2a <= x1b or x2b <= x1a or y2a <= y1b or y2b <= y1a)
+
+def enhance_match_with_word_boundaries(line, original_phrase, phrase_normalized, line_text_normalized):
+    """
+    Enhance a matched line with precise word boundary information for tighter bounding boxes.
+    """
+    enhanced_line = line.copy()
+    
+    if 'annotations' not in line or not line['annotations']:
+        return enhanced_line
+    
+    # Find which words in the line correspond to our phrase
+    phrase_words = phrase_normalized.split()
+    line_words = line_text_normalized.split()
+    
+    # Find the starting position of our phrase in the line
+    phrase_start_idx = None
+    for i in range(len(line_words) - len(phrase_words) + 1):
+        if line_words[i:i+len(phrase_words)] == phrase_words:
+            phrase_start_idx = i
+            break
+    
+    if phrase_start_idx is not None:
+        # Select only the annotations that correspond to our phrase words
+        phrase_annotations = []
+        word_count = 0
+        
+        for annotation in line['annotations']:
+            if phrase_start_idx <= word_count < phrase_start_idx + len(phrase_words):
+                phrase_annotations.append(annotation)
+            word_count += len(annotation.description.split())
+            if word_count > phrase_start_idx + len(phrase_words):
+                break
+        
+        if phrase_annotations:
+            enhanced_line['annotations'] = phrase_annotations
+    
+    return enhanced_line
 
 def detect_and_annotate_phrases(image_path, search_phrases=None, 
                                threshold=75, show_plot=True, text_scale=100):
@@ -1119,48 +1256,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-def enhance_match_with_word_boundaries(line, original_phrase, phrase_normalized, line_text_normalized):
-    """
-    Enhance a matched line with precise word boundary information for tighter bounding boxes.
-    """
-    enhanced_line = line.copy()
-    
-    if 'annotations' not in line or not line['annotations']:
-        return enhanced_line
-    
-    # Find which words in the line correspond to our phrase
-    phrase_words = phrase_normalized.split()
-    line_words = line_text_normalized.split()
-    
-    # Find the starting position of our phrase in the line
-    phrase_start_idx = None
-    for i in range(len(line_words) - len(phrase_words) + 1):
-        if line_words[i:i+len(phrase_words)] == phrase_words:
-            phrase_start_idx = i
-            break
-    
-    if phrase_start_idx is not None:
-        # Select only the annotations that correspond to our phrase words
-        phrase_annotations = []
-        word_count = 0
-        
-        for annotation in line['annotations']:
-            if phrase_start_idx <= word_count < phrase_start_idx + len(phrase_words):
-                phrase_annotations.append(annotation)
-            word_count += len(annotation.description.split())
-            if word_count > phrase_start_idx + len(phrase_words):
-                break
-        
-        if phrase_annotations:
-            enhanced_line['annotations'] = phrase_annotations
-    
-    return enhanced_line
-
-def rectangles_overlap(rect1, rect2):
-    """Check if two rectangles overlap."""
-    x1a, y1a, x2a, y2a = rect1
-    x1b, y1b, x2b, y2b = rect2
-    
-    return not (x2a <= x1b or x2b <= x1a or y2a <= y1b or y2b <= y1a)
