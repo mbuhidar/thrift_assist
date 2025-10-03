@@ -39,6 +39,7 @@ try:
         COMMON_WORDS
     )
     OCR_MODULE_AVAILABLE = True
+
 except ImportError as e:
     print(f"⚠️ OCR module not available: {e}")
     # Create stub functions for deployment testing

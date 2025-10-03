@@ -1,1 +1,1 @@
-# thrift_assist
+# ThriftAssist - OCR Phrase Detection

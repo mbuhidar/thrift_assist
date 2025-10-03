@@ -3,7 +3,7 @@
 
 set -e  # Exit on any error
 
-echo "  Starting ThriftAssist Web Service"
+echo "🚀 Starting ThriftAssist Web Service"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

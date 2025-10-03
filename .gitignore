@@ -182,6 +182,7 @@ secrets/
 credentials/
 Archive/
 archive/
+reference/
 # Video files
 *.mp4
 
