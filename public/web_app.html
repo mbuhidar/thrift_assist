@@ -82,6 +82,7 @@
 
         .form-group input[type="file"],
         .form-group input[type="number"],
+        .form-group input[type="range"],
         .form-group textarea {
             width: 100%;
             padding: 12px;
@@ -91,11 +92,49 @@
             transition: border-color 0.3s ease;
         }
 
-        .form-group input:focus,
-        .form-group textarea:focus {
+        .form-group input[type="range"] {
+            padding: 0;
+            height: 8px;
+            background: #e2e8f0;
             outline: none;
-            border-color: #5a67d8;
-            box-shadow: 0 0 0 3px rgba(90,103,216,0.1);
+            cursor: pointer;
+        }
+
+        .form-group input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #5a67d8;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .form-group input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #5a67d8;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-container {
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .slider-value {
+            font-weight: 600;
+            color: #5a67d8;
         }
 
         .form-group textarea {
@@ -263,7 +302,14 @@
 
                     <div class="form-group">
                         <label for="threshold">Detection Threshold (%)</label>
-                        <input type="number" id="threshold" min="50" max="100" value="80">
+                        <div class="slider-container">
+                            <input type="range" id="threshold" min="50" max="100" value="80" step="5">
+                            <div class="slider-labels">
+                                <span>50%</span>
+                                <span id="thresholdValue" class="slider-value">80%</span>
+                                <span>100%</span>
+                            </div>
+                        </div>
                         <div class="help-text">
                             <strong>Threshold Guide:</strong><br>
                             • 50-60: Very lenient (may include false matches)<br>
@@ -271,6 +317,19 @@
                             • 85-95: Strict (high confidence matches only)<br>
                             Higher values = more exact matches required
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="textScale">Annotation Text Size (%)</label>
+                        <div class="slider-container">
+                            <input type="range" id="textScale" min="50" max="200" value="100" step="10">
+                            <div class="slider-labels">
+                                <span>50%</span>
+                                <span id="textScaleValue" class="slider-value">100%</span>
+                                <span>200%</span>
+                            </div>
+                        </div>
+                        <div class="help-text">Adjust size of annotation text on detected phrases</div>
                     </div>
 
                     <button type="submit" class="btn" id="submitBtn">
@@ -370,6 +429,16 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
         }
         
+        // Update threshold value display
+        document.getElementById('threshold').addEventListener('input', function() {
+            document.getElementById('thresholdValue').textContent = this.value + '%';
+        });
+        
+        // Update text scale value display
+        document.getElementById('textScale').addEventListener('input', function() {
+            document.getElementById('textScaleValue').textContent = this.value + '%';
+        });
+        
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -377,6 +446,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const imageFile = document.getElementById('imageFile').files[0];
             const searchPhrasesText = document.getElementById('searchPhrases').value;
             const threshold = document.getElementById('threshold').value;
+            const textScale = document.getElementById('textScale').value;  // Get text scale value
             
             if (!imageFile) {
                 showError('Please select an image file');
@@ -406,6 +476,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 formData.append('file', imageFile);
                 formData.append('search_phrases', JSON.stringify(searchPhrases));
                 formData.append('threshold', threshold);
+                formData.append('text_scale', textScale);  // Add text scale to form data
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',

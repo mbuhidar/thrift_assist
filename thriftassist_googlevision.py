@@ -363,7 +363,9 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
         
         # Exact substring match (highest priority)
         if phrase_normalized in line_text_normalized:
-            matches.append((line, 100, "complete_phrase"))
+            # Find the exact word boundaries for tighter bounding box
+            enhanced_line = enhance_match_with_word_boundaries(line, phrase, phrase_normalized, line_text_normalized)
+            matches.append((enhanced_line, 100, "complete_phrase"))
             continue
         
         # High-threshold fuzzy matching for complete phrases only
@@ -532,240 +534,205 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
     return unique_matches
 
 
-def draw_phrase_annotations(image, phrase_matches, phrase_colors=None):
+def draw_phrase_annotations(image, phrase_matches, phrase_colors=None, text_scale=100):
     """
     Draw bounding boxes around detected complete phrases.
-    Enhanced to align bounding boxes with text direction and orientation.
-    
-    Args:
-        image: Input image (BGR format)
-        phrase_matches: Dictionary of phrase -> list of matches
-        phrase_colors: Dictionary of phrase -> color (BGR)
-    
-    Returns:
-        Annotated image
+    Enhanced to fit text phrases more closely using exact word boundaries.
     """
-    if phrase_colors is None:
-        # All phrases use green color
-        green_color = (0, 255, 0)  # Green in BGR format
-        phrase_colors = {}
-        for phrase in phrase_matches.keys():
-            phrase_colors[phrase] = green_color
-    
     annotated = image.copy()
     
+    if not phrase_matches:
+        return annotated
+    
+    # Set up default colors for phrases if not provided
+    if phrase_colors is None:
+        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), 
+                  (255, 0, 255), (0, 255, 255), (128, 0, 128), (255, 165, 0)]
+        phrase_colors = {phrase: colors[i % len(colors)] 
+                        for i, phrase in enumerate(phrase_matches.keys())}
+    
+    # Collect all text label positions to detect overlaps
+    label_positions = []
+    
     for phrase, matches in phrase_matches.items():
-        color = phrase_colors.get(phrase, (0, 255, 0))
+        color = phrase_colors.get(phrase, (255, 0, 0))
         
         for match_data, score, match_type in matches:
-            # Get annotations for this line/phrase
-            annotations = match_data.get('annotations', [])
-            if not annotations:
+            # Extract bounding box coordinates more precisely
+            x1, y1, x2, y2 = None, None, None, None
+            
+            if 'annotations' in match_data and match_data['annotations']:
+                # Calculate tight bounding box from actual matched words
+                phrase_words = phrase.lower().split()
+                matched_annotations = []
+                
+                # Find annotations that correspond to our phrase words
+                for annotation in match_data['annotations']:
+                    annotation_text = annotation.description.lower()
+                    # Check if this annotation contains any of our phrase words
+                    if any(word in annotation_text or annotation_text in word for word in phrase_words):
+                        matched_annotations.append(annotation)
+                
+                # If we found specific word matches, use those; otherwise use all annotations
+                target_annotations = matched_annotations if matched_annotations else match_data['annotations']
+                
+                # Calculate tight bounding box from target annotations
+                all_x_coords = []
+                all_y_coords = []
+                
+                for annotation in target_annotations:
+                    if hasattr(annotation, 'bounding_poly') and annotation.bounding_poly.vertices:
+                        for vertex in annotation.bounding_poly.vertices:
+                            all_x_coords.append(vertex.x)
+                            all_y_coords.append(vertex.y)
+                
+                if all_x_coords and all_y_coords:
+                    # Add small padding for better visibility
+                    padding = 3
+                    x1 = min(all_x_coords) - padding
+                    y1 = min(all_y_coords) - padding
+                    x2 = max(all_x_coords) + padding
+                    y2 = max(all_y_coords) + padding
+            
+            # If still no coordinates found, skip this match
+            if any(coord is None for coord in [x1, y1, x2, y2]):
+                print(f"WARNING: No bounding box coordinates found for '{phrase}', skipping annotation")
                 continue
             
-            # Get the text angle from the match data
-            text_angle = match_data.get('angle', 0)
+            # Ensure coordinates are valid and within image bounds
+            height, width = annotated.shape[:2]
+            x1 = max(0, min(int(x1), width - 1))
+            y1 = max(0, min(int(y1), height - 1))
+            x2 = max(x1 + 1, min(int(x2), width))
+            y2 = max(y1 + 1, min(int(y2), height))
             
-            # Find the specific words in line that match the phrase
-            line_text_normalized = normalize_text_for_search(match_data.get('text', ''))
-            phrase_normalized = normalize_text_for_search(phrase)
-            phrase_words = phrase_normalized.split()
+            # Draw tighter bounding box
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
             
-            # Calculate precise bounding box for ONLY the phrase words
-            phrase_annotations = []
-            
-            if phrase_normalized in line_text_normalized:
-                # Find exact phrase match - get only the words that are part of the phrase
-                phrase_start_idx = line_text_normalized.find(phrase_normalized)
-                
-                # Split the line into words and find which words correspond to the phrase
-                line_words = line_text_normalized.split()
-                phrase_word_list = phrase_normalized.split()
-                
-                # Find the starting word index
-                for start_idx in range(len(line_words) - len(phrase_word_list) + 1):
-                    window = ' '.join(line_words[start_idx:start_idx + len(phrase_word_list)])
-                    if window == phrase_normalized:
-                        # Found the exact phrase - get corresponding annotations
-                        phrase_annotations = annotations[start_idx:start_idx + len(phrase_word_list)]
-                        break
-                
-                # Fallback: if we couldn't match exactly, try fuzzy word matching
-                if not phrase_annotations:
-                    for phrase_word in phrase_word_list:
-                        for i, annotation in enumerate(annotations):
-                            word_normalized = normalize_text_for_search(annotation.description)
-                            if (phrase_word == word_normalized or 
-                                (FUZZY_AVAILABLE and fuzz.ratio(phrase_word, word_normalized) > 85)):
-                                if annotation not in phrase_annotations:
-                                    phrase_annotations.append(annotation)
-            else:
-                # For fuzzy matches, try to match individual words more precisely
-                line_words = [normalize_text_for_search(ann.description) for ann in annotations]
-                
-                # Try to find consecutive words that match the phrase
-                for start_idx in range(len(line_words) - len(phrase_words) + 1):
-                    match_count = 0
-                    temp_annotations = []
-                    
-                    for i, phrase_word in enumerate(phrase_words):
-                        if start_idx + i < len(line_words):
-                            line_word = line_words[start_idx + i]
-                            if (phrase_word in line_word or line_word in phrase_word or
-                                (FUZZY_AVAILABLE and fuzz.ratio(phrase_word, line_word) > 75)):
-                                match_count += 1
-                                temp_annotations.append(annotations[start_idx + i])
-                    
-                    # If we matched most of the phrase words consecutively
-                    if match_count >= len(phrase_words) * 0.7:  # 70% match threshold
-                        phrase_annotations = temp_annotations
-                        break
-                
-                # Fallback: individual word matching if consecutive matching failed
-                if not phrase_annotations:
-                    for phrase_word in phrase_words:
-                        for i, (line_word, annotation) in enumerate(zip(line_words, annotations)):
-                            if (phrase_word in line_word or line_word in phrase_word or
-                                (FUZZY_AVAILABLE and fuzz.ratio(phrase_word, line_word) > 80)):
-                                if annotation not in phrase_annotations:
-                                    phrase_annotations.append(annotation)
-            
-            # If we still couldn't find specific words, limit to reasonable subset
-            if not phrase_annotations and len(annotations) > 3:
-                # Take only the first few words to avoid huge bounding boxes
-                max_words = min(len(phrase_words) + 1, len(annotations), 3)
-                phrase_annotations = annotations[:max_words]
-            elif not phrase_annotations:
-                phrase_annotations = annotations
-            
-            # Create aligned bounding box based on text direction
-            if len(phrase_annotations) == 1:
-                # Single word - use original oriented bounding box vertices
-                annotation = phrase_annotations[0]
-                if annotation.bounding_poly.vertices:
-                    vertices = annotation.bounding_poly.vertices
-                    pts = np.array([(v.x, v.y) for v in vertices], dtype=np.int32)
-                    
-                    # Draw the oriented bounding box
-                    cv2.polylines(annotated, [pts], True, color, 3)
-                    
-                    # Calculate label position based on text orientation
-                    if abs(text_angle) < 15:  # Horizontal text
-                        label_x = min(v.x for v in vertices)
-                        label_y = min(v.y for v in vertices)
-                    elif abs(text_angle - 90) < 15:  # Vertical text (90°)
-                        label_x = max(v.x for v in vertices)
-                        label_y = min(v.y for v in vertices)
-                    elif abs(text_angle + 90) < 15:  # Vertical text (-90°)
-                        label_x = min(v.x for v in vertices)
-                        label_y = max(v.y for v in vertices)
-                    else:  # Diagonal text
-                        # Use center point for diagonal orientations
-                        label_x = sum(v.x for v in vertices) // 4
-                        label_y = min(v.y for v in vertices)
-            else:
-                # Multiple words - create oriented bounding rectangle aligned with text
-                all_points = []
-                for annotation in phrase_annotations:
-                    if annotation.bounding_poly.vertices:
-                        for vertex in annotation.bounding_poly.vertices:
-                            all_points.append([vertex.x, vertex.y])
-                
-                if len(all_points) >= 4:
-                    points = np.array(all_points, dtype=np.float32)
-                    
-                    # Always use minimum area rectangle to align with text direction
-                    rect = cv2.minAreaRect(points)
-                    box_points = cv2.boxPoints(rect)
-                    box_points = np.int32(box_points)
-                    
-                    # Draw the oriented bounding box
-                    cv2.polylines(annotated, [box_points], True, color, 3)
-                    
-                    # Calculate label position based on text orientation
-                    center_x, center_y = rect[0]
-                    angle_rad = np.radians(rect[2])
-                    
-                    if abs(text_angle) < 15:  # Horizontal text
-                        label_x = int(min(box_points[:, 0]))
-                        label_y = int(min(box_points[:, 1]))
-                    elif abs(text_angle - 90) < 15:  # Vertical text (90°)
-                        label_x = int(max(box_points[:, 0]))
-                        label_y = int(min(box_points[:, 1]))
-                    elif abs(text_angle + 90) < 15:  # Vertical text (-90°)
-                        label_x = int(min(box_points[:, 0]))
-                        label_y = int(max(box_points[:, 1]))
-                    elif abs(abs(text_angle) - 180) < 15:  # Upside-down text
-                        label_x = int(max(box_points[:, 0]))
-                        label_y = int(max(box_points[:, 1]))
-                    else:  # Diagonal text
-                        # For diagonal text, place label at the "top" relative to reading direction
-                        label_x = int(min(box_points[:, 0]))
-                        label_y = int(min(box_points[:, 1]))
-                else:
-                    continue
-            
-            # Add text label with background, positioned based on text orientation
+            # Add text label with background
             label = f"{phrase} ({score:.0f}%)"
             
-            # Calculate text size for background
+            # Calculate text size for background - SCALABLE FONT SIZE
+            base_font_scale = 0.8
+            font_scale = base_font_scale * (text_scale / 100.0)
+            base_thickness = 2
+            thickness = max(1, int(base_thickness * (text_scale / 100.0)))
+            
             (text_w, text_h), baseline = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
             
-            # Position label based on text orientation
-            if abs(text_angle) < 15:  # Horizontal text
-                # Place label above the text
-                bg_x1, bg_y1 = label_x, label_y - text_h - 10
-                bg_x2, bg_y2 = label_x + text_w + 4, label_y - 4
-                text_x, text_y = label_x + 2, label_y - 7
-            elif abs(text_angle - 90) < 15:  # Vertical text (90°)
-                # Place label to the right of vertical text
-                bg_x1, bg_y1 = label_x + 5, label_y
-                bg_x2, bg_y2 = label_x + text_w + 9, label_y + text_h + 4
-                text_x, text_y = label_x + 7, label_y + text_h
-            elif abs(text_angle + 90) < 15:  # Vertical text (-90°)
-                # Place label to the left of vertical text
-                bg_x1, bg_y1 = label_x - text_w - 9, label_y - text_h - 4
-                bg_x2, bg_y2 = label_x - 5, label_y
-                text_x, text_y = label_x - text_w - 7, label_y - 4
-            elif abs(abs(text_angle) - 180) < 15:  # Upside-down text
-                # Place label below upside-down text
-                bg_x1, bg_y1 = label_x - text_w - 4, label_y + 4
-                bg_x2, bg_y2 = label_x, label_y + text_h + 10
-                text_x, text_y = label_x - text_w - 2, label_y + text_h + 7
-            else:  # Diagonal text
-                # For diagonal text, use offset positioning
-                offset_x = int(20 * np.cos(np.radians(text_angle + 90)))
-                offset_y = int(20 * np.sin(np.radians(text_angle + 90)))
+            # Calculate initial label position
+            label_x = x1
+            label_y = max(text_h + 5, y1 - 10)
+            
+            # Check for overlaps and adjust position with leader lines
+            label_rect = (label_x, label_y - text_h - 5, label_x + text_w + 10, label_y + 5)
+            adjusted_position = find_non_overlapping_position(label_rect, label_positions, annotated.shape)
+            
+            if adjusted_position != label_rect:
+                # Draw leader line from bounding box to adjusted label position
+                box_center = ((x1 + x2) // 2, (y1 + y2) // 2)
+                label_center = (adjusted_position[0] + text_w // 2, adjusted_position[1] + text_h // 2)
                 
-                bg_x1 = label_x + offset_x
-                bg_y1 = label_y + offset_y
-                bg_x2 = bg_x1 + text_w + 4
-                bg_y2 = bg_y1 + text_h + 4
-                text_x = bg_x1 + 2
-                text_y = bg_y1 + text_h
+                # Draw thin leader line
+                cv2.line(annotated, box_center, label_center, color, 2)
+                
+                # Update label position
+                label_x = adjusted_position[0]
+                label_y = adjusted_position[1] + text_h
             
-            # Ensure label stays within image bounds
-            img_h, img_w = annotated.shape[:2]
-            bg_x1 = max(0, min(bg_x1, img_w - text_w - 4))
-            bg_y1 = max(0, min(bg_y1, img_h - text_h - 4))
-            bg_x2 = max(text_w + 4, min(bg_x2, img_w))
-            bg_y2 = max(text_h + 4, min(bg_y2, img_h))
-            text_x = bg_x1 + 2
-            text_y = bg_y1 + text_h
+            # Store the final position
+            label_positions.append((label_x, label_y - text_h - 5, label_x + text_w + 10, label_y + 5))
             
             # Draw background rectangle for text
-            cv2.rectangle(annotated, (bg_x1, bg_y1), (bg_x2, bg_y2), color, -1)
+            cv2.rectangle(annotated, (label_x, label_y - text_h - 5), 
+                         (label_x + text_w + 10, label_y + 5), color, -1)
             
             # Draw the label text
-            cv2.putText(annotated, label, (text_x, text_y),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            cv2.putText(annotated, label, (label_x + 5, label_y),
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
     
     return annotated
 
+def find_non_overlapping_position(rect, existing_positions, image_shape):
+    """
+    Find a position for the label that doesn't overlap with existing labels.
+    
+    Args:
+        rect: (x1, y1, x2, y2) - desired rectangle position
+        existing_positions: List of existing label rectangles
+        image_shape: (height, width, channels) of the image
+    
+    Returns:
+        Adjusted rectangle position (x1, y1, x2, y2)
+    """
+    x1, y1, x2, y2 = rect
+    width = x2 - x1
+    height = y2 - y1
+    
+    # Check if current position overlaps with any existing label
+    for existing_rect in existing_positions:
+        if rectangles_overlap(rect, existing_rect):
+            # Try positions around the original location
+            offsets = [
+                (0, -height - 10),    # Above
+                (0, height + 10),     # Below
+                (-width - 10, 0),     # Left
+                (width + 10, 0),      # Right
+                (-width - 10, -height - 10),  # Top-left
+                (width + 10, -height - 10),   # Top-right
+                (-width - 10, height + 10),   # Bottom-left
+                (width + 10, height + 10),    # Bottom-right
+            ]
+            
+            for dx, dy in offsets:
+                new_x1 = max(0, min(x1 + dx, image_shape[1] - width))
+                new_y1 = max(0, min(y1 + dy, image_shape[0] - height))
+                new_rect = (new_x1, new_y1, new_x1 + width, new_y1 + height)
+                
+                # Check if this position is clear
+                if not any(rectangles_overlap(new_rect, existing) for existing in existing_positions):
+                    return new_rect
+            
+            # If no clear position found, use a stacked position
+            return find_stacked_position(rect, existing_positions, image_shape)
+    
+    return rect
+
+def rectangles_overlap(rect1, rect2):
+    """Check if two rectangles overlap."""
+    x1a, y1a, x2a, y2a = rect1
+    x1b, y1b, x2b, y2b = rect2
+    
+    return not (x2a <= x1b or x2b <= x1a or y2a <= y1b or y2b <= y1a)
+
+def find_stacked_position(rect, existing_positions, image_shape):
+    """Find a position by stacking labels vertically."""
+    x1, y1, x2, y2 = rect
+    width = x2 - x1
+    height = y2 - y1
+    
+    # Find the lowest existing label in the area
+    max_y = 0
+    for existing_rect in existing_positions:
+        ex1, ey1, ex2, ey2 = existing_rect
+        # Check if labels are in similar horizontal area
+        if not (x2 <= ex1 or ex2 <= x1):
+            max_y = max(max_y, ey2)
+    
+    # Place new label below the lowest one
+    new_y1 = max_y + 5
+    new_y2 = new_y1 + height
+    
+    # Ensure it fits in the image
+    if new_y2 > image_shape[0]:
+        new_y1 = max(0, image_shape[0] - height)
+        new_y2 = new_y1 + height
+    
+    return (x1, new_y1, x2, new_y2)
 
 def detect_and_annotate_phrases(image_path, search_phrases=None, 
-                               threshold=75, show_plot=True):
+                               threshold=75, show_plot=True, text_scale=100):
     """
     Detect and visually annotate phrases in an image.
     
@@ -773,22 +740,8 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
         image_path: Path to image file
         search_phrases: List of phrases to search for (required)
         threshold: Fuzzy matching threshold (50-100, default=75)
-                  
-    THRESHOLD GUIDE:
-    - 50: Very lenient - finds many matches but may include false positives
-    - 60: Lenient - good for finding variations and partial matches
-    - 70: Balanced - good default for most images with clear text
-    - 75: Default - balanced between accuracy and completeness
-    - 80: Stricter - reduces false positives, good for noisy images
-    - 85: Strict - high confidence matches only
-    - 90: Very strict - near-exact matches, may miss valid variations
-    - 95: Extremely strict - only exact or near-exact matches
-    
-    EXAMPLES:
-    - For book spines with clear text: threshold=75-85
-    - For handwritten or unclear text: threshold=60-70
-    - For high-quality printed text: threshold=85-95
-    - For testing/experimentation: threshold=50-60
+        show_plot: Whether to display the result
+        text_scale: Text annotation size percentage (50-200, default=100)
     
     Returns:
         Dictionary with results and annotated image, or None if no search phrases
@@ -899,7 +852,7 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
             }
         
         # Create annotated image
-        annotated = draw_phrase_annotations(orig_img, phrase_matches)
+        annotated = draw_phrase_annotations(orig_img, phrase_matches, text_scale=text_scale)
         
         # Display results
         if show_plot:
@@ -1013,3 +966,41 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def enhance_match_with_word_boundaries(line, original_phrase, phrase_normalized, line_text_normalized):
+    """
+    Enhance a matched line with precise word boundary information for tighter bounding boxes.
+    """
+    enhanced_line = line.copy()
+    
+    if 'annotations' not in line or not line['annotations']:
+        return enhanced_line
+    
+    # Find which words in the line correspond to our phrase
+    phrase_words = phrase_normalized.split()
+    line_words = line_text_normalized.split()
+    
+    # Find the starting position of our phrase in the line
+    phrase_start_idx = None
+    for i in range(len(line_words) - len(phrase_words) + 1):
+        if line_words[i:i+len(phrase_words)] == phrase_words:
+            phrase_start_idx = i
+            break
+    
+    if phrase_start_idx is not None:
+        # Select only the annotations that correspond to our phrase words
+        phrase_annotations = []
+        word_count = 0
+        
+        for annotation in line['annotations']:
+            if phrase_start_idx <= word_count < phrase_start_idx + len(phrase_words):
+                phrase_annotations.append(annotation)
+            word_count += len(annotation.description.split())
+            if word_count > phrase_start_idx + len(phrase_words):
+                break
+        
+        if phrase_annotations:
+            enhanced_line['annotations'] = phrase_annotations
+    
+    return enhanced_line

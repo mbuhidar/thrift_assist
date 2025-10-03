@@ -413,7 +413,8 @@ async def detect_phrases_with_annotation(request: PhraseDetectionRequest):
 async def upload_and_detect_phrases(
     file: UploadFile = File(...),
     search_phrases: str = Form(...),
-    threshold: int = Form(75)
+    threshold: int = Form(75),
+    text_scale: int = Form(100)  # New parameter for text scaling
 ):
     """
     Upload image file and detect phrases.
@@ -445,11 +446,12 @@ async def upload_and_detect_phrases(
         temp_image_path = save_temp_image(image)
         
         try:
-            # Run phrase detection
+            # Run phrase detection with scalable text
             results = detect_and_annotate_phrases(
                 image_path=temp_image_path,
                 search_phrases=phrases_list,
                 threshold=threshold,
+                text_scale=text_scale,  # Pass text scale to detection function
                 show_plot=False
             )
             

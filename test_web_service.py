@@ -72,7 +72,8 @@ def test_upload_and_detect():
         files = {"file": (os.path.basename(TEST_IMAGE_PATH), image_file, "image/jpeg")}
         data = {
             "search_phrases": json.dumps(["Homecoming", "Lee Child", "Circle of Three"]),
-            "threshold": 80
+            "threshold": 80,
+            "text_scale": 120  # Test with 120% text size
         }
         
         # Send request
@@ -84,6 +85,40 @@ def test_upload_and_detect():
     print(f"Total matches: {result.get('total_matches')}")
     print(f"Processing time: {result.get('processing_time_ms')}ms")
     print(f"Filename: {result.get('filename')}")
+    
+    # DEBUG: Print detailed match structure
+    if result.get('matches'):
+        print("DEBUG: Match structure:")
+        for phrase, matches in result['matches'].items():
+            print(f"  {phrase}: {len(matches)} matches")
+            for i, match in enumerate(matches):
+                print(f"    Match {i}: {match}")
+    print()
+
+def test_text_scale_variations():
+    """Test different text scale values."""
+    print("🔍 Testing text scale variations...")
+    
+    if not os.path.exists(TEST_IMAGE_PATH):
+        print(f"❌ Test image not found: {TEST_IMAGE_PATH}")
+        return
+    
+    scale_values = [50, 100, 150, 200]  # Test different scales
+    
+    for scale in scale_values:
+        print(f"  Testing text scale: {scale}%")
+        
+        with open(TEST_IMAGE_PATH, "rb") as image_file:
+            files = {"file": (os.path.basename(TEST_IMAGE_PATH), image_file, "image/jpeg")}
+            data = {
+                "search_phrases": json.dumps(["Homecoming"]),
+                "threshold": 75,
+                "text_scale": scale
+            }
+            
+            response = requests.post(f"{BASE_URL}/upload-and-detect", files=files, data=data)
+            result = response.json()
+            print(f"    Scale {scale}%: {result.get('success')} - {result.get('total_matches')} matches")
     print()
 
 def test_detect_with_annotation():
@@ -124,6 +159,7 @@ if __name__ == "__main__":
         test_detect_phrases()
         test_upload_and_detect()
         test_detect_with_annotation()
+        test_text_scale_variations()  # New test for text scaling
         
         print("✅ All tests completed!")
         
