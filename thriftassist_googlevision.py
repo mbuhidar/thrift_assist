@@ -252,18 +252,33 @@ def is_meaningful_phrase(phrase):
 def normalize_text_for_search(text):
     """
     Normalize text for better matching across different orientations.
-    Handles OCR artifacts from rotated text.
+    Handles OCR artifacts from rotated text and makes matching case-insensitive.
     """
     # Remove extra spaces and normalize whitespace
     normalized = re.sub(r'\s+', ' ', text.strip())
-    # Handle common OCR errors in rotated and upside-down text
+    
+    # Handle only the most common OCR errors - be conservative to avoid breaking normal words
+    # Only map characters that are clearly OCR artifacts, not normal letters
     char_map = {
-        '|': 'I', '¡': 'i', '1': 'l', '0': 'O', '5': 'S',
-        'б': '6', 'g': '9', 'q': 'p', 'd': 'b', 'u': 'n',
-        '∩': 'n', 'ᴍ': 'w', 'ɹ': 'r', 'ɐ': 'a', 'ǝ': 'e'
+        # Only clear OCR misreads that don't break normal words
+        '|': 'I',    # Vertical bar often misread as I
+        '¡': '!',    # Inverted exclamation
+        '∩': 'n',    # Upside-down u misread as intersection symbol
+        'ɹ': 'r',    # Upside-down r
+        'ɐ': 'a',    # Upside-down a
+        'ǝ': 'e',    # Upside-down e
+        'ᴍ': 'w',    # Small caps M confused with w
+        # Multi-character OCR errors (apply these carefully)
+        'rn': 'm',   # Two characters 'r' + 'n' often misread as 'm'
+        'cl': 'd',   # 'c' + 'l' can be misread as 'd'
+        'ii': 'n',   # Two i's can look like n
     }
-    for old_char, new_char in char_map.items():
-        normalized = normalized.replace(old_char, new_char)
+    
+    # Apply character mappings carefully
+    for ocr_char, standard_char in char_map.items():
+        normalized = normalized.replace(ocr_char, standard_char)
+    
+    # Convert to lowercase for case-insensitive matching
     return normalized.lower()
 
 
@@ -271,7 +286,7 @@ def try_reverse_text_matching(phrase, text):
     """
     Try matching text that might be upside down or reversed.
     Returns similarity score if a good match is found.
-    Enhanced to be more precise for exact phrase matching.
+    Enhanced to be more precise for exact phrase matching and case-insensitive.
     
     THRESHOLD EXPLANATION:
     - Score ranges from 0-100 (percentage match)
@@ -279,14 +294,17 @@ def try_reverse_text_matching(phrase, text):
     - Lower threshold = more lenient matching
     
     Examples:
-    - threshold=90: "Lee Child" matches "Lee Child" (100%) but not "L. Child" (85%)
-    - threshold=75: "Lee Child" matches both "Lee Child" (100%) and "L. Child" (85%)
+    - threshold=90: "Lee Child" matches "lee child" (100%) but not "L. Child" (85%)
+    - threshold=75: "LEE CHILD" matches both "Lee Child" (100%) and "L. Child" (85%)
     - threshold=50: Very lenient, matches partial/fuzzy text
+    
+    All matching is case-insensitive.
     """
 
     if not FUZZY_AVAILABLE:
         return 0
     
+    # Normalize both phrase and text to lowercase for case-insensitive matching
     phrase_normalized = normalize_text_for_search(phrase)
     text_normalized = normalize_text_for_search(text)
     
@@ -307,18 +325,16 @@ def try_reverse_text_matching(phrase, text):
         return token_score if token_score >= 98 else 0
     
     # For non-common word phrases, use original fuzzy matching
-    # Try normal matching first
+    # Try normal matching first - use normalized text for all comparisons
     normal_score = fuzz.token_set_ratio(phrase_normalized, text_normalized)
     
-    # Try word-reversed matching (for upside-down text)
+    # Try word-reversed matching (for upside-down text) - use normalized text
     text_words_reversed = ' '.join(text_normalized.split()[::-1])
-    reverse_score = fuzz.token_set_ratio(phrase_normalized,
-                                         text_words_reversed)
+    reverse_score = fuzz.token_set_ratio(phrase_normalized, text_words_reversed)
     
-    # Try character-reversed matching (for completely flipped text)
+    # Try character-reversed matching (for completely flipped text) - use normalized text
     text_char_reversed = text_normalized[::-1]
-    char_reverse_score = fuzz.token_set_ratio(phrase_normalized,
-                                              text_char_reversed)
+    char_reverse_score = fuzz.token_set_ratio(phrase_normalized, text_char_reversed)
     
     return max(normal_score, reverse_score, char_reverse_score)
 
@@ -328,9 +344,10 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
     Find complete phrase matches in text lines and full text.
     Only returns matches for complete phrases, not individual words.
     Enhanced to handle text at various angles including upside down and phrases spanning multiple lines.
+    All matching is case-insensitive.
     
     Args:
-        phrase: Target phrase to find
+        phrase: Target phrase to find (case will be ignored)
         text_lines: List of text lines from group_text_into_lines()
         full_text: Complete text from first annotation
         threshold: Minimum similarity for fuzzy matching (50-100)
@@ -347,8 +364,10 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
     - Fuzzy matching uses threshold to filter results
     - Common word phrases (like "the", "and") use stricter matching
     - Non-common phrases use the specified threshold
+    - All matching is case-insensitive (Lee Child = LEE CHILD = lee child)
     """
     matches = []
+    # Normalize search phrase to lowercase for consistent matching
     phrase_normalized = normalize_text_for_search(phrase)
     phrase_words = phrase_normalized.split()
     
@@ -361,7 +380,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
     for line in text_lines:
         line_text_normalized = normalize_text_for_search(line['text'])
         
-        # Exact substring match (highest priority)
+        # Exact substring match (highest priority) - case-insensitive
         if phrase_normalized in line_text_normalized:
             # Find the exact word boundaries for tighter bounding box
             enhanced_line = enhance_match_with_word_boundaries(line, phrase, phrase_normalized, line_text_normalized)
@@ -371,8 +390,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
         # High-threshold fuzzy matching for complete phrases only
         if FUZZY_AVAILABLE and len(line_text_normalized) >= len(phrase_normalized):
             # Check if this is a phrase made entirely of common words
-            is_common_word_phrase = all(word in COMMON_WORDS
-                                        for word in phrase_words)
+            is_common_word_phrase = all(word in COMMON_WORDS for word in phrase_words)
             
             if is_common_word_phrase:
                 # For common word phrases like "The The", ONLY use exact matching
@@ -380,19 +398,19 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                 continue
             else:
                 # For phrases with non-common words, use fuzzy matching
-                similarity = try_reverse_text_matching(phrase, line['text'])
+                # Pass normalized text to try_reverse_text_matching
+                similarity = try_reverse_text_matching(phrase_normalized, line_text_normalized)
                 if similarity >= threshold:
                     match_type = "upside_down" if similarity > 95 else "fuzzy_phrase"
                     matches.append((line, similarity, match_type))
                     continue
                 
                 # Also try partial ratio for phrases that span multiple words
-                partial_sim = fuzz.partial_ratio(phrase_normalized,
-                                                 line_text_normalized)
+                partial_sim = fuzz.partial_ratio(phrase_normalized, line_text_normalized)
                 if partial_sim >= 90:  # High threshold for partial matches
                     matches.append((line, partial_sim, "partial_phrase"))
     
-    # NEW: Search for phrases that span multiple lines
+    # Search for phrases that span multiple lines - case-insensitive
     if len(phrase_words) > 1 and len(text_lines) > 1:
         for i in range(len(text_lines)):
             current_line = text_lines[i]
@@ -404,6 +422,7 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
             
             for pw in phrase_words:
                 for j, cw in enumerate(current_words):
+                    # Case-insensitive word comparison - both already normalized
                     if pw == cw or (FUZZY_AVAILABLE and fuzz.ratio(pw, cw) > 85):
                         phrase_word_matches.append((pw, j, cw))
             
@@ -562,6 +581,7 @@ def draw_phrase_annotations(image, phrase_matches, phrase_colors=None, text_scal
     """
     Draw bounding boxes around detected complete phrases.
     Enhanced to fit text phrases more closely using exact word boundaries with smart label placement.
+    Case-insensitive phrase matching for annotations.
     """
     annotated = image.copy()
     
@@ -587,12 +607,13 @@ def draw_phrase_annotations(image, phrase_matches, phrase_colors=None, text_scal
             
             if 'annotations' in match_data and match_data['annotations']:
                 # Calculate tight bounding box from actual matched words
-                phrase_words = phrase.lower().split()
+                # Use normalized (lowercase) phrase for case-insensitive matching
+                phrase_words = normalize_text_for_search(phrase).split()
                 matched_annotations = []
                 
-                # Find annotations that correspond to our phrase words
+                # Find annotations that correspond to our phrase words (case-insensitive)
                 for annotation in match_data['annotations']:
-                    annotation_text = annotation.description.lower()
+                    annotation_text = normalize_text_for_search(annotation.description)
                     # Check if this annotation contains any of our phrase words
                     if any(word in annotation_text or annotation_text in word for word in phrase_words):
                         matched_annotations.append(annotation)
@@ -987,15 +1008,16 @@ def rectangles_overlap(rect1, rect2):
 def enhance_match_with_word_boundaries(line, original_phrase, phrase_normalized, line_text_normalized):
     """
     Enhance a matched line with precise word boundary information for tighter bounding boxes.
+    Case-insensitive word boundary detection.
     """
     enhanced_line = line.copy()
     
     if 'annotations' not in line or not line['annotations']:
         return enhanced_line
     
-    # Find which words in the line correspond to our phrase
-    phrase_words = phrase_normalized.split()
-    line_words = line_text_normalized.split()
+    # Find which words in the line correspond to our phrase (case-insensitive)
+    phrase_words = phrase_normalized.split()  # Already normalized to lowercase
+    line_words = line_text_normalized.split()  # Already normalized to lowercase
     
     # Find the starting position of our phrase in the line
     phrase_start_idx = None
@@ -1025,16 +1047,7 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
                                threshold=75, show_plot=True, text_scale=100):
     """
     Detect and visually annotate phrases in an image.
-    
-    Args:
-        image_path: Path to image file
-        search_phrases: List of phrases to search for (required)
-        threshold: Fuzzy matching threshold (50-100, default=75)
-        show_plot: Whether to display the result
-        text_scale: Text annotation size percentage (50-200, default=100)
-    
-    Returns:
-        Dictionary with results and annotated image, or None if no search phrases
+    All phrase matching is case-insensitive.
     """
 
     try:
@@ -1103,7 +1116,7 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
             print("❌ No search phrases provided. Please specify phrases to search for.")
             return None
         
-        # Find complete phrase matches only
+        # Find complete phrase matches only - case-insensitive
         phrase_matches = {}
         total_matches = 0
         
@@ -1113,10 +1126,19 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
                 print(f"⏭️  Skipping common word phrase: '{phrase}'")
                 continue
                 
-            print(f"🔍 Searching for: '{phrase}'")
+            # DEBUG: Show normalization process
+            phrase_normalized = normalize_text_for_search(phrase)
+            print(f"🔍 Searching for: '{phrase}' → normalized: '{phrase_normalized}' (case-insensitive)")
             
-            matches = find_complete_phrases(phrase, text_lines, full_text, 
-                                           threshold)
+            # DEBUG: Show what text we're searching in
+            print(f"   📋 Searching in {len(text_lines)} text lines:")
+            for i, line in enumerate(text_lines[:3]):  # Show first 3 lines as sample
+                line_normalized = normalize_text_for_search(line['text'])
+                print(f"   Line {i+1}: '{line['text']}' → '{line_normalized}'")
+            if len(text_lines) > 3:
+                print(f"   ... and {len(text_lines) - 3} more lines")
+            
+            matches = find_complete_phrases(phrase, text_lines, full_text, threshold)
             if matches:
                 phrase_matches[phrase] = matches
                 total_matches += len(matches)
@@ -1125,12 +1147,13 @@ def detect_and_annotate_phrases(image_path, search_phrases=None,
                 # Show what was actually matched
                 for match_data, score, match_type in matches:
                     match_text = match_data.get('text', 'Unknown')
+                    match_normalized = normalize_text_for_search(match_text)
                     if 'span_info' in match_data:
-                        print(f"   📍 Spanning match: '{match_text}' ({score:.1f}% {match_type})")
+                        print(f"   📍 Spanning match: '{match_text}' → '{match_normalized}' ({score:.1f}% {match_type})")
                     else:
-                        print(f"   📍 Match: '{match_text}' ({score:.1f}% {match_type})")
+                        print(f"   📍 Match: '{match_text}' → '{match_normalized}' ({score:.1f}% {match_type})")
             else:
-                print(f"❌ No matches found for '{phrase}'")
+                print(f"❌ No matches found for '{phrase}' (normalized: '{phrase_normalized}')")
         
         if not phrase_matches:
             print("❌ No phrase matches found.")
@@ -1226,13 +1249,14 @@ def validate_common_word_filtering():
 
 def main():
     """Main function to demonstrate phrase detection and annotation."""
-
-    image_path = IMAGE_PATH
     
-    # Search terms for music CDs (meaningful phrases only)
+    # Run case-insensitive test first
+    test_case_insensitive_matching()
+    
+    image_path = IMAGE_PATH
     search_terms = SEARCH_TERMS
     
-    print("🎵 MEDIA DETECTION AND ANNOTATION")
+    print("\n🎵 MEDIA DETECTION AND ANNOTATION")
     print("=" * 50)
     
     results = detect_and_annotate_phrases(
