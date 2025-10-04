@@ -166,6 +166,58 @@
             transform: none;
         }
 
+        /* Collapsible sections styling */
+        .collapsible {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9em;
+            color: #4a5568;
+            background: #f7fafc;
+            transition: background-color 0.2s ease;
+        }
+
+        .collapsible-header:hover {
+            background: #edf2f7;
+        }
+
+        .collapsible-icon {
+            transition: transform 0.2s ease;
+            color: #666;
+        }
+
+        .collapsible.open .collapsible-icon {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content {
+            padding: 0 15px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+
+        .collapsible.open .collapsible-content {
+            max-height: 500px;
+            padding: 15px;
+        }
+
+        .help-text {
+            font-size: 0.9em;
+            color: #666;
+            line-height: 1.5;
+        }
+
         .loading {
             display: none;
             text-align: center;
@@ -226,6 +278,9 @@
             font-weight: 600;
             color: #5a67d8;
             margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .match-details {
@@ -240,6 +295,27 @@
             border-radius: 12px;
             font-size: 0.8em;
             font-weight: 600;
+        }
+
+        .match-count {
+            background: #5a67d8;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+
+        .toggle-details {
+            font-size: 0.8em;
+            color: #5a67d8;
+            cursor: pointer;
+            margin-left: 10px;
+            text-decoration: underline;
+        }
+
+        .toggle-details:hover {
+            color: #4c51bf;
         }
 
         .image-preview {
@@ -258,12 +334,7 @@
             border-left: 4px solid #e53e3e;
         }
 
-        .help-text {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
-        }
-
+        /* Mobile optimizations */
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -273,14 +344,56 @@
             .header h1 {
                 font-size: 2em;
             }
+
+            .header p {
+                font-size: 1em;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .stat {
+                display: block;
+                margin-right: 0;
+                margin-bottom: 5px;
+            }
+
+            .match-phrase {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .match-count {
+                margin-left: 0;
+                margin-top: 5px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .slider-labels {
+                font-size: 0.8em;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔍 ThriftAssist - AI Media Finder</h1>
-            <p>Upload an image and search for media titles using advanced AI text detection</p>
+            <h1>🔍 ThriftAssist</h1>
+            <p>AI-powered media finder for thrift stores</p>
         </div>
 
         <div class="main-content">
@@ -291,45 +404,83 @@
                     <div class="form-group">
                         <label for="imageFile">Select Image</label>
                         <input type="file" id="imageFile" accept="image/*" required>
-                        <div class="help-text">Supported formats: JPG, PNG, GIF, BMP</div>
+                        <div class="collapsible">
+                            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                                <span>📝 Supported formats & tips</span>
+                                <span class="collapsible-icon">▼</span>
+                            </div>
+                            <div class="collapsible-content">
+                                <div class="help-text">
+                                    <strong>Supported formats:</strong> JPG, PNG, GIF, BMP<br><br>
+                                    <strong>Tips for best results:</strong><br>
+                                    • Ensure text is clearly visible<br>
+                                    • Good lighting improves accuracy<br>
+                                    • Higher resolution images work better<br>
+                                    • Multiple angles of text are supported
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
                         <label for="searchPhrases">Search Phrases</label>
-                        <textarea id="searchPhrases" placeholder="Enter phrases separated by commas&#10;Example: Homecoming, Lee Child, Circle of Three" required></textarea>
-                        <div class="help-text">Enter phrases separated by commas. Each phrase will be searched independently.</div>
+                        <textarea id="searchPhrases" placeholder="Enter phrases separated by commas" required></textarea>
+                        <div class="collapsible">
+                            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                                <span>💡 Search tips & examples</span>
+                                <span class="collapsible-icon">▼</span>
+                            </div>
+                            <div class="collapsible-content">
+                                <div class="help-text">
+                                    <strong>Examples:</strong><br>
+                                    • Books: <em>Homecoming, Lee Child, Circle of Three</em><br>
+                                    • Music: <em>Billy Joel, U2, Greatest Hits</em><br>
+                                    • Movies: <em>Star Wars, Marvel, Disney</em><br><br>
+                                    <strong>Tips:</strong><br>
+                                    • Use specific titles or author names<br>
+                                    • Separate multiple phrases with commas<br>
+                                    • Both exact and partial matches are found<br>
+                                    • Case doesn't matter
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
-                        <label for="threshold">Detection Threshold (%)</label>
+                        <label for="threshold">Detection Threshold: <span id="thresholdValue" class="slider-value">80%</span></label>
                         <div class="slider-container">
                             <input type="range" id="threshold" min="50" max="100" value="80" step="5">
                             <div class="slider-labels">
-                                <span>50%</span>
-                                <span id="thresholdValue" class="slider-value">80%</span>
-                                <span>100%</span>
+                                <span>Lenient</span>
+                                <span>Strict</span>
                             </div>
                         </div>
-                        <div class="help-text">
-                            <strong>Threshold Guide:</strong><br>
-                            • 50-60: Very lenient (may include false matches)<br>
-                            • 70-80: Balanced (recommended for most images)<br>
-                            • 85-95: Strict (high confidence matches only)<br>
-                            Higher values = more exact matches required
+                        <div class="collapsible">
+                            <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                                <span>⚙️ Threshold guide</span>
+                                <span class="collapsible-icon">▼</span>
+                            </div>
+                            <div class="collapsible-content">
+                                <div class="help-text">
+                                    <strong>50-60%:</strong> Very lenient - finds partial matches but may include false positives<br>
+                                    <strong>70-80%:</strong> Balanced - recommended for most images<br>
+                                    <strong>85-95%:</strong> Strict - high confidence matches only<br>
+                                    <strong>95-100%:</strong> Very strict - only near-exact matches<br><br>
+                                    Start with 80% and adjust based on results.
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label for="textScale">Annotation Text Size (%)</label>
+                        <label for="textScale">Text Size: <span id="textScaleValue" class="slider-value">100%</span></label>
                         <div class="slider-container">
                             <input type="range" id="textScale" min="50" max="200" value="100" step="10">
                             <div class="slider-labels">
-                                <span>50%</span>
-                                <span id="textScaleValue" class="slider-value">100%</span>
-                                <span>200%</span>
+                                <span>Small</span>
+                                <span>Large</span>
                             </div>
                         </div>
-                        <div class="help-text">Adjust size of annotation text on detected phrases</div>
                     </div>
 
                     <button type="submit" class="btn" id="submitBtn">
@@ -542,27 +693,38 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             resultsSummary.innerHTML = `
                 <h3>✅ Analysis Complete</h3>
                 <div>
-                    <span class="stat">📊 Total Matches: ${result.total_matches}</span>
-                    <span class="stat">⏱️ Processing Time: ${Math.round(result.processing_time_ms)}ms</span>
-                    <span class="stat">📐 Image Size: ${result.image_dimensions[0]}×${result.image_dimensions[1]}</span>
+                    <span class="stat">📊 Total: ${result.total_matches}</span>
+                    <span class="stat">⏱️ ${Math.round(result.processing_time_ms)}ms</span>
+                    <span class="stat">📐 ${result.image_dimensions[0]}×${result.image_dimensions[1]}</span>
                 </div>
             `;
             
-            // Update matches list
+            // Update matches list with collapsible details
             if (result.total_matches > 0) {
                 let matchesHTML = '<h3>🎯 Found Matches</h3>';
                 
                 for (const [phrase, matches] of Object.entries(result.matches)) {
+                    const matchId = phrase.replace(/\s+/g, '-').toLowerCase();
                     matchesHTML += `
                         <div class="match-item">
-                            <div class="match-phrase">"${phrase}" - ${matches.length} match${matches.length !== 1 ? 'es' : ''}</div>
-                            ${matches.map(match => `
-                                <div class="match-details">
-                                    📝 "${match.text}" 
-                                    <span class="match-score">${Math.round(match.score)}% ${match.match_type}</span>
-                                    ${match.angle !== 0 ? ` 🔄 ${Math.round(match.angle)}°` : ''}
+                            <div class="match-phrase">
+                                <span>"${phrase}"</span>
+                                <div>
+                                    <span class="match-count">${matches.length}</span>
+                                    <span class="toggle-details" onclick="toggleMatchDetails('${matchId}')">
+                                        <span id="toggle-${matchId}">details ▼</span>
+                                    </span>
                                 </div>
-                            `).join('')}
+                            </div>
+                            <div id="details-${matchId}" class="collapsible-content">
+                                ${matches.map(match => `
+                                    <div class="match-details" style="margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
+                                        📝 "${match.text}" 
+                                        <span class="match-score">${Math.round(match.score)}% ${match.match_type}</span>
+                                        ${match.angle !== 0 ? ` 🔄 ${Math.round(match.angle)}°` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
                     `;
                 }
@@ -571,9 +733,8 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             } else {
                 matchesList.innerHTML = `
                     <div style="text-align: center; padding: 20px; color: #666;">
-                        😔 No matches found for the search phrases:<br>
-                        <strong>${searchPhrases.join(', ')}</strong><br><br>
-                        Try adjusting the threshold or checking the spelling of your search terms.
+                        😔 No matches found<br>
+                        <small>Try adjusting the threshold or checking your search terms</small>
                     </div>
                 `;
             }
@@ -584,7 +745,29 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 annotatedImage.style.display = 'block';
             }
         }
-        
+
+        // Toggle match details
+        function toggleMatchDetails(matchId) {
+            const details = document.getElementById(`details-${matchId}`);
+            const toggle = document.getElementById(`toggle-${matchId}`);
+            
+            if (details.style.maxHeight && details.style.maxHeight !== '0px') {
+                details.style.maxHeight = '0px';
+                details.style.padding = '0 15px';
+                toggle.textContent = 'details ▼';
+            } else {
+                details.style.maxHeight = '500px';
+                details.style.padding = '15px';
+                toggle.textContent = 'hide ▲';
+            }
+        }
+
+        // Add collapsible functionality
+        function toggleCollapsible(header) {
+            const collapsible = header.parentElement;
+            collapsible.classList.toggle('open');
+        }
+
         // Handle file input change to show preview information
         document.getElementById('imageFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
