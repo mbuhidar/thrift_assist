@@ -22,6 +22,9 @@ import uuid
 import socket
 import subprocess
 import signal
+import hashlib
+import time
+from collections import OrderedDict
 
 # Import the OCR detection function and its dependencies
 try:
@@ -233,6 +236,49 @@ def setup_google_credentials():
 setup_google_credentials()
 
 
+# Global cache for OCR results to enable real-time threshold updates
+ocr_cache = OrderedDict()
+MAX_CACHE_SIZE = 100  # Maximum number of cached results
+
+def get_image_hash(image_data: bytes) -> str:
+    """Generate a hash for image data to use as cache key."""
+    return hashlib.md5(image_data).hexdigest()
+
+def cache_ocr_result(image_hash: str, ocr_data: dict):
+    """Cache OCR result with LRU eviction."""
+    global ocr_cache
+    
+    # Remove oldest entries if cache is full
+    while len(ocr_cache) >= MAX_CACHE_SIZE:
+        ocr_cache.popitem(last=False)
+    
+    # Cache the OCR data
+    ocr_cache[image_hash] = {
+        'timestamp': time.time(),
+        'ocr_data': ocr_data
+    }
+    
+    print(f"🔄 Cached OCR result for image hash: {image_hash[:8]}...")
+
+def get_cached_ocr_result(image_hash: str) -> Optional[dict]:
+    """Retrieve cached OCR result if available."""
+    if image_hash in ocr_cache:
+        # Move to end (most recently used)
+        ocr_cache.move_to_end(image_hash)
+        cached_data = ocr_cache[image_hash]
+        
+        # Check if cache is still valid (1 hour expiry)
+        if time.time() - cached_data['timestamp'] < 3600:
+            print(f"✅ Using cached OCR result for image hash: {image_hash[:8]}...")
+            return cached_data['ocr_data']
+        else:
+            # Remove expired cache entry
+            del ocr_cache[image_hash]
+            print(f"⏰ Cache expired for image hash: {image_hash[:8]}...")
+    
+    return None
+
+
 # API endpoints
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -409,19 +455,34 @@ async def detect_phrases_with_annotation(request: PhraseDetectionRequest):
         })
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon or return 204 No Content."""
+    favicon_path = "public/favicon.ico"
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path)
+    else:
+        # Return empty response to prevent 404 errors
+        return JSONResponse(content={}, status_code=204)
+
+
 @app.post("/upload-and-detect")
 async def upload_and_detect_phrases(
     file: UploadFile = File(...),
     search_phrases: str = Form(...),
     threshold: int = Form(75),
-    text_scale: int = Form(100)  # New parameter for text scaling
+    text_scale: int = Form(100)
 ):
     """
-    Upload image file and detect phrases.
+    Upload image file and detect phrases with caching support and detailed debugging.
     """
     start_time = datetime.now()
     
     try:
+        print(f"🔍 Starting OCR analysis - OCR Available: {OCR_MODULE_AVAILABLE}")
+        print(f"📁 File: {file.filename}, Content-Type: {file.content_type}")
+        print(f"🔧 Parameters: threshold={threshold}, text_scale={text_scale}")
+        
         # Validate file type
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="File must be an image")
@@ -431,72 +492,333 @@ async def upload_and_detect_phrases(
             phrases_list = json.loads(search_phrases)
             if not isinstance(phrases_list, list):
                 raise ValueError("search_phrases must be a JSON array")
+            print(f"🔤 Search phrases: {phrases_list}")
         except (json.JSONDecodeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=f"Invalid search_phrases format: {str(e)}")
         
-        # Read and process image
+        # Read image data and calculate hash
         image_data = await file.read()
-        image_array = np.frombuffer(image_data, np.uint8)
-        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+        image_hash = get_image_hash(image_data)
+        print(f"🔑 Image hash: {image_hash[:8]}...")
         
-        if image is None:
-            raise HTTPException(status_code=400, detail="Invalid image file")
+        # Check if we have cached OCR results
+        cached_ocr = get_cached_ocr_result(image_hash)
         
-        # Save to temporary file
-        temp_image_path = save_temp_image(image)
+        if cached_ocr:
+            print("🚀 Using cached OCR data, skipping OCR processing...")
+            # Use cached image path and run detection with new threshold
+            temp_image_path = cached_ocr.get('image_path')
+            if temp_image_path and os.path.exists(temp_image_path):
+                print(f"📂 Using cached image: {temp_image_path}")
+                results = detect_and_annotate_phrases(
+                    image_path=temp_image_path,
+                    search_phrases=phrases_list,
+                    threshold=threshold,
+                    text_scale=text_scale,
+                    show_plot=False
+                )
+            else:
+                print("❌ Cached image path invalid, processing normally...")
+                cached_ocr = None
         
-        try:
-            # Run phrase detection with scalable text
-            results = detect_and_annotate_phrases(
-                image_path=temp_image_path,
-                search_phrases=phrases_list,
-                threshold=threshold,
-                text_scale=text_scale,  # Pass text scale to detection function
-                show_plot=False
-            )
+        if not cached_ocr:
+            print("🔍 No cache found, performing OCR...")
+            # Process image normally
+            image_array = np.frombuffer(image_data, np.uint8)
+            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
             
-            if results is None:
+            if image is None:
+                raise HTTPException(status_code=400, detail="Invalid image file")
+            
+            print(f"📸 Image loaded: {image.shape}")
+            
+            # Save to temporary file
+            temp_image_path = save_temp_image(image)
+            print(f"💾 Temp image saved: {temp_image_path}")
+            
+            # Check if OCR module is actually available
+            if not OCR_MODULE_AVAILABLE:
+                print("❌ OCR module not available, returning error")
                 return JSONResponse({
                     "success": False,
                     "total_matches": 0,
                     "matches": {},
                     "processing_time_ms": 0,
-                    "error_message": "Failed to process image or no text detected"
+                    "error_message": "OCR module not available. Please check Google Cloud credentials and dependencies."
                 })
             
-            # Convert matches to serializable format
-            serializable_matches = {}
-            for phrase, matches in results['matches'].items():
-                serializable_matches[phrase] = []
-                for match_data, score, match_type in matches:
-                    serializable_matches[phrase].append({
-                        'text': match_data.get('text', ''),
-                        'score': float(score),
-                        'match_type': match_type,
-                        'angle': match_data.get('angle', 0)
-                    })
+            # Add detailed Google Cloud Vision debugging
+            print("🔍 Running OCR phrase detection with Google Cloud Vision...")
             
-            # Convert annotated image to base64
-            annotated_image_base64 = image_to_base64(results['annotated_image'])
+            try:
+                from google.cloud import vision
+                print("✅ Google Cloud Vision client imported successfully")
+                
+                # Test the client
+                client = vision.ImageAnnotatorClient()
+                print("✅ Vision API client created successfully")
+                
+                # Read the image for Vision API
+                with open(temp_image_path, 'rb') as image_file:
+                    content = image_file.read()
+                
+                image_vision = vision.Image(content=content)
+                
+                # Try document text detection first
+                print("📄 Attempting document_text_detection...")
+                response = client.document_text_detection(image=image_vision)
+                text_annotations = response.text_annotations
+                
+                print(f"📊 Google Cloud Vision Results:")
+                print(f"   - Text annotations found: {len(text_annotations) if text_annotations else 0}")
+                
+                if text_annotations:
+                    # Show the full text detected
+                    full_text = text_annotations[0].description if text_annotations else ""
+                    print(f"   - Full text length: {len(full_text)} characters")
+                    print(f"   - First 200 chars: {repr(full_text[:200])}")
+                    
+                    # Show individual text elements
+                    print(f"   - Individual elements: {len(text_annotations) - 1}")
+                    for i, annotation in enumerate(text_annotations[1:6]):  # Show first 5
+                        vertices = annotation.bounding_poly.vertices
+                        coords = [(v.x, v.y) for v in vertices] if vertices else []
+                        print(f"     [{i+1}] '{annotation.description}' at {coords}")
+                    
+                    if len(text_annotations) > 6:
+                        print(f"     ... and {len(text_annotations) - 6} more elements")
+                        
+                    # Show what Google Cloud Vision detected vs what we're searching for
+                    print(f"   - Google detected text contains:")
+                    for phrase in phrases_list:
+                        if phrase.lower() in full_text.lower():
+                            print(f"     ✅ '{phrase}' found in raw text")
+                        else:
+                            print(f"     ❌ '{phrase}' NOT found in raw text")
+                            
+                else:
+                    print("   - No text annotations found, trying basic text_detection...")
+                    response_basic = client.text_detection(image=image_vision)
+                    text_annotations = response_basic.text_annotations
+                    print(f"   - Basic detection results: {len(text_annotations) if text_annotations else 0} annotations")
+                
+                # Check for errors in the response
+                if response.error.message:
+                    print(f"❌ Google Cloud Vision API error: {response.error.message}")
+                
+            except Exception as vision_e:
+                print(f"❌ Google Cloud Vision error: {vision_e}")
+                import traceback
+                traceback.print_exc()
             
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
+            # Run the full phrase detection pipeline
+            print("🔍 Running phrase detection pipeline...")
+            results = detect_and_annotate_phrases(
+                image_path=temp_image_path,
+                search_phrases=phrases_list,
+                threshold=threshold,
+                text_scale=text_scale,
+                show_plot=False
+            )
             
+            print(f"📊 Final Pipeline Results:")
+            if results:
+                print(f"   - Success: {results is not None}")
+                print(f"   - Total matches: {results.get('total_matches', 0)}")
+                print(f"   - Phrases found: {list(results.get('matches', {}).keys())}")
+                print(f"   - Has annotated image: {'annotated_image' in results}")
+                print(f"   - All text length: {len(results.get('all_text', ''))}")
+                
+                # Show match details
+                for phrase, matches in results.get('matches', {}).items():
+                    print(f"   - '{phrase}': {len(matches)} matches")
+                    for match_data, score, match_type in matches[:2]:  # Show first 2 matches
+                        match_text = match_data.get('text', '')
+                        print(f"     * '{match_text}' ({score:.1f}% {match_type})")
+            else:
+                print("   - Results: None (processing failed)")
+            
+            # Cache the OCR data for future use
+            if results:
+                cache_ocr_result(image_hash, {
+                    'image_path': temp_image_path,
+                    'image_dimensions': [image.shape[1], image.shape[0]],
+                    'all_text': results.get('all_text', ''),
+                    'filename': file.filename
+                })
+                print("💾 OCR data cached successfully")
+        
+        if results is None:
+            print("❌ OCR processing failed")
             return JSONResponse({
-                "success": True,
-                "total_matches": results['total_matches'],
-                "matches": serializable_matches,
-                "processing_time_ms": processing_time,
-                "image_dimensions": [image.shape[1], image.shape[0]],
-                "annotated_image_base64": annotated_image_base64,
-                "all_detected_text": results.get('all_text', ''),
-                "filename": file.filename
+                "success": False,
+                "total_matches": 0,
+                "matches": {},
+                "processing_time_ms": 0,
+                "error_message": "Failed to process image or no text detected"
             })
-            
-        finally:
-            # Clean up temporary file
-            if os.path.exists(temp_image_path):
-                os.unlink(temp_image_path)
+        
+        # Convert matches to serializable format
+        serializable_matches = {}
+        for phrase, matches in results['matches'].items():
+            serializable_matches[phrase] = []
+            for match_data, score, match_type in matches:
+                serializable_matches[phrase].append({
+                    'text': match_data.get('text', ''),
+                    'score': float(score),
+                    'match_type': match_type,
+                    'angle': match_data.get('angle', 0)
+                })
+        
+        # Convert annotated image to base64
+        annotated_image_base64 = None
+        if 'annotated_image' in results and results['annotated_image'] is not None:
+            try:
+                annotated_image_base64 = image_to_base64(results['annotated_image'])
+                print("🖼️ Annotated image converted to base64 successfully")
+            except Exception as e:
+                print(f"❌ Failed to convert annotated image: {e}")
+        else:
+            print("⚠️ No annotated image in results")
+        
+        processing_time = (datetime.now() - start_time).total_seconds() * 1000
+        
+        # Get image dimensions from cache or results
+        if cached_ocr and 'image_dimensions' in cached_ocr:
+            image_dims = cached_ocr['image_dimensions']
+        else:
+            image_dims = [results['annotated_image'].shape[1], results['annotated_image'].shape[0]] if 'annotated_image' in results else [0, 0]
+        
+        response_data = {
+            "success": True,
+            "total_matches": results['total_matches'],
+            "matches": serializable_matches,
+            "processing_time_ms": processing_time,
+            "image_dimensions": image_dims,
+            "annotated_image_base64": annotated_image_base64,
+            "all_detected_text": results.get('all_text', ''),
+            "filename": file.filename,
+            "cached": cached_ocr is not None
+        }
+        
+        print(f"✅ OCR processing completed in {processing_time:.1f}ms")
+        print(f"📤 Response: success={response_data['success']}, matches={response_data['total_matches']}")
+        
+        return JSONResponse(response_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = (datetime.now() - start_time).total_seconds() * 1000
+        print(f"❌ OCR processing error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({
+            "success": False,
+            "total_matches": 0,
+            "matches": {},
+            "processing_time_ms": processing_time,
+            "error_message": f"Server error: {str(e)}"
+        })
+
+
+@app.post("/update-threshold")
+async def update_threshold_endpoint(
+    file: UploadFile = File(...),
+    search_phrases: str = Form(...),
+    threshold: int = Form(75),
+    text_scale: int = Form(100),
+    use_cached_ocr: str = Form("false")
+):
+    """
+    Update annotations with new threshold using cached OCR data.
+    """
+    start_time = datetime.now()
     
+    try:
+        # Parse search phrases
+        try:
+            phrases_list = json.loads(search_phrases)
+            if not isinstance(phrases_list, list):
+                raise ValueError("search_phrases must be a JSON array")
+        except (json.JSONDecodeError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=f"Invalid search_phrases format: {str(e)}")
+        
+        # Get image hash for cache lookup
+        image_data = await file.read()
+        image_hash = get_image_hash(image_data)
+        
+        # Try to get cached OCR result
+        cached_ocr = get_cached_ocr_result(image_hash)
+        
+        if not cached_ocr:
+            return JSONResponse({
+                "success": False,
+                "total_matches": 0,
+                "matches": {},
+                "processing_time_ms": 0,
+                "error_message": "No cached OCR data found. Please re-upload the image."
+            })
+        
+        print(f"🔄 Updating threshold to {threshold}% using cached OCR...")
+        
+        # Use cached image path
+        temp_image_path = cached_ocr.get('image_path')
+        if not temp_image_path or not os.path.exists(temp_image_path):
+            return JSONResponse({
+                "success": False,
+                "total_matches": 0,
+                "matches": {},
+                "processing_time_ms": 0,
+                "error_message": "Cached image not found. Please re-upload the image."
+            })
+        
+        # Run detection with new threshold
+        results = detect_and_annotate_phrases(
+            image_path=temp_image_path,
+            search_phrases=phrases_list,
+            threshold=threshold,
+            text_scale=text_scale,
+            show_plot=False
+        )
+        
+        if not results:
+            return JSONResponse({
+                "success": False,
+                "total_matches": 0,
+                "matches": {},
+                "processing_time_ms": 0,
+                "error_message": "Failed to process cached OCR data"
+            })
+        
+        # Convert matches to serializable format
+        serializable_matches = {}
+        for phrase, matches in results['matches'].items():
+            serializable_matches[phrase] = []
+            for match_data, score, match_type in matches:
+                serializable_matches[phrase].append({
+                    'text': match_data.get('text', ''),
+                    'score': float(score),
+                    'match_type': match_type,
+                    'angle': match_data.get('angle', 0)
+                })
+        
+        # Convert annotated image to base64
+        annotated_image_base64 = image_to_base64(results['annotated_image'])
+        
+        processing_time = (datetime.now() - start_time).total_seconds() * 1000
+        
+        return JSONResponse({
+            "success": True,
+            "total_matches": results['total_matches'],
+            "matches": serializable_matches,
+            "processing_time_ms": processing_time,
+            "image_dimensions": cached_ocr.get('image_dimensions', [0, 0]),
+            "annotated_image_base64": annotated_image_base64,
+            "all_detected_text": cached_ocr.get('all_text', ''),
+            "cached": True
+        })
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -509,6 +831,37 @@ async def upload_and_detect_phrases(
             "error_message": str(e)
         })
 
+@app.get("/cache-status")
+async def cache_status():
+    """Get cache status information."""
+    global ocr_cache
+    
+    cache_info = []
+    for image_hash, data in ocr_cache.items():
+        cache_info.append({
+            'hash': image_hash[:8] + '...',
+            'timestamp': data['timestamp'],
+            'age_seconds': time.time() - data['timestamp']
+        })
+    
+    return JSONResponse({
+        'success': True,
+        'cache_size': len(ocr_cache),
+        'max_cache_size': MAX_CACHE_SIZE,
+        'entries': cache_info
+    })
+
+@app.post("/clear-cache")
+async def clear_cache():
+    """Clear OCR cache (useful for debugging)."""
+    global ocr_cache
+    cache_size = len(ocr_cache)
+    ocr_cache.clear()
+    
+    return JSONResponse({
+        'success': True,
+        'message': f'Cleared {cache_size} cached entries'
+    })
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
