@@ -1012,12 +1012,33 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.isDragging = false;
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
                     this.lastTouch.distance = distance;
+                    this.lastTouch.startScale = this.scale; // Store starting scale
                     
+                    // Calculate center point between fingers relative to the image
                     const rect = this.image.getBoundingClientRect();
-                    const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width;
-                    const centerY = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) / rect.height;
-                    this.lastTouch.centerX = centerX;
-                    this.lastTouch.centerY = centerY;
+                    const containerRect = this.container.getBoundingClientRect();
+                    
+                    // Get finger center in screen coordinates
+                    const fingerCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const fingerCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    
+                    // Convert to container-relative coordinates
+                    const containerCenterX = fingerCenterX - containerRect.left;
+                    const containerCenterY = fingerCenterY - containerRect.top;
+                    
+                    // Store the container-relative position
+                    this.lastTouch.centerX = containerCenterX;
+                    this.lastTouch.centerY = containerCenterY;
+                    
+                    // Calculate what point in the base image is under the fingers
+                    const baseWidth = this.image.offsetWidth;
+                    const baseHeight = this.image.offsetHeight;
+                    const imageX = (containerCenterX - this.translateX) / this.scale;
+                    const imageY = (containerCenterY - this.translateY) / this.scale;
+                    
+                    // Store as normalized coordinates (0-1)
+                    this.lastTouch.normalizedX = imageX / baseWidth;
+                    this.lastTouch.normalizedY = imageY / baseHeight;
                 }
                 e.preventDefault();
             }
@@ -1033,15 +1054,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 } else if (e.touches.length === 2) {
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
                     
-                    // Reduce zoom sensitivity - only apply a fraction of the scale change
-                    const rawScale = (distance / this.lastTouch.distance);
-                    const dampedScale = 1 + (rawScale - 1) * 0.5; // Dampen by 50%
-                    const scale = dampedScale * this.scale;
-                    const newScale = Math.max(1, Math.min(5, scale));
+                    // Calculate new scale with dampening
+                    const scaleChange = distance / this.lastTouch.distance;
+                    const dampedChange = 1 + (scaleChange - 1) * 0.5;
+                    const newScale = Math.max(1, Math.min(5, this.lastTouch.startScale * dampedChange));
                     
-                    if (Math.abs(newScale - this.scale) > 0.01) { // Only update if change is significant
-                        this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
-                        this.lastTouch.distance = distance; // Update for next move
+                    if (Math.abs(newScale - this.scale) > 0.01) {
+                        // Zoom to the normalized point (where fingers are)
+                        this.zoomToNormalizedPoint(newScale, this.lastTouch.normalizedX, this.lastTouch.normalizedY, this.lastTouch.centerX, this.lastTouch.centerY);
                     }
                 }
                 e.preventDefault();
