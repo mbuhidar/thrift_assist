@@ -1149,11 +1149,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
+                // Ensure we have valid values before applying transform
+                if (!isFinite(this.translateX)) this.translateX = 0;
+                if (!isFinite(this.translateY)) this.translateY = 0;
+                if (!isFinite(this.scale) || this.scale < 1) this.scale = 1;
+                
                 const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
                 this.image.style.transform = transform;
                 this.image.style.transformOrigin = '0 0';
-                
-                // Remove debug logging now
                 
                 if (this.scale > 1) {
                     this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
@@ -1182,24 +1185,21 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 const scaledWidth = baseWidth * this.scale;
                 const scaledHeight = baseHeight * this.scale;
                 
-                // More lenient constraints to ensure image stays visible
+                // Horizontal constraints
                 if (scaledWidth <= containerWidth) {
                     this.translateX = (containerWidth - scaledWidth) / 2;
                 } else {
-                    // Allow some overlap but ensure at least 20% of image is visible
-                    const minVisibleWidth = Math.min(containerWidth * 0.2, scaledWidth * 0.2);
-                    const maxX = minVisibleWidth;
-                    const minX = containerWidth - scaledWidth - minVisibleWidth;
+                    const maxX = 0;
+                    const minX = containerWidth - scaledWidth;
                     this.translateX = Math.max(minX, Math.min(maxX, this.translateX));
                 }
                 
+                // Vertical constraints
                 if (scaledHeight <= containerHeight) {
                     this.translateY = (containerHeight - scaledHeight) / 2;
                 } else {
-                    // Allow some overlap but ensure at least 20% of image is visible
-                    const minVisibleHeight = Math.min(containerHeight * 0.2, scaledHeight * 0.2);
-                    const maxY = minVisibleHeight;
-                    const minY = containerHeight - scaledHeight - minVisibleHeight;
+                    const maxY = 0;
+                    const minY = containerHeight - scaledHeight;
                     this.translateY = Math.max(minY, Math.min(maxY, this.translateY));
                 }
             }
@@ -1236,7 +1236,8 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
 
         // Initialize zoom functionality
         let imageZoom = null;
-        // Test connection on page load
+
+        // Test connection on page load   
         window.addEventListener('load', async function() {
             const isConnected = await testConnection();
             if (!isConnected) {
