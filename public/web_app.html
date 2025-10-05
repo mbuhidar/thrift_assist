@@ -562,6 +562,11 @@
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label for="textSize">Annotation Text Size: <span id="textSizeValue">12</span>px</label>
+                        <input type="range" id="textSize" min="8" max="32" value="12" step="1">
+                    </div>
+
                     <button type="submit" class="btn" id="submitBtn">
                         🚀 Analyze Image
                     </button>
@@ -677,6 +682,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             document.getElementById('textScaleValue').textContent = this.value + '%';
         });
         
+        // Update text size display when slider moves
+        document.getElementById('textSize').addEventListener('input', function(e) {
+            document.getElementById('textSizeValue').textContent = e.target.value;
+        });
+
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -750,7 +760,10 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const textSizeSlider = document.getElementById('textSize');
             const textSize = parseInt(textSizeSlider.value);
             
-            console.log('Text size from slider:', textSize); // Debug log
+            // Show alert on mobile to verify value is being read
+            if (window.innerWidth < 768) {
+                alert('Text size: ' + textSize + 'px');
+            }
             
             // Show loading state
             document.getElementById('loading').style.display = 'block';
@@ -1100,20 +1113,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (e.touches.length === 1 && this.isDragging && this.scale > 1) {
                     this.translateX = e.touches[0].clientX - this.dragStart.x;
                     this.translateY = e.touches[0].clientY - this.dragStart.y;
-                    
-                    console.log('Panning:', {
-                        scale: this.scale,
-                        translate: { x: this.translateX, y: this.translateY },
-                        imageSize: { w: this.image.offsetWidth, h: this.image.offsetHeight },
-                        scaledSize: { w: this.image.offsetWidth * this.scale, h: this.image.offsetHeight * this.scale }
-                    });
-                    
                     this.constrainTranslation();
-                    
-                    console.log('After constraint:', {
-                        translate: { x: this.translateX, y: this.translateY }
-                    });
-                    
                     this.updateTransform();
                 } else if (e.touches.length === 2 && this.lastTouch.initialDistance) {
                     const currentDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
@@ -1133,13 +1133,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * dampedRatio));
                     
                     if (Math.abs(newScale - this.scale) > 0.01) {
-                        console.log('Pinch zoom:', {
-                            oldScale: this.scale,
-                            newScale: newScale,
-                            baseImage: { x: baseImageX, y: baseImageY },
-                            container: { x: containerX, y: containerY }
-                        });
-                        
                         this.translateX = containerX - (baseImageX * newScale);
                         this.translateY = containerY - (baseImageY * newScale);
                         this.scale = newScale;
@@ -1226,24 +1219,9 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
-                if (!isFinite(this.translateX)) {
-                    console.error('Invalid translateX:', this.translateX);
-                    this.translateX = 0;
-                }
-                if (!isFinite(this.translateY)) {
-                    console.error('Invalid translateY:', this.translateY);
-                    this.translateY = 0;
-                }
-                if (!isFinite(this.scale) || this.scale < 1) {
-                    console.error('Invalid scale:', this.scale);
-                    this.scale = 1;
-                }
-                
-                console.log('Applying transform:', {
-                    translate: { x: this.translateX, y: this.translateY },
-                    scale: this.scale,
-                    imageVisible: this.image.offsetWidth > 0 && this.image.offsetHeight > 0
-                });
+                if (!isFinite(this.translateX)) this.translateX = 0;
+                if (!isFinite(this.translateY)) this.translateY = 0;
+                if (!isFinite(this.scale) || this.scale < 1) this.scale = 1;
                 
                 const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
                 this.image.style.transform = transform;
