@@ -985,15 +985,28 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 e.preventDefault();
                 e.stopPropagation();
                 
-                const rect = this.image.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
+                // Get mouse/touchpad position in container coordinates
+                const containerRect = this.container.getBoundingClientRect();
+                const containerX = e.clientX - containerRect.left;
+                const containerY = e.clientY - containerRect.top;
                 
+                // Find what point in the base image is under the cursor
+                const baseImageX = (containerX - this.translateX) / this.scale;
+                const baseImageY = (containerY - this.translateY) / this.scale;
+                
+                // Calculate new scale
                 const delta = e.deltaY > 0 ? 0.95 : 1.05;
                 const newScale = Math.max(1, Math.min(5, this.scale * delta));
                 
                 if (newScale !== this.scale) {
-                    this.zoomToPoint(newScale, x, y);
+                    // Recalculate translation to keep the point under the cursor
+                    this.translateX = containerX - (baseImageX * newScale);
+                    this.translateY = containerY - (baseImageY * newScale);
+                    this.scale = newScale;
+                    
+                    this.constrainTranslation();
+                    this.updateTransform();
+                    this.updateUI();
                 }
             }
             
@@ -1011,18 +1024,10 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
                     
-                    // Calculate initial pinch distance and store current scale
+                    // Store initial pinch state
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
-                    this.lastTouch.distance = distance;
                     this.lastTouch.initialDistance = distance;
                     this.lastTouch.initialScale = this.scale;
-                    
-                    // Calculate pinch center point
-                    const rect = this.image.getBoundingClientRect();
-                    const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width;
-                    const centerY = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) / rect.height;
-                    this.lastTouch.centerX = centerX;
-                    this.lastTouch.centerY = centerY;
                 }
                 e.preventDefault();
             }
@@ -1038,46 +1043,36 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 } else if (e.touches.length === 2 && this.lastTouch.initialDistance) {
                     const currentDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
                     
-                    // Calculate scale based on initial distance, not last frame
-                    const scaleRatio = currentDistance / this.lastTouch.initialDistance;
-                    const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * scaleRatio));
+                    // Get current pinch center in screen coordinates
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
                     
-                    // Only update if change is meaningful
-                    if (Math.abs(newScale - this.scale) > 0.02) {
-                        this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
+                    // Convert to container coordinates
+                    const containerRect = this.container.getBoundingClientRect();
+                    const containerX = midX - containerRect.left;
+                    const containerY = midY - containerRect.top;
+                    
+                    // Find what point in the base image is under the pinch center
+                    const baseImageX = (containerX - this.translateX) / this.scale;
+                    const baseImageY = (containerY - this.translateY) / this.scale;
+                    
+                    // Calculate new scale with dampening
+                    const scaleRatio = currentDistance / this.lastTouch.initialDistance;
+                    const dampedRatio = 1 + (scaleRatio - 1) * 0.6;
+                    const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * dampedRatio));
+                    
+                    if (Math.abs(newScale - this.scale) > 0.01) {
+                        // Recalculate translation to keep the image point under the current pinch center
+                        this.translateX = containerX - (baseImageX * newScale);
+                        this.translateY = containerY - (baseImageY * newScale);
+                        this.scale = newScale;
+                        
+                        this.constrainTranslation();
+                        this.updateTransform();
+                        this.updateUI();
                     }
                 }
                 e.preventDefault();
-            }
-            
-            handleTouchEnd(e) {
-                if (!this.imageLoaded) return;
-                
-                if (e.touches.length === 0) {
-                    this.isDragging = false;
-                    
-                    // Clear pinch tracking
-                    this.lastTouch.initialDistance = null;
-                    this.lastTouch.initialScale = null;
-                    
-                    // Double tap to zoom
-                    const now = Date.now();
-                    if (this.lastTap && (now - this.lastTap) < 300) {
-                        if (this.scale === 1) {
-                            const rect = this.image.getBoundingClientRect();
-                            const x = (this.lastTouch.x - rect.left) / rect.width;
-                            const y = (this.lastTouch.y - rect.top) / rect.height;
-                            this.zoomToPoint(1.8, x, y);
-                        } else {
-                            this.resetZoom();
-                        }
-                    }
-                    this.lastTap = now;
-                } else if (e.touches.length === 1) {
-                    // Switching from pinch to single touch - clear pinch state
-                    this.lastTouch.initialDistance = null;
-                    this.lastTouch.initialScale = null;
-                }
             }
             
             getTouchDistance(touch1, touch2) {
@@ -1089,22 +1084,23 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             zoomToPoint(newScale, pointX, pointY) {
                 if (!this.imageLoaded) return;
                 
+                // Get container dimensions
                 const containerWidth = this.container.clientWidth;
                 const containerHeight = this.container.clientHeight;
                 
-                const imageWidth = this.image.naturalWidth || this.image.width;
-                const imageHeight = this.image.naturalHeight || this.image.height;
+                // Convert normalized point (0-1) to container coordinates
+                const containerX = pointX * containerWidth;
+                const containerY = pointY * containerHeight;
                 
-                const imagePointX = pointX * imageWidth;
-                const imagePointY = pointY * imageHeight;
+                // Find what point in the base image is at this container position
+                const baseImageX = (containerX - this.translateX) / this.scale;
+                const baseImageY = (containerY - this.translateY) / this.scale;
                 
-                const currentScreenX = this.translateX + (imagePointX * this.scale);
-                const currentScreenY = this.translateY + (imagePointY * this.scale);
-                
-                this.translateX = currentScreenX - (imagePointX * newScale);
-                this.translateY = currentScreenY - (imagePointY * newScale);
-                
+                // Calculate new translation to keep this point at the same container position
+                this.translateX = containerX - (baseImageX * newScale);
+                this.translateY = containerY - (baseImageY * newScale);
                 this.scale = newScale;
+                
                 this.constrainTranslation();
                 this.updateTransform();
                 this.updateUI();
