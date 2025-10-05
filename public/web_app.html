@@ -335,6 +335,7 @@
             margin-top: 15px;
             background: #f8f9fa;
             display: inline-block;
+            width: 100%;
             max-width: 100%;
         }
 
@@ -343,8 +344,10 @@
             user-select: none;
             -webkit-user-select: none;
             display: block;
-            transform-origin: center center;
+            transform-origin: 0 0;
             transition: none;
+            max-width: 100%;
+            height: auto;
         }
 
         .image-preview.zoomed {
@@ -887,19 +890,17 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.dragStart = { x: 0, y: 0 };
                 this.lastTouch = { x: 0, y: 0, distance: 0 };
                 this.imageLoaded = false;
-                this.hasMoved = false; // Track if mouse/touch has moved during drag
+                this.hasMoved = false;
                 
                 this.init();
             }
             
             init() {
-                // Wait for image to load before enabling zoom
                 this.image.addEventListener('load', () => {
                     this.imageLoaded = true;
                     this.resetZoom();
                 });
                 
-                // Mouse events for desktop
                 this.image.addEventListener('click', (e) => this.handleClick(e));
                 this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
                 this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
@@ -907,26 +908,22 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
                 this.image.addEventListener('wheel', (e) => this.handleWheel(e));
                 
-                // Touch events for mobile
                 this.image.addEventListener('touchstart', (e) => this.handleTouchStart(e));
                 this.image.addEventListener('touchmove', (e) => this.handleTouchMove(e));
                 this.image.addEventListener('touchend', (e) => this.handleTouchEnd(e));
                 
-                // Prevent context menu
                 this.image.addEventListener('contextmenu', (e) => e.preventDefault());
                 
-                // Button events
                 document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
                 document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
                 document.getElementById('resetZoomBtn').addEventListener('click', () => this.resetZoom());
                 
-                // Prevent dragging the image
                 this.image.addEventListener('dragstart', (e) => e.preventDefault());
             }
             
             handleClick(e) {
                 if (!this.imageLoaded || this.hasMoved) {
-                    this.hasMoved = false; // Reset for next interaction
+                    this.hasMoved = false;
                     return;
                 }
                 
@@ -934,19 +931,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 e.stopPropagation();
                 
                 if (this.scale === 1) {
-                    // Zoom in on click location
-                    const rect = this.image.getBoundingClientRect();
-                    const x = (e.clientX - rect.left) / rect.width;
-                    const y = (e.clientY - rect.top) / rect.height;
-                    this.zoomToPoint(2.5, x, y);
+                    this.zoomToContainerCenter(1.8);
                 }
-                // Remove the else clause that was resetting zoom on click when zoomed
             }
             
             handleMouseDown(e) {
                 if (!this.imageLoaded) return;
                 
-                this.hasMoved = false; // Reset movement tracking
+                this.hasMoved = false;
                 
                 if (this.scale > 1) {
                     this.isDragging = true;
@@ -964,7 +956,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     const newTranslateX = e.clientX - this.dragStart.x;
                     const newTranslateY = e.clientY - this.dragStart.y;
                     
-                    // Check if we've moved enough to consider it a drag (prevents accidental panning)
                     if (Math.abs(newTranslateX - this.translateX) > 2 || Math.abs(newTranslateY - this.translateY) > 2) {
                         this.hasMoved = true;
                     }
@@ -998,7 +989,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 const x = (e.clientX - rect.left) / rect.width;
                 const y = (e.clientY - rect.top) / rect.height;
                 
-                const delta = e.deltaY > 0 ? 0.8 : 1.25;
+                const delta = e.deltaY > 0 ? 0.95 : 1.05;
                 const newScale = Math.max(1, Math.min(5, this.scale * delta));
                 
                 if (newScale !== this.scale) {
@@ -1057,14 +1048,13 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (e.touches.length === 0) {
                     this.isDragging = false;
                     
-                    // Double tap to zoom
                     const now = Date.now();
                     if (this.lastTap && (now - this.lastTap) < 300) {
                         if (this.scale === 1) {
                             const rect = this.image.getBoundingClientRect();
                             const x = (this.lastTouch.x - rect.left) / rect.width;
                             const y = (this.lastTouch.y - rect.top) / rect.height;
-                            this.zoomToPoint(2.5, x, y);
+                            this.zoomToPoint(1.8, x, y);
                         } else {
                             this.resetZoom();
                         }
@@ -1082,18 +1072,20 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             zoomToPoint(newScale, pointX, pointY) {
                 if (!this.imageLoaded) return;
                 
-                const rect = this.image.getBoundingClientRect();
-                const imageWidth = this.image.naturalWidth || rect.width;
-                const imageHeight = this.image.naturalHeight || rect.height;
+                const containerWidth = this.container.clientWidth;
+                const containerHeight = this.container.clientHeight;
                 
-                // Calculate the point in image coordinates
+                const imageWidth = this.image.naturalWidth || this.image.width;
+                const imageHeight = this.image.naturalHeight || this.image.height;
+                
                 const imagePointX = pointX * imageWidth;
                 const imagePointY = pointY * imageHeight;
                 
-                // Calculate new translation to keep the point in the same screen position
-                const scaleDiff = newScale - this.scale;
-                this.translateX -= imagePointX * scaleDiff * (rect.width / imageWidth);
-                this.translateY -= imagePointY * scaleDiff * (rect.height / imageHeight);
+                const currentScreenX = this.translateX + (imagePointX * this.scale);
+                const currentScreenY = this.translateY + (imagePointY * this.scale);
+                
+                this.translateX = currentScreenX - (imagePointX * newScale);
+                this.translateY = currentScreenY - (imagePointY * newScale);
                 
                 this.scale = newScale;
                 this.constrainTranslation();
@@ -1103,14 +1095,36 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             
             zoomIn() {
                 if (!this.imageLoaded) return;
-                const newScale = Math.min(5, this.scale * 1.5);
-                this.zoomToPoint(newScale, 0.5, 0.5);
+                const newScale = Math.min(5, this.scale * 1.15);
+                this.zoomToContainerCenter(newScale);
             }
             
             zoomOut() {
                 if (!this.imageLoaded) return;
-                const newScale = Math.max(1, this.scale / 1.5);
-                this.zoomToPoint(newScale, 0.5, 0.5);
+                const newScale = Math.max(1, this.scale / 1.15);
+                this.zoomToContainerCenter(newScale);
+            }
+            
+            zoomToContainerCenter(newScale) {
+                if (!this.imageLoaded) return;
+                
+                const containerCenterX = this.container.clientWidth / 2;
+                const containerCenterY = this.container.clientHeight / 2;
+                
+                const baseWidth = this.image.naturalWidth || this.image.width;
+                const baseHeight = this.image.naturalHeight || this.image.height;
+                
+                const imagePointX = (containerCenterX - this.translateX) / this.scale;
+                const imagePointY = (containerCenterY - this.translateY) / this.scale;
+                
+                this.scale = newScale;
+                
+                this.translateX = containerCenterX - (imagePointX * this.scale);
+                this.translateY = containerCenterY - (imagePointY * this.scale);
+                
+                this.constrainTranslation();
+                this.updateTransform();
+                this.updateUI();
             }
             
             resetZoom() {
@@ -1121,29 +1135,13 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.updateUI();
             }
             
-            constrainTranslation() {
-                if (this.scale <= 1) {
-                    this.translateX = 0;
-                    this.translateY = 0;
-                    return;
-                }
-                
-                const rect = this.image.getBoundingClientRect();
-                const scaledWidth = rect.width * this.scale;
-                const scaledHeight = rect.height * this.scale;
-                
-                const maxTranslateX = Math.max(0, (scaledWidth - rect.width) / 2);
-                const maxTranslateY = Math.max(0, (scaledHeight - rect.height) / 2);
-                
-                this.translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, this.translateX));
-                this.translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, this.translateY));
-            }
-            
             updateTransform() {
-                const transform = `scale(${this.scale}) translate(${this.translateX / this.scale}px, ${this.translateY / this.scale}px)`;
+                const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
                 this.image.style.transform = transform;
+                this.image.style.transformOrigin = '0 0';
                 
-                // Update cursor based on state
+                // Remove debug logging now
+                
                 if (this.scale > 1) {
                     this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
                     this.image.classList.add('zoomed');
@@ -1155,11 +1153,45 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 }
             }
             
+            constrainTranslation() {
+                if (this.scale <= 1) {
+                    this.translateX = 0;
+                    this.translateY = 0;
+                    return;
+                }
+                
+                const containerWidth = this.container.clientWidth;
+                const containerHeight = this.container.clientHeight;
+                
+                // Use the actual displayed width/height, not natural dimensions
+                const baseWidth = this.image.offsetWidth;
+                const baseHeight = this.image.offsetHeight;
+                
+                const scaledWidth = baseWidth * this.scale;
+                const scaledHeight = baseHeight * this.scale;
+                
+                if (scaledWidth <= containerWidth) {
+                    this.translateX = (containerWidth - scaledWidth) / 2;
+                } else {
+                    const minX = containerWidth - scaledWidth;
+                    const maxX = 0;
+                    this.translateX = Math.max(minX, Math.min(maxX, this.translateX));
+                }
+                
+                if (scaledHeight <= containerHeight) {
+                    this.translateY = (containerHeight - scaledHeight) / 2;
+                } else {
+                    const minY = containerHeight - scaledHeight;
+                    const maxY = 0;
+                    this.translateY = Math.max(minY, Math.min(maxY, this.translateY));
+                }
+            }
+            
             updateUI() {
                 const zoomControls = document.getElementById('zoomControls');
                 const zoomInfo = document.getElementById('zoomInfo');
                 
-                if (this.scale > 1.01) { // Small tolerance for floating point
+                if (this.scale > 1.01) {
                     zoomControls.classList.add('visible');
                     zoomInfo.classList.add('visible');
                     zoomInfo.textContent = `${Math.round(this.scale * 100)}%`;
@@ -1168,7 +1200,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     zoomInfo.classList.remove('visible');
                 }
                 
-                // Update button states
                 const zoomInBtn = document.getElementById('zoomInBtn');
                 const zoomOutBtn = document.getElementById('zoomOutBtn');
                 
@@ -1188,7 +1219,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
 
         // Initialize zoom functionality
         let imageZoom = null;
-
         // Test connection on page load
         window.addEventListener('load', async function() {
             const isConnected = await testConnection();
