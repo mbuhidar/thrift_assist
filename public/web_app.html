@@ -564,7 +564,7 @@
 
                     <div class="form-group">
                         <label for="textSize">Annotation Text Size: <span id="textSizeValue">12</span>px</label>
-                        <input type="range" id="textSize" min="8" max="32" value="12" step="1">
+                        <input type="range" id="textSize" min="8" max="32" value="12" step="1" oninput="document.getElementById('textSizeValue').textContent = this.value">
                     </div>
 
                     <button type="submit" class="btn" id="submitBtn">
