@@ -737,6 +737,68 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
         });
         
+        async function analyzeImage() {
+            const fileInput = document.getElementById('imageInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select an image first');
+                return;
+            }
+
+            // Get text size value
+            const textSizeSlider = document.getElementById('textSize');
+            const textSize = parseInt(textSizeSlider.value);
+            
+            console.log('Text size from slider:', textSize); // Debug log
+            
+            // Show loading state
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('text_size', textSize);
+
+            // Get search phrases
+            const searchPhrasesInput = document.getElementById('searchPhrases');
+            const searchPhrases = searchPhrasesInput.value
+                .split('\n')
+                .map(phrase => phrase.trim())
+                .filter(phrase => phrase.length > 0);
+
+            if (searchPhrases.length > 0) {
+                formData.append('search_phrases', JSON.stringify(searchPhrases));
+            }
+
+            console.log('Sending to API:', {
+                textSize: textSize,
+                searchPhrases: searchPhrases,
+                hasFile: !!file
+            }); // Debug log
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/ocr`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result, searchPhrases);
+                } else {
+                    showError(result.error_message || 'An error occurred while processing the image');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to connect to the API. Make sure the service is running on ' + API_BASE_URL);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
         function showLoading(show) {
             const loading = document.getElementById('loading');
             const submitBtn = document.getElementById('submitBtn');
@@ -1038,31 +1100,46 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (e.touches.length === 1 && this.isDragging && this.scale > 1) {
                     this.translateX = e.touches[0].clientX - this.dragStart.x;
                     this.translateY = e.touches[0].clientY - this.dragStart.y;
+                    
+                    console.log('Panning:', {
+                        scale: this.scale,
+                        translate: { x: this.translateX, y: this.translateY },
+                        imageSize: { w: this.image.offsetWidth, h: this.image.offsetHeight },
+                        scaledSize: { w: this.image.offsetWidth * this.scale, h: this.image.offsetHeight * this.scale }
+                    });
+                    
                     this.constrainTranslation();
+                    
+                    console.log('After constraint:', {
+                        translate: { x: this.translateX, y: this.translateY }
+                    });
+                    
                     this.updateTransform();
                 } else if (e.touches.length === 2 && this.lastTouch.initialDistance) {
                     const currentDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
                     
-                    // Get current pinch center in screen coordinates
                     const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
                     const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
                     
-                    // Convert to container coordinates
                     const containerRect = this.container.getBoundingClientRect();
                     const containerX = midX - containerRect.left;
                     const containerY = midY - containerRect.top;
                     
-                    // Find what point in the base image is under the pinch center
                     const baseImageX = (containerX - this.translateX) / this.scale;
                     const baseImageY = (containerY - this.translateY) / this.scale;
                     
-                    // Calculate new scale with dampening
                     const scaleRatio = currentDistance / this.lastTouch.initialDistance;
                     const dampedRatio = 1 + (scaleRatio - 1) * 0.6;
                     const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * dampedRatio));
                     
                     if (Math.abs(newScale - this.scale) > 0.01) {
-                        // Recalculate translation to keep the image point under the current pinch center
+                        console.log('Pinch zoom:', {
+                            oldScale: this.scale,
+                            newScale: newScale,
+                            baseImage: { x: baseImageX, y: baseImageY },
+                            container: { x: containerX, y: containerY }
+                        });
+                        
                         this.translateX = containerX - (baseImageX * newScale);
                         this.translateY = containerY - (baseImageY * newScale);
                         this.scale = newScale;
@@ -1149,10 +1226,24 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
-                // Ensure we have valid values before applying transform
-                if (!isFinite(this.translateX)) this.translateX = 0;
-                if (!isFinite(this.translateY)) this.translateY = 0;
-                if (!isFinite(this.scale) || this.scale < 1) this.scale = 1;
+                if (!isFinite(this.translateX)) {
+                    console.error('Invalid translateX:', this.translateX);
+                    this.translateX = 0;
+                }
+                if (!isFinite(this.translateY)) {
+                    console.error('Invalid translateY:', this.translateY);
+                    this.translateY = 0;
+                }
+                if (!isFinite(this.scale) || this.scale < 1) {
+                    console.error('Invalid scale:', this.scale);
+                    this.scale = 1;
+                }
+                
+                console.log('Applying transform:', {
+                    translate: { x: this.translateX, y: this.translateY },
+                    scale: this.scale,
+                    imageVisible: this.image.offsetWidth > 0 && this.image.offsetHeight > 0
+                });
                 
                 const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
                 this.image.style.transform = transform;
