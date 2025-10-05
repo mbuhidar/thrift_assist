@@ -1032,11 +1032,16 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.updateTransform();
                 } else if (e.touches.length === 2) {
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
-                    const scale = (distance / this.lastTouch.distance) * this.scale;
+                    
+                    // Reduce zoom sensitivity - only apply a fraction of the scale change
+                    const rawScale = (distance / this.lastTouch.distance);
+                    const dampedScale = 1 + (rawScale - 1) * 0.5; // Dampen by 50%
+                    const scale = dampedScale * this.scale;
                     const newScale = Math.max(1, Math.min(5, scale));
                     
-                    if (newScale !== this.scale) {
+                    if (Math.abs(newScale - this.scale) > 0.01) { // Only update if change is significant
                         this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
+                        this.lastTouch.distance = distance; // Update for next move
                     }
                 }
                 e.preventDefault();
