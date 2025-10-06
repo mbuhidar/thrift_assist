@@ -686,6 +686,8 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const threshold = document.getElementById('threshold').value;
             const textScale = document.getElementById('textScale').value;
             
+            console.log('Form submission - textScale value:', textScale); // Debug log
+            
             if (!imageFile) {
                 showError('Please select an image file');
                 return;
@@ -716,12 +718,16 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 formData.append('threshold', threshold);
                 formData.append('text_scale', textScale);
                 
+                console.log('Sending to API with text_scale:', textScale); // Debug log
+                
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',
                     body: formData
                 });
                 
                 const result = await response.json();
+                
+                console.log('API response:', result); // Debug log
                 
                 if (result.success) {
                     displayResults(result, searchPhrases);
@@ -1265,12 +1271,19 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (scaledWidth <= containerWidth) {
                     this.translateX = (containerWidth - scaledWidth) / 2;
                 } else {
-                    // At high zoom levels, be more lenient to prevent disappearing
                     const maxX = 0;
                     const minX = containerWidth - scaledWidth;
                     
-                    // Add a small buffer at high zoom levels
-                    const buffer = this.scale > 2 ? 50 : 0;
+                    // Progressive buffer based on zoom level to prevent disappearing
+                    let buffer = 0;
+                    if (this.scale > 3.5) {
+                        buffer = 100; // 350%+ zoom needs larger buffer
+                    } else if (this.scale > 2.5) {
+                        buffer = 75;  // 250%+ zoom
+                    } else if (this.scale > 2) {
+                        buffer = 50;  // 200%+ zoom
+                    }
+                    
                     this.translateX = Math.max(minX - buffer, Math.min(maxX + buffer, this.translateX));
                 }
                 
@@ -1278,12 +1291,19 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (scaledHeight <= containerHeight) {
                     this.translateY = (containerHeight - scaledHeight) / 2;
                 } else {
-                    // At high zoom levels, be more lenient to prevent disappearing
                     const maxY = 0;
                     const minY = containerHeight - scaledHeight;
                     
-                    // Add a small buffer at high zoom levels
-                    const buffer = this.scale > 2 ? 50 : 0;
+                    // Progressive buffer based on zoom level to prevent disappearing
+                    let buffer = 0;
+                    if (this.scale > 3.5) {
+                        buffer = 100; // 350%+ zoom needs larger buffer
+                    } else if (this.scale > 2.5) {
+                        buffer = 75;  // 250%+ zoom
+                    } else if (this.scale > 2) {
+                        buffer = 50;  // 200%+ zoom
+                    }
+                    
                     this.translateY = Math.max(minY - buffer, Math.min(maxY + buffer, this.translateY));
                 }
             }
