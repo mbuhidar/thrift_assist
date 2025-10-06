@@ -562,11 +562,6 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="textSize">Annotation Text Size: <span id="textSizeValue">12</span>px</label>
-                        <input type="range" id="textSize" min="8" max="32" value="12" step="1" oninput="document.getElementById('textSizeValue').textContent = this.value">
-                    </div>
-
                     <button type="submit" class="btn" id="submitBtn">
                         🚀 Analyze Image
                     </button>
@@ -681,11 +676,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         document.getElementById('textScale').addEventListener('input', function() {
             document.getElementById('textScaleValue').textContent = this.value + '%';
         });
-        
-        // Update text size display when slider moves
-        document.getElementById('textSize').addEventListener('input', function(e) {
-            document.getElementById('textSizeValue').textContent = e.target.value;
-        });
 
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -694,7 +684,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const imageFile = document.getElementById('imageFile').files[0];
             const searchPhrasesText = document.getElementById('searchPhrases').value;
             const threshold = document.getElementById('threshold').value;
-            const textScale = document.getElementById('textScale').value;  // Get text scale value
+            const textScale = document.getElementById('textScale').value;
             
             if (!imageFile) {
                 showError('Please select an image file');
@@ -724,7 +714,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 formData.append('file', imageFile);
                 formData.append('search_phrases', JSON.stringify(searchPhrases));
                 formData.append('threshold', threshold);
-                formData.append('text_scale', textScale);  // Add text scale to form data
+                formData.append('text_scale', textScale);
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',
@@ -1219,13 +1209,24 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
-                if (!isFinite(this.translateX)) this.translateX = 0;
-                if (!isFinite(this.translateY)) this.translateY = 0;
-                if (!isFinite(this.scale) || this.scale < 1) this.scale = 1;
+                if (!isFinite(this.translateX)) {
+                    console.warn('Invalid translateX, resetting');
+                    this.translateX = 0;
+                }
+                if (!isFinite(this.translateY)) {
+                    console.warn('Invalid translateY, resetting');
+                    this.translateY = 0;
+                }
+                if (!isFinite(this.scale) || this.scale < 1) {
+                    console.warn('Invalid scale, resetting');
+                    this.scale = 1;
+                }
                 
-                const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
+                // Force hardware acceleration on mobile
+                const transform = `translate3d(${this.translateX}px, ${this.translateY}px, 0) scale(${this.scale})`;
                 this.image.style.transform = transform;
                 this.image.style.transformOrigin = '0 0';
+                this.image.style.willChange = 'transform';  // Hint to browser for optimization
                 
                 if (this.scale > 1) {
                     this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
@@ -1251,6 +1252,12 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 const baseWidth = this.image.offsetWidth;
                 const baseHeight = this.image.offsetHeight;
                 
+                // Safeguard against zero or undefined dimensions
+                if (!baseWidth || !baseHeight) {
+                    console.warn('Image dimensions not available yet');
+                    return;
+                }
+                
                 const scaledWidth = baseWidth * this.scale;
                 const scaledHeight = baseHeight * this.scale;
                 
@@ -1258,18 +1265,26 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (scaledWidth <= containerWidth) {
                     this.translateX = (containerWidth - scaledWidth) / 2;
                 } else {
+                    // At high zoom levels, be more lenient to prevent disappearing
                     const maxX = 0;
                     const minX = containerWidth - scaledWidth;
-                    this.translateX = Math.max(minX, Math.min(maxX, this.translateX));
+                    
+                    // Add a small buffer at high zoom levels
+                    const buffer = this.scale > 2 ? 50 : 0;
+                    this.translateX = Math.max(minX - buffer, Math.min(maxX + buffer, this.translateX));
                 }
                 
                 // Vertical constraints
                 if (scaledHeight <= containerHeight) {
                     this.translateY = (containerHeight - scaledHeight) / 2;
                 } else {
+                    // At high zoom levels, be more lenient to prevent disappearing
                     const maxY = 0;
                     const minY = containerHeight - scaledHeight;
-                    this.translateY = Math.max(minY, Math.min(maxY, this.translateY));
+                    
+                    // Add a small buffer at high zoom levels
+                    const buffer = this.scale > 2 ? 50 : 0;
+                    this.translateY = Math.max(minY - buffer, Math.min(maxY + buffer, this.translateY));
                 }
             }
             
