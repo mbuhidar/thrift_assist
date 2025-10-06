@@ -240,9 +240,11 @@ setup_google_credentials()
 ocr_cache = OrderedDict()
 MAX_CACHE_SIZE = 100  # Maximum number of cached results
 
-def get_image_hash(image_data: bytes) -> str:
-    """Generate a hash for image data to use as cache key."""
-    return hashlib.md5(image_data).hexdigest()
+def get_image_hash(image_data: bytes, text_scale: int = 100) -> str:
+    """Generate a hash for image data combined with text_scale to use as cache key."""
+    # Include text_scale in the hash so different text sizes are cached separately
+    combined_data = image_data + str(text_scale).encode('utf-8')
+    return hashlib.md5(combined_data).hexdigest()
 
 def cache_ocr_result(image_hash: str, ocr_data: dict):
     """Cache OCR result with LRU eviction."""
@@ -482,6 +484,7 @@ async def upload_and_detect_phrases(
         print(f"🔍 Starting OCR analysis - OCR Available: {OCR_MODULE_AVAILABLE}")
         print(f"📁 File: {file.filename}, Content-Type: {file.content_type}")
         print(f"🔧 Parameters: threshold={threshold}, text_scale={text_scale}")
+        print(f"📏 Text scale for annotations: {text_scale}%")
         
         # Validate file type
         if not file.content_type.startswith('image/'):
@@ -496,17 +499,17 @@ async def upload_and_detect_phrases(
         except (json.JSONDecodeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=f"Invalid search_phrases format: {str(e)}")
         
-        # Read image data and calculate hash
+        # Read image data and calculate hash with text_scale
         image_data = await file.read()
-        image_hash = get_image_hash(image_data)
-        print(f"🔑 Image hash: {image_hash[:8]}...")
+        image_hash = get_image_hash(image_data, text_scale)
+        print(f"🔑 Image hash (with text_scale={text_scale}): {image_hash[:8]}...")
         
-        # Check if we have cached OCR results
+        # Check if we have cached OCR results for this specific text_scale
         cached_ocr = get_cached_ocr_result(image_hash)
         
         if cached_ocr:
-            print("🚀 Using cached OCR data, skipping OCR processing...")
-            # Use cached image path and run detection with new threshold
+            print(f"🚀 Using cached result with text_scale={text_scale}...")
+            # Use cached image path and run detection with same text_scale
             temp_image_path = cached_ocr.get('image_path')
             if temp_image_path and os.path.exists(temp_image_path):
                 print(f"📂 Using cached image: {temp_image_path}")
@@ -638,15 +641,16 @@ async def upload_and_detect_phrases(
             else:
                 print("   - Results: None (processing failed)")
             
-            # Cache the OCR data for future use
+            # Cache the OCR data with text_scale information
             if results:
                 cache_ocr_result(image_hash, {
                     'image_path': temp_image_path,
                     'image_dimensions': [image.shape[1], image.shape[0]],
                     'all_text': results.get('all_text', ''),
-                    'filename': file.filename
+                    'filename': file.filename,
+                    'text_scale': text_scale  # Store text_scale in cache
                 })
-                print("💾 OCR data cached successfully")
+                print(f"💾 OCR data cached with text_scale={text_scale}")
         
         if results is None:
             print("❌ OCR processing failed")
