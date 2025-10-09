@@ -1,6 +1,5 @@
 annotated-types==0.7.0
 anyio==4.11.0
-aiofiles==23.2.1
 cachetools==6.2.0
 certifi==2025.8.3
 charset-normalizer==3.4.3
@@ -39,6 +38,7 @@ protobuf==6.32.1
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pydantic==2.11.9
+pydantic-settings==2.11.0
 pydantic_core==2.33.2
 Pygments==2.19.2
 pyparsing==3.2.5
