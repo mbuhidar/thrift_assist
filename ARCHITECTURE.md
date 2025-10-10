@@ -497,7 +497,7 @@ None
 
 **Function Call:**
 ```python
-# In backend/api/routes/ocr.py (after cache miss)
+# In backend/api/routes/ocr.py
 
 results = ocr_service.detect_phrases(
     image_path='/tmp/tmpxyz123.jpg',
@@ -975,40 +975,111 @@ response = client.document_text_detection(image=image)
 ### Diagram 1: New Image Upload (Cache Miss)
 
 ```
-Frontend         API Route       Cache Service    OCR Service      Core OCR       Google Vision
-   │                │                  │               │               │                │
-   ├─POST /upload──>│                  │               │               │                │
-   │                ├─get_hash()──────>│               │               │                │
-   │                │<─hash────────────┤               │               │                │
-   │                ├─get_cached()────>│               │               │                │
-   │                │<─None (miss)─────┤               │               │                │
-   │                ├─detect_phrases()─────────────────>│               │                │
-   │                │                  │               ├─annotate()────>│                │
-   │                │                  │               │               ├─detect()───────>│
-   │                │                  │               │               │<─text_data─────┤
-   │                │                  │               │<─results──────┤                │
-   │                │<─formatted────────────────────────┤               │                │
-   │                ├─cache_result()──>│               │               │                │
-   │                │<─ok──────────────┤               │               │                │
-   │<─JSON response─┤                  │               │               │                │
-   │                │                  │               │               │                │
+Frontend    API Route    Cache Svc    OCR Svc     Core OCR    Google API
+   │            │            │            │            │            │
+   ├─POST──────>│            │            │            │            │
+   │ /upload    │            │            │            │            │
+   │            │            │            │            │            │
+   │            ├─hash()────>│            │            │            │
+   │            │<─hash──────┤            │            │            │
+   │            │            │            │            │            │
+   │            ├─cached()──>│            │            │            │
+   │            │<─None──────┤            │            │            │
+   │            │  (miss)    │            │            │            │
+   │            │            │            │            │            │
+   │            ├─detect()──────────────>│            │            │
+   │            │            │            │            │            │
+   │            │            │            ├─annotate()>│            │
+   │            │            │            │            │            │
+   │            │            │            │            ├─Vision────>│
+   │            │            │            │            │   API      │
+   │            │            │            │            │<─text──────┤
+   │            │            │            │            │            │
+   │            │            │            │<─results───┤            │
+   │            │            │            │            │            │
+   │            │<─formatted─────────────┤            │            │
+   │            │            │            │            │            │
+   │            ├─cache()───>│            │            │            │
+   │            │<─ok────────┤            │            │            │
+   │            │            │            │            │            │
+   │<─JSON──────┤            │            │            │            │
+   │  response  │            │            │            │            │
+   │            │            │            │            │            │
 ```
 
 ### Diagram 2: Threshold Update (Cache Hit)
 
 ```
-Frontend         API Route       Cache Service    OCR Service      Core OCR
-   │                │                  │               │               │
-   ├─POST /upload──>│                  │               │               │
-   │  (same image)  ├─get_hash()──────>│               │               │
-   │                │<─hash────────────┤               │               │
-   │                ├─get_cached()────>│               │               │
-   │                │<─cached_data─────┤               │               │
-   │                ├─detect_phrases()─────────────────>│               │
-   │                │  (cached path)   │               ├─annotate()────>│
-   │                │                  │               │  (skip API)   │
-   │                │                  │               │<─results──────┤
-   │                │<─formatted────────────────────────┤               │
-   │<─JSON response─┤                  │               │               │
-   │  (fast! ~500ms)│                  │               │               │
+Frontend    API Route    Cache Svc    OCR Svc     Core OCR
+   │            │            │            │            │
+   ├─POST──────>│            │            │            │
+   │ /upload    │ (same img, │            │            │
+   │            │  new %)    │            │            │
+   │            │            │            │            │
+   │            ├─hash()────>│            │            │
+   │            │<─hash──────┤            │            │
+   │            │  (same)    │            │            │
+   │            │            │            │            │
+   │            ├─cached()──>│            │            │
+   │            │<─data──────┤            │            │
+   │            │  (HIT!)    │            │            │
+   │            │            │            │            │
+   │            ├─detect()──────────────>│            │
+   │            │  (cached   │            │            │
+   │            │   path)    │            │            │
+   │            │            │            │            │
+   │            │            │            ├─annotate()>│
+   │            │            │            │ (skip API) │
+   │            │            │            │<─results───┤
+   │            │            │            │            │
+   │            │<─formatted─────────────┤            │
+   │            │            │            │            │
+   │<─JSON──────┤            │            │            │
+   │  response  │            │            │            │
+   │  (~500ms!) │            │            │            │
+   │            │            │            │            │
+
+Performance: ~500ms (5x faster - no Google API call!)
+```
+
+### Diagram 3: Health Check
+
+```
+Frontend    API Route    OCR Service
+   │            │            │
+   ├─GET───────>│            │
+   │ /health    │            │
+   │            │            │
+   │            ├─avail()───>│
+   │            │<─bool──────┤
+   │            │            │
+   │<─JSON──────┤            │
+   │  {status}  │            │
+   │            │            │
+```
+
+### Diagram 4: Cache Management
+
+```
+Frontend    API Route    Cache Service
+   │            │            │
+   ├─GET───────>│            │
+   │ /cache/    │            │
+   │  status    │            │
+   │            │            │
+   │            ├─status()──>│
+   │            │<─{data}────┤
+   │            │            │
+   │<─JSON──────┤            │
+   │  {cache}   │            │
+   │            │            │
+```
+   │               │               │
+   │               │<──{size,──────┤
+   │               │    entries}   │
+   │               │               │
+   │<──JSON────────┤               │
+   │  {cache_size, │               │
+   │   entries[]}  │               │
+   │               │               │
 ```
