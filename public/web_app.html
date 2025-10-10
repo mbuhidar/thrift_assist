@@ -413,6 +413,72 @@
             display: block;
         }
 
+        .explanation-panel {
+            background: #f8f9ff;
+            border-left: 4px solid #5a67d8;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        
+        .confidence-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        
+        .confidence-very-high {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .confidence-high {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .confidence-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .confidence-low {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .factor-list {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        
+        .factor-item {
+            margin: 4px 0;
+            color: #555;
+        }
+        
+        .warning-badge {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+            padding: 6px 10px;
+            margin: 6px 0;
+            border-radius: 3px;
+            font-size: 0.8em;
+            color: #856404;
+        }
+        
+        .toggle-explanation {
+            color: #5a67d8;
+            cursor: pointer;
+            font-size: 0.85em;
+            text-decoration: underline;
+            margin-left: 10px;
+        }
+
         /* Mobile optimizations */
         @media (max-width: 768px) {
             .main-content {
@@ -770,25 +836,28 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         function displayResults(result, searchPhrases) {
             const resultsSummary = document.getElementById('resultsSummary');
             const matchesList = document.getElementById('matchesList');
-            const annotatedImage = document.getElementById('annotatedImage');
             
             // Show results section
             document.getElementById('results').style.display = 'block';
             document.getElementById('noResults').style.display = 'none';
             
-            // Update summary
+            // Update summary with explainability metrics
+            const avgConfidence = calculateAverageConfidence(result.matches);
+            
             resultsSummary.innerHTML = `
                 <h3>✅ Analysis Complete</h3>
                 <div>
                     <span class="stat">📊 Total: ${result.total_matches}</span>
                     <span class="stat">⏱️ ${Math.round(result.processing_time_ms)}ms</span>
                     <span class="stat">📐 ${result.image_dimensions[0]}×${result.image_dimensions[1]}</span>
+                    <span class="stat">🎯 Avg Confidence: ${avgConfidence}%</span>
                 </div>
             `;
             
-            // Update matches list with collapsible details
+            // Update matches list with explainability
             if (result.total_matches > 0) {
                 let matchesHTML = '<h3>🎯 Found Matches</h3>';
+                matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Click on matches to see detailed explanations</p>';
                 
                 for (const [phrase, matches] of Object.entries(result.matches)) {
                     const matchId = phrase.replace(/\s+/g, '-').toLowerCase();
@@ -804,11 +873,19 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                                 </div>
                             </div>
                             <div id="details-${matchId}" class="collapsible-content">
-                                ${matches.map(match => `
-                                    <div class="match-details" style="margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
-                                        📝 "${match.text}" 
-                                        <span class="match-score">${Math.round(match.score)}% ${match.match_type}</span>
-                                        ${match.angle !== 0 ? ` 🔄 ${Math.round(match.angle)}°` : ''}
+                                ${matches.map((match, idx) => `
+                                    <div class="match-details" style="margin-bottom: 12px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                            <span>📝 "${match.text}"</span>
+                                            <span class="toggle-explanation" onclick="toggleExplanation('${matchId}-${idx}')">
+                                                Why? 🔍
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span class="match-score">${Math.round(match.score)}% ${match.match_type}</span>
+                                            ${match.angle !== 0 ? ` 🔄 ${Math.round(match.angle)}°` : ''}
+                                        </div>
+                                        ${match.explanation ? renderExplanation(match.explanation, `${matchId}-${idx}`) : ''}
                                     </div>
                                 `).join('')}
                             </div>
@@ -831,13 +908,82 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 const annotatedImage = document.getElementById('annotatedImage');
                 const imageContainer = document.getElementById('imageContainer');
                 
-                // Initialize zoom if not already done
                 if (!imageZoom) {
                     imageZoom = new ImageZoom(annotatedImage, imageContainer);
                 }
                 
                 imageZoom.setImage(`data:image/jpeg;base64,${result.annotated_image_base64}`);
                 annotatedImage.style.display = 'block';
+            }
+        }
+        
+        function calculateAverageConfidence(matches) {
+            let total = 0;
+            let count = 0;
+            
+            for (const phraseMatches of Object.values(matches)) {
+                for (const match of phraseMatches) {
+                    total += match.score;
+                    count++;
+                }
+            }
+            
+            return count > 0 ? Math.round(total / count) : 0;
+        }
+        
+        function renderExplanation(explanation, id) {
+            if (!explanation) return '';
+            
+            const confidenceClass = `confidence-${explanation.confidence_level.toLowerCase().replace(' ', '-')}`;
+            
+            return `
+                <div id="explain-${id}" class="explanation-panel" style="display: none;">
+                    <div style="margin-bottom: 8px;">
+                        <span class="confidence-badge ${confidenceClass}">
+                            ${explanation.confidence_level} Confidence
+                        </span>
+                        <span style="font-style: italic; color: #666;">${explanation.recommendation}</span>
+                    </div>
+                    
+                    <div style="margin-top: 10px;">
+                        <strong>🔍 How we matched this:</strong>
+                        <ul class="factor-list">
+                            ${explanation.reasoning.map(reason => `<li class="factor-item">✓ ${reason}</li>`).join('')}
+                        </ul>
+                    </div>
+                    
+                    ${Object.keys(explanation.confidence_factors).length > 0 ? `
+                        <div style="margin-top: 8px;">
+                            <strong>📊 Confidence Breakdown:</strong>
+                            <ul class="factor-list">
+                                ${Object.entries(explanation.confidence_factors).map(([factor, value]) => `
+                                    <li class="factor-item">${formatFactorName(factor)}: ${typeof value === 'number' ? value + '%' : value}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${explanation.warnings.length > 0 ? `
+                        <div style="margin-top: 8px;">
+                            ${explanation.warnings.map(warning => `
+                                <div class="warning-badge">⚠️ ${warning}</div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        function formatFactorName(factor) {
+            return factor
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, l => l.toUpperCase());
+        }
+        
+        function toggleExplanation(id) {
+            const panel = document.getElementById(`explain-${id}`);
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
             }
         }
 

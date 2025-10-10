@@ -108,7 +108,7 @@ class OCRService:
     
     def format_matches_for_api(self, results: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Convert OCR results to API-friendly format.
+        Convert OCR results to API-friendly format with explainability data.
         
         Args:
             results: Raw OCR results dictionary
@@ -121,13 +121,19 @@ class OCRService:
         for phrase, matches in results.get('matches', {}).items():
             serializable_matches[phrase] = []
             for match_data, score, match_type in matches:
-                serializable_matches[phrase].append({
+                match_dict = {
                     'text': match_data.get('text', ''),
                     'score': float(score),
                     'match_type': match_type,
                     'angle': match_data.get('angle', 0),
                     'is_spanning': 'span_info' in match_data
-                })
+                }
+                
+                # Add explanation if available
+                if 'explanation' in match_data:
+                    match_dict['explanation'] = match_data['explanation']
+                
+                serializable_matches[phrase].append(match_dict)
         
         return serializable_matches
 

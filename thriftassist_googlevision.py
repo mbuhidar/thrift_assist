@@ -339,35 +339,95 @@ def try_reverse_text_matching(phrase, text):
     return max(normal_score, reverse_score, char_reverse_score)
 
 
+def explain_match_score(phrase, matched_text, score, match_type):
+    """
+    Generate human-readable explanation for why a match occurred.
+    
+    Returns:
+        dict: Explanation with reasoning, contributing factors, and confidence breakdown
+    """
+    explanation = {
+        'phrase_searched': phrase,
+        'text_found': matched_text,
+        'overall_score': score,
+        'match_type': match_type,
+        'reasoning': [],
+        'confidence_factors': {},
+        'warnings': []
+    }
+    
+    phrase_normalized = normalize_text_for_search(phrase)
+    text_normalized = normalize_text_for_search(matched_text)
+    
+    # Exact match reasoning
+    if phrase_normalized in text_normalized:
+        explanation['reasoning'].append("Exact substring match found (case-insensitive)")
+        explanation['confidence_factors']['exact_match'] = 100
+    
+    # Word-level analysis
+    phrase_words = set(phrase_normalized.split())
+    text_words = set(text_normalized.split())
+    common_words = phrase_words & text_words
+    
+    if common_words:
+        word_match_pct = (len(common_words) / len(phrase_words)) * 100
+        explanation['confidence_factors']['word_overlap'] = round(word_match_pct, 1)
+        explanation['reasoning'].append(
+            f"{len(common_words)}/{len(phrase_words)} words matched: {', '.join(sorted(common_words))}"
+        )
+    
+    # Character similarity
+    if FUZZY_AVAILABLE:
+        char_similarity = fuzz.ratio(phrase_normalized, text_normalized)
+        explanation['confidence_factors']['character_similarity'] = char_similarity
+        
+        if char_similarity < 70:
+            explanation['warnings'].append("Low character-level similarity - may be a false positive")
+        
+        # Check for common OCR errors
+        ocr_corrections = 0
+        for ocr_char, std_char in {'|': 'I', 'rn': 'm', 'cl': 'd'}.items():
+            if ocr_char in matched_text and std_char in phrase:
+                ocr_corrections += 1
+        
+        if ocr_corrections > 0:
+            explanation['reasoning'].append(f"Corrected {ocr_corrections} likely OCR error(s)")
+            explanation['confidence_factors']['ocr_corrections'] = ocr_corrections
+    
+    # Orientation analysis
+    if match_type in ['upside_down', 'reversed']:
+        explanation['reasoning'].append(f"Text detected at unusual orientation ({match_type})")
+        explanation['warnings'].append("Verify this match - text may be rotated or mirrored")
+    
+    # Spanning match explanation
+    if 'span' in match_type:
+        explanation['reasoning'].append("Match spans multiple lines of text")
+        explanation['confidence_factors']['spanning'] = True
+    
+    # Final confidence assessment
+    if score == 100:
+        explanation['confidence_level'] = 'Very High'
+        explanation['recommendation'] = 'This is an exact match'
+    elif score >= 85:
+        explanation['confidence_level'] = 'High'
+        explanation['recommendation'] = 'Strong match - likely correct'
+    elif score >= 70:
+        explanation['confidence_level'] = 'Medium'
+        explanation['recommendation'] = 'Probable match - verify if critical'
+    else:
+        explanation['confidence_level'] = 'Low'
+        explanation['recommendation'] = 'Weak match - manual verification recommended'
+        explanation['warnings'].append(f"Score below 70% - may be incorrect")
+    
+    return explanation
+
+
 def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
     """
     Find complete phrase matches in text lines and full text.
-    Only returns matches for complete phrases, not individual words.
-    Enhanced to handle text at various angles including upside down and phrases spanning multiple lines.
-    All matching is case-insensitive.
-    
-    Args:
-        phrase: Target phrase to find (case will be ignored)
-        text_lines: List of text lines from group_text_into_lines()
-        full_text: Complete text from first annotation
-        threshold: Minimum similarity for fuzzy matching (50-100)
-                  - 50-60: Very lenient (catches many false positives)
-                  - 70-80: Balanced (good for most use cases)
-                  - 85-95: Strict (fewer false positives, may miss variations)
-                  - 95-100: Very strict (only near-exact matches)
-    
-    Returns:
-        List of matching text segments with scores
-        
-    THRESHOLD BEHAVIOR:
-    - Exact substring matches always return 100% regardless of threshold
-    - Fuzzy matching uses threshold to filter results
-    - Common word phrases (like "the", "and") use stricter matching
-    - Non-common phrases use the specified threshold
-    - All matching is case-insensitive (Lee Child = LEE CHILD = lee child)
+    Enhanced with explainability data.
     """
     matches = []
-    # Normalize search phrase to lowercase for consistent matching
     phrase_normalized = normalize_text_for_search(phrase)
     phrase_words = phrase_normalized.split()
     
@@ -380,35 +440,32 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
     for line in text_lines:
         line_text_normalized = normalize_text_for_search(line['text'])
         
-        # Exact substring match (highest priority) - case-insensitive
+        # Exact substring match
         if phrase_normalized in line_text_normalized:
-            # Find the exact word boundaries for tighter bounding box
             enhanced_line = enhance_match_with_word_boundaries(line, phrase, phrase_normalized, line_text_normalized)
+            
+            # Add explanation data
+            explanation = explain_match_score(phrase, line['text'], 100, "complete_phrase")
+            enhanced_line['explanation'] = explanation
+            
             matches.append((enhanced_line, 100, "complete_phrase"))
             continue
         
-        # High-threshold fuzzy matching for complete phrases only
+        # Fuzzy matching with explanation
         if FUZZY_AVAILABLE and len(line_text_normalized) >= len(phrase_normalized):
-            # Check if this is a phrase made entirely of common words
             is_common_word_phrase = all(word in COMMON_WORDS for word in phrase_words)
             
-            if is_common_word_phrase:
-                # For common word phrases like "The The", ONLY use exact matching
-                # No fuzzy matching to avoid false positives
-                continue
-            else:
-                # For phrases with non-common words, use fuzzy matching
-                # Pass normalized text to try_reverse_text_matching
+            if not is_common_word_phrase:
                 similarity = try_reverse_text_matching(phrase_normalized, line_text_normalized)
                 if similarity >= threshold:
                     match_type = "upside_down" if similarity > 95 else "fuzzy_phrase"
+                    
+                    # Add explanation
+                    explanation = explain_match_score(phrase, line['text'], similarity, match_type)
+                    line['explanation'] = explanation
+                    
                     matches.append((line, similarity, match_type))
                     continue
-                
-                # Also try partial ratio for phrases that span multiple words
-                partial_sim = fuzz.partial_ratio(phrase_normalized, line_text_normalized)
-                if partial_sim >= 90:  # High threshold for partial matches
-                    matches.append((line, partial_sim, "partial_phrase"))
     
     # Search for phrases that span multiple lines - case-insensitive
     if len(phrase_words) > 1 and len(text_lines) > 1:
