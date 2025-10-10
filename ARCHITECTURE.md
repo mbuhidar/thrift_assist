@@ -44,12 +44,12 @@ ThriftAssist is a REST API service for detecting and annotating phrases in image
 │  ┌─────────────────┬──────────────────┬──────────────────┐  │
 │  │  OCR Service    │  Cache Service   │  Image Service   │  │
 │  │                 │                  │                  │  │
-│  │ • Phrase        │ • LRU cache     │ • Base64 ↔        │  │
-│  │   detection     │ • Hash keys     │   Image array     │  │
-│  │ • Google Cloud  │ • Expiry        │ • Validation      │  │
-│  │   Vision API    │   (1 hour)      │ • Temp files      │  │
-│  │ • Result        │ • Max 100       │                   │  │
-│  │   formatting    │   entries       │                   │  │
+│  │ • Phrase        │ • LRU cache      │ • Base64 ↔       │  │
+│  │   detection     │ • Hash keys      │   Image array    │  │
+│  │ • Google Cloud  │ • Expiry         │ • Validation     │  │
+│  │   Vision API    │   (1 hour)       │ • Temp files     │  │
+│  │ • Result        │ • Max 100        │                  │  │
+│  │   formatting    │   entries        │                  │  │
 │  └─────────────────┴──────────────────┴──────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -87,36 +87,36 @@ thrift_assist/
 ├── backend/                          # Backend services (future refactoring)
 │   ├── api/                          # API layer
 │   │   ├── routes/                   # API endpoints
-│   │   │   ├── health.py            # Health check routes
-│   │   │   ├── ocr.py               # OCR routes
-│   │   │   └── cache.py             # Cache management routes
+│   │   │   ├── health.py             # Health check routes
+│   │   │   ├── ocr.py                # OCR routes
+│   │   │   └── cache.py              # Cache management routes
 │   │   ├── models/                   # Pydantic models
-│   │   │   ├── requests.py          # Request schemas
-│   │   │   └── responses.py         # Response schemas
+│   │   │   ├── requests.py           # Request schemas
+│   │   │   └── responses.py          # Response schemas
 │   │   └── main.py                   # FastAPI app initialization
 │   ├── services/                     # Business logic
-│   │   ├── ocr_service.py           # OCR operations
-│   │   ├── cache_service.py         # Cache management
-│   │   └── image_service.py         # Image processing
+│   │   ├── ocr_service.py            # OCR operations
+│   │   ├── cache_service.py          # Cache management
+│   │   └── image_service.py          # Image processing
 │   ├── core/                         # Core configuration
-│   │   ├── config.py                # Settings management
-│   │   ├── credentials.py           # Google Cloud auth
-│   │   └── logging.py               # Logging config
+│   │   ├── config.py                 # Settings management
+│   │   ├── credentials.py            # Google Cloud auth
+│   │   └── logging.py                # Logging config
 │   └── utils/                        # Utility functions
-│       ├── image_utils.py           # Image helpers
-│       └── text_utils.py            # Text processing
+│       ├── image_utils.py            # Image helpers
+│       └── text_utils.py             # Text processing
 ├── frontend/                         # Frontend application
 │   └── public/                       # Static files
-│       ├── web_app.html             # Main web interface
-│       └── favicon.ico              # Site icon
+│       ├── web_app.html              # Main web interface
+│       └── favicon.ico               # Site icon
 ├── credentials/                      # API credentials (gitignored)
-│   └── *.json                       # Google Cloud credentials
-├── main.py                          # Current monolithic API (legacy)
-├── thriftassist_googlevision.py    # Core OCR module
-├── run_api.py                       # Development server launcher
-├── requirements.txt                 # Python dependencies
-├── ARCHITECTURE.md                  # This file
-└── README.md                        # Project documentation
+│   └── *.json                        # Google Cloud credentials
+├── main.py                           # Current monolithic API (legacy)
+├── thriftassist_googlevision.py      # Core OCR module
+├── run_api.py                        # Development server launcher
+├── requirements.txt                  # Python dependencies
+├── ARCHITECTURE.md                   # This file
+└── README.md                         # Project documentation
 ```
 
 ## Component Descriptions
@@ -987,7 +987,7 @@ Frontend    API Route    Cache Svc    OCR Svc     Core OCR    Google API
    │            │<─None──────┤            │            │            │
    │            │  (miss)    │            │            │            │
    │            │            │            │            │            │
-   │            ├─detect()──────────────>│            │            │
+   │            ├─detect()───────────────>│            │            │
    │            │            │            │            │            │
    │            │            │            ├─annotate()>│            │
    │            │            │            │            │            │
@@ -997,7 +997,7 @@ Frontend    API Route    Cache Svc    OCR Svc     Core OCR    Google API
    │            │            │            │            │            │
    │            │            │            │<─results───┤            │
    │            │            │            │            │            │
-   │            │<─formatted─────────────┤            │            │
+   │            │<─formatted──────────────┤            │            │
    │            │            │            │            │            │
    │            ├─cache()───>│            │            │            │
    │            │<─ok────────┤            │            │            │
@@ -1024,7 +1024,7 @@ Frontend    API Route    Cache Svc    OCR Svc     Core OCR
    │            │<─data──────┤            │            │
    │            │  (HIT!)    │            │            │
    │            │            │            │            │
-   │            ├─detect()──────────────>│            │
+   │            ├─detect()───────────────>│            │
    │            │  (cached   │            │            │
    │            │   path)    │            │            │
    │            │            │            │            │
@@ -1032,7 +1032,7 @@ Frontend    API Route    Cache Svc    OCR Svc     Core OCR
    │            │            │            │ (skip API) │
    │            │            │            │<─results───┤
    │            │            │            │            │
-   │            │<─formatted─────────────┤            │
+   │            │<─formatted──────────────┤            │
    │            │            │            │            │
    │<─JSON──────┤            │            │            │
    │  response  │            │            │            │
