@@ -8,57 +8,57 @@ ThriftAssist is a REST API service for detecting and annotating phrases in image
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Frontend Layer                       │
+│                         Frontend Layer                      │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ web_app.html (Static HTML/JS/CSS)                    │   │
-│  │ - Image upload UI                                     │   │
-│  │ - Search phrase input                                 │   │
-│  │ - Results display with zoom/pan                       │   │
-│  │ - Threshold controls                                  │   │
+│  │ - Image upload UI                                    │   │
+│  │ - Search phrase input                                │   │
+│  │ - Results display with zoom/pan                      │   │
+│  │ - Threshold controls                                 │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼ HTTP/REST
 ┌─────────────────────────────────────────────────────────────┐
-│                          API Layer                           │
+│                          API Layer                          │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ main.py (FastAPI Application)                        │   │
-│  │                                                       │   │
+│  │                                                      │   │
 │  │ Routes:                                              │   │
-│  │  ├─ /health         (Health check)                  │   │
-│  │  ├─ /ocr/upload     (Upload & detect)               │   │
-│  │  ├─ /ocr/detect     (Base64 detect)                 │   │
-│  │  ├─ /cache/status   (Cache info)                    │   │
-│  │  └─ /cache/clear    (Clear cache)                   │   │
-│  │                                                       │   │
+│  │  ├─ /health         (Health check)                   │   │
+│  │  ├─ /ocr/upload     (Upload & detect)                │   │
+│  │  ├─ /ocr/detect     (Base64 detect)                  │   │
+│  │  ├─ /cache/status   (Cache info)                     │   │
+│  │  └─ /cache/clear    (Clear cache)                    │   │
+│  │                                                      │   │
 │  │ Middleware:                                          │   │
-│  │  ├─ CORS (allow origins)                            │   │
-│  │  ├─ Static files (/static)                          │   │
+│  │  ├─ CORS (allow origins)                             │   │
+│  │  ├─ Static files (/static)                           │   │
 │  │  └─ Error handling                                   │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                        Service Layer                         │
+│                        Service Layer                        │
 │  ┌─────────────────┬──────────────────┬──────────────────┐  │
 │  │  OCR Service    │  Cache Service   │  Image Service   │  │
 │  │                 │                  │                  │  │
-│  │ • Phrase        │ • LRU cache     │ • Base64 ↔      │  │
-│  │   detection     │ • Hash keys     │   Image array    │  │
-│  │ • Google Cloud  │ • Expiry        │ • Validation     │  │
-│  │   Vision API    │   (1 hour)      │ • Temp files     │  │
-│  │ • Result        │ • Max 100       │                  │  │
-│  │   formatting    │   entries       │                  │  │
+│  │ • Phrase        │ • LRU cache     │ • Base64 ↔        │  │
+│  │   detection     │ • Hash keys     │   Image array     │  │
+│  │ • Google Cloud  │ • Expiry        │ • Validation      │  │
+│  │   Vision API    │   (1 hour)      │ • Temp files      │  │
+│  │ • Result        │ • Max 100       │                   │  │
+│  │   formatting    │   entries       │                   │  │
 │  └─────────────────┴──────────────────┴──────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     Core OCR Module                          │
+│                     Core OCR Module                         │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ thriftassist_googlevision.py                         │   │
-│  │                                                       │   │
+│  │                                                      │   │
 │  │ • detect_and_annotate_phrases()                      │   │
 │  │ • group_text_into_lines()                            │   │
 │  │ • find_complete_phrases()                            │   │
@@ -70,7 +70,7 @@ ThriftAssist is a REST API service for detecting and annotating phrases in image
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   External Services                          │
+│                   External Services                         │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ Google Cloud Vision API                              │   │
 │  │ • document_text_detection()                          │   │
@@ -405,221 +405,610 @@ cache_entry = {
 }
 ```
 
-## Error Handling
+## Inter-Service Communication Examples
 
-### API Layer Errors
+### Example 1: Complete Image Upload Flow
 
-```python
-try:
-    # Process request
-    return success_response
-except HTTPException:
-    # Re-raise HTTP exceptions
-    raise
-except Exception as e:
-    # Log error and return formatted response
-    return {
-        "success": false,
-        "error_message": str(e),
-        "processing_time_ms": elapsed_time
-    }
+#### 1. Frontend → API Route (`/ocr/upload`)
+
+**HTTP Request:**
+```http
+POST /ocr/upload HTTP/1.1
+Host: localhost:8000
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="cd_collection.jpg"
+Content-Type: image/jpeg
+
+[binary image data]
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="search_phrases"
+
+["Billy Joel", "U2", "Jewel"]
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="threshold"
+
+75
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="text_scale"
+
+100
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
 ```
 
-### OCR Module Errors
+#### 2. API Route → Image Service
 
+**Function Call:**
 ```python
-try:
-    # Call Google Cloud Vision API
-    results = detect_and_annotate_phrases(...)
-except DefaultCredentialsError:
-    # Authentication error
-    return None
-except Exception as e:
-    # General error
-    logger.error(f"OCR failed: {e}")
-    return None
+# In backend/api/routes/ocr.py
+
+image_data = await file.read()  # bytes
+
+# Validate image
+is_valid = image_service.validate_image_data(
+    image_data=image_data,
+    max_size_mb=10
+)
+# Returns: True
+
+# Convert to array
+image_array = image_service.base64_to_array(base64_string)
+# Returns: numpy.ndarray shape (1080, 1920, 3)
+
+# Save temp file
+temp_path = image_service.save_temp_image(image_array)
+# Returns: "/tmp/tmpxyz123.jpg"
 ```
 
-## Performance Characteristics
+#### 3. API Route → Cache Service
 
-| Operation | Cold Start | Cached | Notes |
-|-----------|-----------|--------|-------|
-| OCR Detection | 2-5s | N/A | Google API call |
-| Threshold Update | 2-5s | 300-800ms | With cache |
-| Image Upload | 100-300ms | N/A | File I/O |
-| Base64 Conversion | 50-150ms | N/A | CPU bound |
-
-## Security Considerations
-
-### Authentication
-- Google Cloud credentials via environment variables
-- Multiple credential loading methods (JSON, base64, file path)
-- Credentials not exposed in API responses
-
-### Input Validation
-- File type checking (images only)
-- File size limits (10MB default)
-- JSON schema validation (Pydantic)
-- Image format validation
-
-### CORS Policy
+**Function Call:**
 ```python
-CORSMiddleware(
-    allow_origins=["*"],  # Configure for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
+# Generate cache key
+image_hash = cache_service.get_image_hash(
+    image_data=image_data,
+    text_scale=100
+)
+# Returns: "a1b2c3d4e5f6g7h8i9j0"
+
+# Check cache
+cached_result = cache_service.get_cached_result(image_hash)
+# Returns: None (cache miss) or cached data dict
+```
+
+**Cache Miss Response:**
+```python
+None
+```
+
+**Cache Hit Response:**
+```python
+{
+    'image_path': '/tmp/tmpxyz123.jpg',
+    'image_dimensions': [1920, 1080],
+    'all_text': 'BILLY JOEL Greatest Hits U2 The Joshua Tree...',
+    'filename': 'cd_collection.jpg',
+    'text_scale': 100
+}
+```
+
+#### 4. Cache Service → OCR Service (Cache Miss)
+
+**Function Call:**
+```python
+# In backend/api/routes/ocr.py (after cache miss)
+
+results = ocr_service.detect_phrases(
+    image_path='/tmp/tmpxyz123.jpg',
+    search_phrases=['Billy Joel', 'U2', 'Jewel'],
+    threshold=75,
+    text_scale=100,
+    show_plot=False
 )
 ```
 
-## Deployment Architecture
+#### 5. OCR Service → Core OCR Module
 
-### Development
-```bash
-# Local development server
-python run_api.py
+**Function Call:**
+```python
+# In backend/services/ocr_service.py
 
-# Or using uvicorn directly
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+from thriftassist_googlevision import detect_and_annotate_phrases
+
+results = detect_and_annotate_phrases(
+    image_path='/tmp/tmpxyz123.jpg',
+    search_phrases=['Billy Joel', 'U2', 'Jewel'],
+    threshold=75,
+    text_scale=100,
+    show_plot=False
+)
 ```
 
-### Production (Render.com)
-```yaml
-services:
-  - type: web
-    name: thriftassist-api
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: GOOGLE_CREDENTIALS_BASE64
-        sync: false
+**Core OCR Module Response:**
+```python
+{
+    'image': numpy.ndarray,  # Original image
+    'annotated_image': numpy.ndarray,  # Image with bounding boxes
+    'matches': {
+        'Billy Joel': [
+            (
+                {
+                    'text': 'BILLY JOEL',
+                    'annotations': [<Annotation objects>],
+                    'y_position': 245,
+                    'angle': 0
+                },
+                100.0,  # score
+                'complete_phrase'  # match_type
+            )
+        ],
+        'U2': [
+            (
+                {
+                    'text': 'U2',
+                    'annotations': [<Annotation object>],
+                    'y_position': 380,
+                    'angle': 0
+                },
+                100.0,
+                'complete_phrase'
+            )
+        ]
+    },
+    'total_matches': 2,
+    'all_text': 'BILLY JOEL Greatest Hits Volume I & II\nU2 The Joshua Tree\nJEWEL Pieces of You...'
+}
 ```
 
-## Future Improvements
+#### 6. OCR Service → API Route (Formatted Results)
 
-### Planned Refactoring
+**Function Call:**
+```python
+# In backend/services/ocr_service.py
 
-1. **Complete Service Layer Migration**
-   - Move from monolithic `main.py` to modular `backend/` structure
-   - Separate concerns into distinct service modules
-
-2. **Enhanced Caching**
-   - Redis integration for distributed caching
-   - Cache warming strategies
-   - Configurable TTL per use case
-
-3. **Authentication & Authorization**
-   - API key authentication
-   - Rate limiting per user/key
-   - Usage tracking and quotas
-
-4. **Monitoring & Observability**
-   - Structured logging (JSON format)
-   - Metrics collection (Prometheus)
-   - Distributed tracing (OpenTelemetry)
-   - Error tracking (Sentry)
-
-5. **Testing**
-   - Unit tests for services
-   - Integration tests for API
-   - E2E tests for workflows
-   - Performance benchmarks
-
-6. **Database Integration**
-   - Store OCR results persistently
-   - User preferences and history
-   - Analytics and usage patterns
-
-## Technology Stack
-
-### Backend
-- **Framework:** FastAPI 0.100+
-- **Server:** Uvicorn (ASGI)
-- **Validation:** Pydantic
-- **OCR:** Google Cloud Vision API
-- **Fuzzy Matching:** RapidFuzz
-- **Image Processing:** OpenCV (cv2), NumPy
-
-### Frontend
-- **Core:** HTML5, CSS3, ES6 JavaScript
-- **No Framework:** Vanilla JS for simplicity
-- **Image Display:** Canvas API
-- **HTTP Client:** Fetch API
-
-### Infrastructure
-- **Deployment:** Render.com
-- **Storage:** Temporary file system (ephemeral)
-- **Cache:** In-memory OrderedDict (LRU)
-
-## Configuration Files
-
-### requirements.txt
-```txt
-fastapi>=0.100.0
-uvicorn[standard]>=0.23.0
-python-multipart>=0.0.6
-google-cloud-vision>=3.4.0
-opencv-python>=4.8.0
-numpy>=1.24.0
-rapidfuzz>=3.0.0
-pydantic>=2.0.0
+serializable_matches = ocr_service.format_matches_for_api(results)
 ```
 
-### .env (Example)
-```bash
-GOOGLE_APPLICATION_CREDENTIALS=credentials/service-account.json
-PORT=8000
-HOST=0.0.0.0
-MAX_CACHE_SIZE=100
-CACHE_EXPIRY_SECONDS=3600
+**Formatted Response:**
+```python
+{
+    'Billy Joel': [
+        {
+            'text': 'BILLY JOEL',
+            'score': 100.0,
+            'match_type': 'complete_phrase',
+            'angle': 0,
+            'is_spanning': False
+        }
+    ],
+    'U2': [
+        {
+            'text': 'U2',
+            'score': 100.0,
+            'match_type': 'complete_phrase',
+            'angle': 0,
+            'is_spanning': False
+        }
+    ]
+}
 ```
 
-## Development Workflow
+#### 7. API Route → Image Service (Convert to Base64)
 
-### 1. Setup
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up credentials
-export GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
-
-# Run development server
-python run_api.py
+**Function Call:**
+```python
+annotated_base64 = image_service.array_to_base64(
+    results['annotated_image']
+)
 ```
 
-### 2. Testing
-```bash
-# Access web UI
-open http://localhost:8000
-
-# Access API docs
-open http://localhost:8000/docs
-
-# Health check
-curl http://localhost:8000/health
+**Response:**
+```python
+'/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a...'
 ```
 
-### 3. Deployment
-```bash
-# Commit changes
-git add .
-git commit -m "feature: description"
-git push origin main
+#### 8. API Route → Cache Service (Store Result)
 
-# Render.com auto-deploys from main branch
+**Function Call:**
+```python
+cache_service.cache_result(
+    image_hash='a1b2c3d4e5f6g7h8i9j0',
+    ocr_data={
+        'image_path': '/tmp/tmpxyz123.jpg',
+        'image_dimensions': [1920, 1080],
+        'all_text': results.get('all_text', ''),
+        'filename': 'cd_collection.jpg',
+        'text_scale': 100
+    }
+)
 ```
 
-## Contact & Support
+#### 9. API Route → Frontend (Final Response)
 
-For questions about this architecture:
-- Review this documentation
-- Check API docs at `/docs`
-- Examine code comments in source files
+**HTTP Response:**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "success": true,
+  "total_matches": 2,
+  "matches": {
+    "Billy Joel": [
+      {
+        "text": "BILLY JOEL",
+        "score": 100.0,
+        "match_type": "complete_phrase",
+        "angle": 0,
+        "is_spanning": false
+      }
+    ],
+    "U2": [
+      {
+        "text": "U2",
+        "score": 100.0,
+        "match_type": "complete_phrase",
+        "angle": 0,
+        "is_spanning": false
+      }
+    ]
+  },
+  "processing_time_ms": 1250.5,
+  "image_dimensions": [1920, 1080],
+  "annotated_image_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a...",
+  "all_detected_text": "BILLY JOEL Greatest Hits Volume I & II\nU2 The Joshua Tree\nJEWEL Pieces of You...",
+  "filename": "cd_collection.jpg",
+  "cached": false
+}
+```
 
 ---
 
-**Last Updated:** 2024-01-15  
-**Version:** 1.0.0  
-**Maintainer:** ThriftAssist Development Team
+### Example 2: Cached Threshold Update Flow
+
+#### 1. Frontend → API Route (Same Image, Different Threshold)
+
+**HTTP Request:**
+```http
+POST /ocr/upload HTTP/1.1
+Host: localhost:8000
+Content-Type: multipart/form-data
+
+[Same image data]
+search_phrases: ["Billy Joel", "U2"]
+threshold: 85  # Changed from 75
+text_scale: 100
+```
+
+#### 2. API Route → Cache Service
+
+**Function Call:**
+```python
+image_hash = cache_service.get_image_hash(image_data, text_scale=100)
+# Returns: "a1b2c3d4e5f6g7h8i9j0" (same hash)
+
+cached_result = cache_service.get_cached_result(image_hash)
+# Returns: {cached data} (cache hit!)
+```
+
+**Cache Hit Response:**
+```python
+{
+    'image_path': '/tmp/tmpxyz123.jpg',  # Existing temp file
+    'image_dimensions': [1920, 1080],
+    'all_text': 'BILLY JOEL Greatest Hits...',
+    'filename': 'cd_collection.jpg',
+    'text_scale': 100
+}
+```
+
+#### 3. API Route → OCR Service (Skip Google API, Use Cached Image)
+
+**Function Call:**
+```python
+# Use cached image path - NO Google Cloud Vision API call!
+results = ocr_service.detect_phrases(
+    image_path='/tmp/tmpxyz123.jpg',  # From cache
+    search_phrases=['Billy Joel', 'U2'],
+    threshold=85,  # New threshold
+    text_scale=100,
+    show_plot=False
+)
+```
+
+**Processing Time Comparison:**
+- Without cache: ~2500ms (Google API call)
+- With cache: ~500ms (local processing only)
+
+#### 4. API Route → Frontend (Fast Response)
+
+**HTTP Response:**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "success": true,
+  "total_matches": 1,  # Fewer matches due to stricter threshold
+  "matches": {
+    "Billy Joel": [
+      {
+        "text": "BILLY JOEL",
+        "score": 100.0,
+        "match_type": "complete_phrase",
+        "angle": 0,
+        "is_spanning": false
+      }
+    ]
+  },
+  "processing_time_ms": 485.2,  # Much faster!
+  "image_dimensions": [1920, 1080],
+  "annotated_image_base64": "...",
+  "all_detected_text": "BILLY JOEL Greatest Hits...",
+  "filename": "cd_collection.jpg",
+  "cached": true  # Indicates cache was used
+}
+```
+
+---
+
+### Example 3: Health Check Flow
+
+#### 1. Frontend → API Route
+
+**HTTP Request:**
+```http
+GET /health HTTP/1.1
+Host: localhost:8000
+```
+
+#### 2. API Route → OCR Service
+
+**Function Call:**
+```python
+# In backend/api/routes/health.py
+
+is_available = ocr_service.is_available()
+```
+
+**Response:**
+```python
+True  # or False if OCR module not loaded
+```
+
+#### 3. API Route → Frontend
+
+**HTTP Response:**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00.123456",
+  "service": "ThriftAssist OCR API",
+  "ocr_available": true
+}
+```
+
+---
+
+### Example 4: Cache Status Query
+
+#### 1. Frontend → API Route
+
+**HTTP Request:**
+```http
+GET /cache/status HTTP/1.1
+Host: localhost:8000
+```
+
+#### 2. API Route → Cache Service
+
+**Function Call:**
+```python
+# In backend/api/routes/cache.py
+
+status = cache_service.get_cache_status()
+```
+
+**Response:**
+```python
+{
+    'cache_size': 5,
+    'max_cache_size': 100,
+    'entries': [
+        {
+            'hash': 'a1b2c3d4...',
+            'timestamp': 1705318200.0,
+            'age_seconds': 120.5
+        },
+        {
+            'hash': 'e5f6g7h8...',
+            'timestamp': 1705318150.0,
+            'age_seconds': 170.3
+        },
+        # ... more entries
+    ]
+}
+```
+
+#### 3. API Route → Frontend
+
+**HTTP Response:**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "success": true,
+  "cache_size": 5,
+  "max_cache_size": 100,
+  "entries": [
+    {
+      "hash": "a1b2c3d4...",
+      "timestamp": 1705318200.0,
+      "age_seconds": 120.5
+    },
+    {
+      "hash": "e5f6g7h8...",
+      "timestamp": 1705318150.0,
+      "age_seconds": 170.3
+    }
+  ]
+}
+```
+
+---
+
+### Example 5: Error Handling Flow
+
+#### 1. Frontend → API Route (Invalid Image)
+
+**HTTP Request:**
+```http
+POST /ocr/upload HTTP/1.1
+Host: localhost:8000
+Content-Type: multipart/form-data
+
+[corrupted image data]
+search_phrases: ["Billy Joel"]
+threshold: 75
+text_scale: 100
+```
+
+#### 2. API Route → Image Service
+
+**Function Call:**
+```python
+is_valid = image_service.validate_image_data(image_data, max_size_mb=10)
+```
+
+**Response:**
+```python
+False  # Invalid image
+```
+
+#### 3. API Route → Frontend (Error Response)
+
+**HTTP Response:**
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+  "detail": "Invalid or oversized image"
+}
+```
+
+---
+
+### Example 6: Google Cloud Vision API Communication
+
+#### Core OCR Module → Google Cloud Vision
+
+**API Call:**
+```python
+# In thriftassist_googlevision.py
+
+from google.cloud import vision
+
+client = vision.ImageAnnotatorClient()
+
+with open(image_path, 'rb') as image_file:
+    content = image_file.read()
+
+image = vision.Image(content=content)
+response = client.document_text_detection(image=image)
+```
+
+**Google Cloud Vision Response:**
+```python
+{
+    'text_annotations': [
+        {
+            'description': 'BILLY JOEL Greatest Hits Volume I & II\nU2 The Joshua Tree\nJEWEL Pieces of You',
+            'bounding_poly': {
+                'vertices': [
+                    {'x': 10, 'y': 20},
+                    {'x': 890, 'y': 20},
+                    {'x': 890, 'y': 650},
+                    {'x': 10, 'y': 650}
+                ]
+            }
+        },
+        {
+            'description': 'BILLY',
+            'bounding_poly': {
+                'vertices': [
+                    {'x': 45, 'y': 235},
+                    {'x': 125, 'y': 235},
+                    {'x': 125, 'y': 265},
+                    {'x': 45, 'y': 265}
+                ]
+            }
+        },
+        {
+            'description': 'JOEL',
+            'bounding_poly': {
+                'vertices': [
+                    {'x': 135, 'y': 235},
+                    {'x': 195, 'y': 235},
+                    {'x': 195, 'y': 265},
+                    {'x': 135, 'y': 265}
+                ]
+            }
+        },
+        # ... more text annotations
+    ],
+    'error': {
+        'message': ''  # Empty if no error
+    }
+}
+```
+
+---
+
+## Message Flow Sequence Diagrams
+
+### Diagram 1: New Image Upload (Cache Miss)
+
+```
+Frontend         API Route       Cache Service    OCR Service      Core OCR       Google Vision
+   │                │                  │               │               │                │
+   ├─POST /upload──>│                  │               │               │                │
+   │                ├─get_hash()──────>│               │               │                │
+   │                │<─hash────────────┤               │               │                │
+   │                ├─get_cached()────>│               │               │                │
+   │                │<─None (miss)─────┤               │               │                │
+   │                ├─detect_phrases()─────────────────>│               │                │
+   │                │                  │               ├─annotate()────>│                │
+   │                │                  │               │               ├─detect()───────>│
+   │                │                  │               │               │<─text_data─────┤
+   │                │                  │               │<─results──────┤                │
+   │                │<─formatted────────────────────────┤               │                │
+   │                ├─cache_result()──>│               │               │                │
+   │                │<─ok──────────────┤               │               │                │
+   │<─JSON response─┤                  │               │               │                │
+   │                │                  │               │               │                │
+```
+
+### Diagram 2: Threshold Update (Cache Hit)
+
+```
+Frontend         API Route       Cache Service    OCR Service      Core OCR
+   │                │                  │               │               │
+   ├─POST /upload──>│                  │               │               │
+   │  (same image)  ├─get_hash()──────>│               │               │
+   │                │<─hash────────────┤               │               │
+   │                ├─get_cached()────>│               │               │
+   │                │<─cached_data─────┤               │               │
+   │                ├─detect_phrases()─────────────────>│               │
+   │                │  (cached path)   │               ├─annotate()────>│
+   │                │                  │               │  (skip API)   │
+   │                │                  │               │<─results──────┤
+   │                │<─formatted────────────────────────┤               │
+   │<─JSON response─┤                  │               │               │
+   │  (fast! ~500ms)│                  │               │               │
+```
