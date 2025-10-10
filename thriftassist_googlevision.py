@@ -460,11 +460,12 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                 if similarity >= threshold:
                     match_type = "upside_down" if similarity > 95 else "fuzzy_phrase"
                     
-                    # Add explanation
+                    # Add explanation - ALWAYS add it here
                     explanation = explain_match_score(phrase, line['text'], similarity, match_type)
-                    line['explanation'] = explanation
+                    line_copy = line.copy()
+                    line_copy['explanation'] = explanation
                     
-                    matches.append((line, similarity, match_type))
+                    matches.append((line_copy, similarity, match_type))
                     continue
     
     # Search for phrases that span multiple lines - case-insensitive
@@ -547,6 +548,11 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                             }
                             
                             match_type = "exact_spanning" if match_percentage == 100 else "fuzzy_spanning"
+                            
+                            # Add explanation for spanning matches
+                            explanation = explain_match_score(phrase, combined_text, match_percentage, match_type)
+                            spanning_match['explanation'] = explanation
+                            
                             matches.append((spanning_match, match_percentage, match_type))
                             
                             # Break after finding first spanning match for this line
@@ -613,6 +619,11 @@ def find_complete_phrases(phrase, text_lines, full_text, threshold=85):
                             }
                             
                             match_type = "exact_spanning" if match_percentage == 100 else "fuzzy_spanning"
+                            
+                            # Add explanation for spanning matches
+                            explanation = explain_match_score(phrase, combined_text, match_percentage, match_type)
+                            spanning_match['explanation'] = explanation
+                            
                             matches.append((spanning_match, match_percentage, match_type))
                             break
     

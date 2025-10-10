@@ -286,6 +286,40 @@
         .match-details {
             font-size: 0.9em;
             color: #666;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+            gap: 10px;
+        }
+        
+        .match-text-preview {
+            font-size: 0.85em;
+            color: #718096;
+            font-style: italic;
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .match-scores {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
 
         .match-score {
@@ -476,7 +510,18 @@
             cursor: pointer;
             font-size: 0.85em;
             text-decoration: underline;
-            margin-left: 10px;
+            user-select: none;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        
+        .toggle-explanation:hover {
+            color: #4c51bf;
+            text-decoration: none;
+        }
+        
+        .toggle-explanation:active {
+            transform: scale(0.95);
         }
 
         /* Mobile optimizations */
@@ -854,10 +899,10 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 </div>
             `;
             
-            // Update matches list with explainability
+            // Update matches list with explainability emphasis
             if (result.total_matches > 0) {
                 let matchesHTML = '<h3>🎯 Found Matches</h3>';
-                matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Click on matches to see detailed explanations</p>';
+                matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Click "Why?" to understand how each match was found</p>';
                 
                 for (const [phrase, matches] of Object.entries(result.matches)) {
                     const matchId = phrase.replace(/\s+/g, '-').toLowerCase();
@@ -868,26 +913,39 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                                 <div>
                                     <span class="match-count">${matches.length}</span>
                                     <span class="toggle-details" onclick="toggleMatchDetails('${matchId}')">
-                                        <span id="toggle-${matchId}">details ▼</span>
+                                        <span id="toggle-${matchId}">expand ▼</span>
                                     </span>
                                 </div>
                             </div>
                             <div id="details-${matchId}" class="collapsible-content">
-                                ${matches.map((match, idx) => `
-                                    <div class="match-details" style="margin-bottom: 12px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                            <span>📝 "${match.text}"</span>
-                                            <span class="toggle-explanation" onclick="toggleExplanation('${matchId}-${idx}')">
-                                                Why? 🔍
-                                            </span>
+                                ${matches.map((match, idx) => {
+                                    const confidenceLevel = match.explanation?.confidence_level || 'Medium';
+                                    const confidenceClass = `confidence-${confidenceLevel.toLowerCase().replace(' ', '-')}`;
+                                    
+                                    // Extract relevant portion of text that contains the phrase
+                                    const relevantText = extractRelevantText(match.text, phrase);
+                                    
+                                    return `
+                                        <div class="match-details">
+                                            <div class="match-header">
+                                                <div class="match-text-preview" title="${match.text}">
+                                                    "${relevantText}"
+                                                </div>
+                                                <div class="match-scores">
+                                                    <span class="confidence-badge ${confidenceClass}">
+                                                        ${confidenceLevel}
+                                                    </span>
+                                                    <span class="match-score">${Math.round(match.score)}%</span>
+                                                    ${match.angle !== 0 ? `<span style="font-size: 0.9em;">🔄 ${Math.round(match.angle)}°</span>` : ''}
+                                                    <span class="toggle-explanation" onclick="toggleExplanation('${matchId}-${idx}')">
+                                                        <span id="toggle-exp-${matchId}-${idx}">Why? 🔍</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            ${match.explanation ? renderExplanation(match.explanation, `${matchId}-${idx}`) : ''}
                                         </div>
-                                        <div>
-                                            <span class="match-score">${Math.round(match.score)}% ${match.match_type}</span>
-                                            ${match.angle !== 0 ? ` 🔄 ${Math.round(match.angle)}°` : ''}
-                                        </div>
-                                        ${match.explanation ? renderExplanation(match.explanation, `${matchId}-${idx}`) : ''}
-                                    </div>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                     `;
@@ -917,6 +975,68 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
         }
         
+        function extractRelevantText(fullText, searchPhrase) {
+            /**
+             * Extract the most relevant portion of text that contains the search phrase.
+             * Returns a smart excerpt showing the matched phrase in context.
+             */
+            
+            // Normalize both for case-insensitive matching
+            const normalizedText = fullText.toLowerCase();
+            const normalizedPhrase = searchPhrase.toLowerCase();
+            
+            // Try to find the phrase in the text
+            const phraseIndex = normalizedText.indexOf(normalizedPhrase);
+            
+            if (phraseIndex !== -1) {
+                // Found exact substring - extract with context
+                const maxLength = 50;
+                const contextBefore = 10;
+                const contextAfter = 10;
+                
+                const start = Math.max(0, phraseIndex - contextBefore);
+                const end = Math.min(fullText.length, phraseIndex + normalizedPhrase.length + contextAfter);
+                
+                let excerpt = fullText.substring(start, end);
+                
+                // Add ellipsis if truncated
+                if (start > 0) excerpt = '...' + excerpt;
+                if (end < fullText.length) excerpt = excerpt + '...';
+                
+                return excerpt;
+            }
+            
+            // If no exact match, try to find individual words from the phrase
+            const phraseWords = normalizedPhrase.split(/\s+/).filter(w => w.length > 2);
+            
+            for (const word of phraseWords) {
+                const wordIndex = normalizedText.indexOf(word);
+                if (wordIndex !== -1) {
+                    const maxLength = 50;
+                    const contextBefore = 15;
+                    const contextAfter = 15;
+                    
+                    const start = Math.max(0, wordIndex - contextBefore);
+                    const end = Math.min(fullText.length, wordIndex + word.length + contextAfter);
+                    
+                    let excerpt = fullText.substring(start, end);
+                    
+                    if (start > 0) excerpt = '...' + excerpt;
+                    if (end < fullText.length) excerpt = excerpt + '...';
+                    
+                    return excerpt;
+                }
+            }
+            
+            // Fallback: just show beginning of text with ellipsis
+            const maxLength = 50;
+            if (fullText.length <= maxLength) {
+                return fullText;
+            }
+            
+            return fullText.substring(0, maxLength - 3) + '...';
+        }
+        
         function calculateAverageConfidence(matches) {
             let total = 0;
             let count = 0;
@@ -937,36 +1057,54 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const confidenceClass = `confidence-${explanation.confidence_level.toLowerCase().replace(' ', '-')}`;
             
             return `
-                <div id="explain-${id}" class="explanation-panel" style="display: none;">
-                    <div style="margin-bottom: 8px;">
-                        <span class="confidence-badge ${confidenceClass}">
-                            ${explanation.confidence_level} Confidence
-                        </span>
-                        <span style="font-style: italic; color: #666;">${explanation.recommendation}</span>
+                <div id="explain-${id}" class="explanation-panel" style="display: none; margin-top: 12px;">
+                    <div style="margin-bottom: 12px; padding: 10px; background: #f0f4ff; border-radius: 6px;">
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2d3748; margin-bottom: 6px;">
+                            ✨ ${explanation.confidence_level} Confidence Match
+                        </div>
+                        <div style="font-style: italic; color: #4a5568; font-size: 0.9em;">
+                            💡 ${explanation.recommendation}
+                        </div>
                     </div>
                     
-                    <div style="margin-top: 10px;">
-                        <strong>🔍 How we matched this:</strong>
+                    <div style="margin-top: 12px;">
+                        <div style="font-weight: 600; color: #2d3748; margin-bottom: 8px; font-size: 0.95em;">
+                            🔍 How we matched this:
+                        </div>
                         <ul class="factor-list">
-                            ${explanation.reasoning.map(reason => `<li class="factor-item">✓ ${reason}</li>`).join('')}
+                            ${explanation.reasoning.map(reason => `
+                                <li class="factor-item" style="padding: 4px 0;">
+                                    <span style="color: #48bb78;">✓</span> ${reason}
+                                </li>
+                            `).join('')}
                         </ul>
                     </div>
                     
                     ${Object.keys(explanation.confidence_factors).length > 0 ? `
-                        <div style="margin-top: 8px;">
-                            <strong>📊 Confidence Breakdown:</strong>
-                            <ul class="factor-list">
+                        <div style="margin-top: 12px; padding: 10px; background: #f7fafc; border-radius: 6px;">
+                            <div style="font-weight: 600; color: #2d3748; margin-bottom: 8px; font-size: 0.9em;">
+                                📊 Confidence Breakdown:
+                            </div>
+                            <div style="display: grid; gap: 6px;">
                                 ${Object.entries(explanation.confidence_factors).map(([factor, value]) => `
-                                    <li class="factor-item">${formatFactorName(factor)}: ${typeof value === 'number' ? value + '%' : value}</li>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+                                        <span style="color: #4a5568; font-size: 0.85em;">${formatFactorName(factor)}</span>
+                                        <span style="font-weight: 600; color: #5a67d8; font-size: 0.9em;">
+                                            ${typeof value === 'number' ? value + '%' : value}
+                                        </span>
+                                    </div>
                                 `).join('')}
-                            </ul>
+                            </div>
                         </div>
                     ` : ''}
                     
                     ${explanation.warnings.length > 0 ? `
-                        <div style="margin-top: 8px;">
+                        <div style="margin-top: 12px;">
                             ${explanation.warnings.map(warning => `
-                                <div class="warning-badge">⚠️ ${warning}</div>
+                                <div class="warning-badge" style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 1.2em;">⚠️</span>
+                                    <span>${warning}</span>
+                                </div>
                             `).join('')}
                         </div>
                     ` : ''}
@@ -982,8 +1120,16 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         
         function toggleExplanation(id) {
             const panel = document.getElementById(`explain-${id}`);
+            const toggle = document.getElementById(`toggle-exp-${id}`);
+            
             if (panel) {
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                if (panel.style.display === 'none') {
+                    panel.style.display = 'block';
+                    if (toggle) toggle.textContent = 'Hide 🔼';
+                } else {
+                    panel.style.display = 'none';
+                    if (toggle) toggle.textContent = 'Why? 🔍';
+                }
             }
         }
 
