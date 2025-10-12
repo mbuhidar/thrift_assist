@@ -1,81 +1,101 @@
-# ThriftAssist OCR API - Architecture Documentation
+# ThriftAssist OCR - Architecture Documentation
 
 ## Overview
 
-ThriftAssist is a REST API service for detecting and annotating phrases in images using Google Cloud Vision API. The application follows a clean, layered architecture separating concerns into distinct modules.
+ThriftAssist is a modular OCR system for detecting and annotating phrases in images using Google Cloud Vision API. The application has been fully refactored from a monolithic script into a clean, layered architecture.
+
+## Architecture Status
+
+### ✅ Migration Complete: Modular Architecture Active
+
+**Current (Recommended):**
+- `vision/` - Modular OCR package (primary implementation)
+- `utils/` - Shared utilities
+- `config/` - Configuration management
+
+**Legacy (Compatibility Layer):**
+- `thriftassist_googlevision.py` - Wrapper providing backward compatibility
+  - **Status**: Wrapper only - redirects to modular implementation
+  - **All functionality**: Now powered by vision package
+  - **Deprecation**: Shows warnings, will be removed in future release
 
 ## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Frontend Layer                      │
+│                       Client Applications                    │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │ web_app.html (Static HTML/JS/CSS)                    │   │
-│  │ - Image upload UI                                    │   │
-│  │ - Search phrase input                                │   │
-│  │ - Results display with zoom/pan                      │   │
-│  │ - Threshold controls                                 │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ HTTP/REST
-┌─────────────────────────────────────────────────────────────┐
-│                          API Layer                          │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ main.py (FastAPI Application)                        │   │
-│  │                                                      │   │
-│  │ Routes:                                              │   │
-│  │  ├─ /health         (Health check)                   │   │
-│  │  ├─ /ocr/upload     (Upload & detect)                │   │
-│  │  ├─ /ocr/detect     (Base64 detect)                  │   │
-│  │  ├─ /cache/status   (Cache info)                     │   │
-│  │  └─ /cache/clear    (Clear cache)                    │   │
-│  │                                                      │   │
-│  │ Middleware:                                          │   │
-│  │  ├─ CORS (allow origins)                             │   │
-│  │  ├─ Static files (/static)                           │   │
-│  │  └─ Error handling                                   │   │
+│  │ • Command Line Interface (vision_demo.py)            │   │
+│  │ • Python Scripts (import vision package)             │   │
+│  │ • Future: REST API / Web Interface                   │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                        Service Layer                        │
-│  ┌─────────────────┬──────────────────┬──────────────────┐  │
-│  │  OCR Service    │  Cache Service   │  Image Service   │  │
-│  │                 │                  │                  │  │
-│  │ • Phrase        │ • LRU cache      │ • Base64 ↔       │  │
-│  │   detection     │ • Hash keys      │   Image array    │  │
-│  │ • Google Cloud  │ • Expiry         │ • Validation     │  │
-│  │   Vision API    │   (1 hour)       │ • Temp files     │  │
-│  │ • Result        │ • Max 100        │                  │  │
-│  │   formatting    │   entries        │                  │  │
-│  └─────────────────┴──────────────────┴──────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Core OCR Module                         │
+│                      Vision Package                         │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │ thriftassist_googlevision.py                         │   │
+│  │ VisionPhraseDetector (vision/detector.py)            │   │
 │  │                                                      │   │
-│  │ • detect_and_annotate_phrases()                      │   │
-│  │ • group_text_into_lines()                            │   │
-│  │ • find_complete_phrases()                            │   │
-│  │ • draw_phrase_annotations()                          │   │
-│  │ • normalize_text_for_search()                        │   │
-│  │ • try_reverse_text_matching()                        │   │
+│  │ Public Interface:                                    │   │
+│  │  ├─ detect(image_path, phrases, threshold)           │   │
+│  │  ├─ _detect_text() - Google Cloud Vision API        │   │
+│  │  ├─ _print_orientation_info()                        │   │
+│  │  └─ _show_results() - Matplotlib display            │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              ▼
+                    ┌─────────┴─────────┐
+                    ▼                   ▼
+        ┌───────────────────┐   ┌───────────────────┐
+        │  TextLineGrouper  │   │  PhraseMatcher    │
+        │  (grouper.py)     │   │  (matcher.py)     │
+        │                   │   │                   │
+        │ • group()         │   │ • find_matches()  │
+        │ • _group_by_angle │   │ • _search_in_     │
+        │ • _group_by_      │   │   lines()         │
+        │   position        │   │ • _search_        │
+        │ • _convert_to_    │   │   spanning()      │
+        │   text_lines      │   │ • _deduplicate_   │
+        └───────────────────┘   │   matches()       │
+                                └───────────────────┘
+                                          │
+                                          ▼
+                                ┌───────────────────┐
+                                │  ImageAnnotator   │
+                                │  (annotator.py)   │
+                                │                   │
+                                │ • draw_           │
+                                │   annotations()   │
+                                │ • _extract_bbox() │
+                                │ • _draw_label()   │
+                                │ • _find_label_    │
+                                │   position()      │
+                                └───────────────────┘
+                    ┌─────────────────┴─────────────────┐
+                    ▼                                   ▼
+        ┌───────────────────┐               ┌───────────────────┐
+        │  Utils Package    │               │  Config Package   │
+        │                   │               │                   │
+        │ • text_utils.py   │               │ • vision_config.py│
+        │   - normalize()   │               │   - VisionConfig  │
+        │   - is_meaningful │               │   - credentials   │
+        │                   │               │   - thresholds    │
+        │ • geometry_utils  │               │   - common_words  │
+        │   - calc_angle()  │               └───────────────────┘
+        │   - overlap()     │
+        │   - find_pos()    │
+        └───────────────────┘
+                    │
+                    ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   External Services                         │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ Google Cloud Vision API                              │   │
 │  │ • document_text_detection()                          │   │
 │  │ • text_detection()                                   │   │
-│  │ • Handles multi-angle text                           │   │
+│  │ • Multi-angle text recognition                       │   │
+│  │ • Bounding box coordinates                           │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -84,1002 +104,707 @@ ThriftAssist is a REST API service for detecting and annotating phrases in image
 
 ```
 thrift_assist/
-├── backend/                          # Backend services (future refactoring)
-│   ├── api/                          # API layer
-│   │   ├── routes/                   # API endpoints
-│   │   │   ├── health.py             # Health check routes
-│   │   │   ├── ocr.py                # OCR routes
-│   │   │   └── cache.py              # Cache management routes
-│   │   ├── models/                   # Pydantic models
-│   │   │   ├── requests.py           # Request schemas
-│   │   │   └── responses.py          # Response schemas
-│   │   └── main.py                   # FastAPI app initialization
-│   ├── services/                     # Business logic
-│   │   ├── ocr_service.py            # OCR operations
-│   │   ├── cache_service.py          # Cache management
-│   │   └── image_service.py          # Image processing
-│   ├── core/                         # Core configuration
-│   │   ├── config.py                 # Settings management
-│   │   ├── credentials.py            # Google Cloud auth
-│   │   └── logging.py                # Logging config
-│   └── utils/                        # Utility functions
-│       ├── image_utils.py            # Image helpers
-│       └── text_utils.py             # Text processing
-├── frontend/                         # Frontend application
-│   └── public/                       # Static files
-│       ├── web_app.html              # Main web interface
-│       └── favicon.ico               # Site icon
+├── __init__.py                       # Package root
+│
+├── vision/                           # Vision OCR package
+│   ├── __init__.py                   # Public API exports
+│   ├── detector.py                   # Main detector class
+│   ├── grouper.py                    # Text line grouping
+│   ├── matcher.py                    # Phrase matching logic
+│   └── annotator.py                  # Image annotation
+│
+├── utils/                            # Utility functions
+│   ├── __init__.py                   # Utility exports
+│   ├── text_utils.py                 # Text processing
+│   └── geometry_utils.py             # Bounding box operations
+│
+├── config/                           # Configuration
+│   ├── __init__.py                   # Config exports
+│   └── vision_config.py              # Settings dataclass
+│
 ├── credentials/                      # API credentials (gitignored)
 │   └── *.json                        # Google Cloud credentials
-├── main.py                           # Current monolithic API (legacy)
-├── thriftassist_googlevision.py      # Core OCR module
-├── run_api.py                        # Development server launcher
+│
+├── vision_demo.py                    # Demo/CLI application
+├── setup.py                          # Package installation
 ├── requirements.txt                  # Python dependencies
 ├── ARCHITECTURE.md                   # This file
-└── README.md                         # Project documentation
+└── README.md                         # User documentation
 ```
 
 ## Component Descriptions
 
-### 1. Frontend Layer
+### 1. Vision Package (`vision/`)
 
-**Location:** `frontend/public/web_app.html`
+The core OCR functionality organized into specialized modules.
 
-**Responsibilities:**
-- User interface for image upload
-- Search phrase input and configuration
-- Interactive result display with zoom/pan
-- Real-time threshold adjustment
-- Mobile-responsive design
-
-**Technologies:**
-- HTML5, CSS3, JavaScript (Vanilla)
-- Canvas API for image display
-- Fetch API for REST communication
-
-### 2. API Layer
-
-**Current:** `main.py`  
-**Future:** `backend/api/main.py`
+#### **VisionPhraseDetector** (`vision/detector.py`)
 
 **Responsibilities:**
-- HTTP request handling
-- Request validation
-- Response formatting
-- CORS management
-- Static file serving
-- Error handling
+- Main entry point for phrase detection
+- Google Cloud Vision API integration
+- Orchestrates grouping, matching, and annotation
+- Results visualization
 
-**Key Endpoints:**
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Health check |
-| `/ocr/upload` | POST | Upload image & detect phrases |
-| `/ocr/detect` | POST | Detect from base64 image |
-| `/cache/status` | GET | View cache statistics |
-| `/cache/clear` | POST | Clear OCR cache |
-| `/` | GET | Serve web application |
-| `/docs` | GET | API documentation (Swagger) |
-
-**Technologies:**
-- FastAPI framework
-- Pydantic for validation
-- Uvicorn ASGI server
-
-### 3. Service Layer
-
-**Future Location:** `backend/services/`
-
-**OCR Service** (`ocr_service.py`):
-- Wrapper for Google Cloud Vision API
-- Phrase detection logic
-- Result formatting for API responses
-
-**Cache Service** (`cache_service.py`):
-- LRU cache implementation
-- Image hash generation
-- Cache expiry management (1-hour TTL)
-- Maximum 100 cached entries
-
-**Image Service** (`image_service.py`):
-- Base64 ↔ NumPy array conversion
-- Image validation
-- Temporary file management
-
-### 4. Core OCR Module
-
-**Location:** `thriftassist_googlevision.py`
-
-**Key Functions:**
-
+**Key Methods:**
 ```python
-detect_and_annotate_phrases(image_path, search_phrases, threshold, text_scale)
-  ├─ Loads image from file
-  ├─ Calls Google Cloud Vision API
-  ├─ Groups text into lines (multi-angle support)
-  ├─ Finds phrase matches (case-insensitive)
-  ├─ Draws annotations on image
-  └─ Returns results dict
-
-group_text_into_lines(text_annotations)
-  ├─ Analyzes text orientation
-  ├─ Groups by proximity and angle
-  └─ Returns structured text lines
-
-find_complete_phrases(phrase, text_lines, full_text, threshold)
-  ├─ Exact substring matching (100% score)
-  ├─ Fuzzy matching (RapidFuzz)
-  ├─ Multi-line phrase spanning
-  └─ Returns match list with scores
-
-draw_phrase_annotations(image, phrase_matches, text_scale)
-  ├─ Draws bounding boxes
-  ├─ Adds labeled text
-  ├─ Smart label placement (avoid overlaps)
-  └─ Returns annotated image
+class VisionPhraseDetector:
+    def __init__(self, config: VisionConfig = None)
+    
+    def detect(
+        image_path: str,
+        search_phrases: List[str],
+        threshold: int = None,
+        show_plot: bool = True,
+        text_scale: int = None
+    ) -> Optional[Dict]
+    
+    def _detect_text(image_path: str) -> TextAnnotations
+    def _print_orientation_info(text_lines: List[Dict])
+    def _show_results(annotated, phrase_matches)
 ```
+
+**Dependencies:**
+- `VisionConfig` - Configuration settings
+- `TextLineGrouper` - Line grouping logic
+- `PhraseMatcher` - Phrase detection logic
+- `ImageAnnotator` - Visual annotation
+- `google.cloud.vision` - Google Cloud API
+
+---
+
+#### **TextLineGrouper** (`vision/grouper.py`)
+
+**Responsibilities:**
+- Groups individual word annotations into logical text lines
+- Handles multi-angle text (horizontal, vertical, diagonal, upside-down)
+- Position-based proximity grouping
+
+**Key Methods:**
+```python
+class TextLineGrouper:
+    def __init__(self, angle_tolerance: int = 15)
+    
+    def group(text_annotations) -> List[Dict]
+    
+    def _group_by_angle(annotations) -> Dict[float, List]
+    def _group_by_position(annotations, angle: float) -> Dict[float, List]
+    def _calculate_position(annotation, angle: float) -> Tuple[float, float]
+    def _convert_to_text_lines(lines: Dict, angle: float) -> List[Dict]
+```
+
+**Algorithm:**
+1. Calculate text angle for each annotation
+2. Group by normalized angle (±tolerance)
+3. Within angle groups, cluster by position
+4. Convert clusters to structured text lines
+
+**Output Format:**
+```python
+[
+    {
+        'text': 'Billy Joel',
+        'annotations': [<Annotation>, <Annotation>],
+        'y_position': 245.0,
+        'angle': 0.0
+    },
+    ...
+]
+```
+
+---
+
+#### **PhraseMatcher** (`vision/matcher.py`)
+
+**Responsibilities:**
+- Finds exact and fuzzy phrase matches
+- Handles multi-line spanning phrases
+- Case-insensitive matching with OCR error correction
+- Deduplicates matches
+
+**Key Methods:**
+```python
+class PhraseMatcher:
+    def __init__(self, config: VisionConfig)
+    
+    def find_matches(
+        phrase: str,
+        text_lines: List[Dict],
+        full_text: str,
+        threshold: int = 85
+    ) -> List[Tuple[Dict, float, str]]
+    
+    def _search_in_lines(...) -> List
+    def _search_spanning(...) -> List
+    def _calculate_similarity(phrase: str, text: str) -> float
+    def _deduplicate_matches(matches: List) -> List
+```
+
+**Matching Types:**
+- `complete_phrase` - Exact substring match (100%)
+- `fuzzy_phrase` - Fuzzy match (threshold-dependent)
+- `upside_down` - Reversed text match (>95%)
+- `exact_spanning` - Multi-line exact match (100%)
+- `fuzzy_spanning` - Multi-line fuzzy match (70-99%)
+
+**Fuzzy Matching Features:**
+- Uses RapidFuzz library
+- `token_set_ratio` for word-order flexibility
+- Reverse matching for upside-down text
+- Character reversal detection
+
+---
+
+#### **ImageAnnotator** (`vision/annotator.py`)
+
+**Responsibilities:**
+- Draws bounding boxes around detected phrases
+- Smart label placement avoiding overlaps
+- Leader lines when labels can't be placed nearby
+- Scalable text sizing
+
+**Key Methods:**
+```python
+class ImageAnnotator:
+    def __init__(self, text_scale: int = 100)
+    
+    def draw_annotations(
+        image,
+        phrase_matches: Dict,
+        phrase_colors: Dict = None
+    ) -> np.ndarray
+    
+    def _extract_bbox(match_data: Dict, phrase: str) -> Tuple
+    def _draw_label(image, phrase, score, bbox, color, positions)
+    def _find_label_position(bbox, text_w, text_h, img_shape, labels) -> Tuple
+```
+
+**Annotation Features:**
+- Color-coded bounding boxes per phrase
+- Tight bbox extraction (exact word boundaries)
+- Label collision avoidance
+- Automatic leader line generation
+- Configurable text scale (50-200%)
+
+---
+
+### 2. Utils Package (`utils/`)
+
+#### **text_utils.py**
+
+**Functions:**
+```python
+def normalize_text_for_search(text: str) -> str
+    """
+    Normalize text for matching:
+    - Lowercase conversion
+    - Whitespace normalization
+    - OCR artifact correction ('rn' → 'm', '|' → 'I', etc.)
+    """
+
+def is_meaningful_phrase(phrase: str, common_words: Set[str]) -> bool
+    """
+    Filter common words:
+    - Single words: reject if common
+    - Multi-word: require at least one non-common word
+    - Allow repeated words (e.g., "The The")
+    """
+```
+
+**OCR Corrections:**
+```python
+char_map = {
+    '|': 'I',    # Vertical bar → I
+    '¡': '!',    # Inverted exclamation
+    '∩': 'n',    # Upside-down u
+    'ɹ': 'r',    # Upside-down r
+    'ɐ': 'a',    # Upside-down a
+    'ǝ': 'e',    # Upside-down e
+    'ᴍ': 'w',    # Small caps M
+    'rn': 'm',   # Two chars misread
+    'cl': 'd',   # c+l misread
+    'ii': 'n',   # Two i's
+}
+```
+
+---
+
+#### **geometry_utils.py**
+
+**Functions:**
+```python
+def calculate_text_angle(vertices) -> float
+    """Calculate text rotation angle from bounding box vertices."""
+
+def rectangles_overlap(rect1: Tuple, rect2: Tuple) -> bool
+    """Check if two rectangles (x1,y1,x2,y2) overlap."""
+
+def find_non_overlapping_position(
+    rect: Tuple,
+    existing_positions: List[Tuple],
+    image_shape: Tuple
+) -> Tuple
+    """Find position that doesn't overlap with existing labels."""
+```
+
+**Label Positioning Algorithm:**
+1. Try 12 candidate positions around bbox
+2. Check overlap with bbox and existing labels
+3. Adjust position using offsets
+4. Fallback to stacked vertical positioning
+5. Ensure within image bounds
+
+---
+
+### 3. Config Package (`config/`)
+
+#### **VisionConfig** (`vision_config.py`)
+
+**Dataclass:**
+```python
+@dataclass
+class VisionConfig:
+    # API Settings
+    credentials_path: str = "credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json"
+    
+    # Matching Settings
+    fuzz_threshold: int = 75           # Similarity threshold (0-100)
+    angle_tolerance: int = 15          # Text angle grouping (degrees)
+    line_proximity_tolerance: int = 20 # Line grouping distance (pixels)
+    
+    # Display Settings
+    default_text_scale: int = 100      # Label text size (percentage)
+    
+    # Word Filtering
+    common_words: Set[str] = field(default_factory=lambda: {...})
+    
+    def setup_credentials(self):
+        """Set GOOGLE_APPLICATION_CREDENTIALS env var."""
+```
+
+**Configuration Usage:**
+```python
+# Default config
+config = VisionConfig()
+
+# Custom config
+config = VisionConfig(
+    fuzz_threshold=85,
+    angle_tolerance=10,
+    default_text_scale=120
+)
+
+detector = VisionPhraseDetector(config)
+```
+
+---
+
+### 4. Demo Application (`vision_demo.py`)
+
+**Purpose:** Command-line interface demonstrating vision package usage
 
 **Features:**
-- Multi-angle text detection (0°, 90°, 180°, 270°, etc.)
-- Case-insensitive matching
-- Fuzzy matching with configurable threshold (50-100)
-- Spanning phrase detection across multiple lines
-- Scalable annotation text size
+- Multiple example use cases
+- Book title detection
+- CD/media detection
+- Results visualization
 
-### 5. Configuration & Settings
-
-**Environment Variables:**
-
+**Usage:**
 ```bash
-# Google Cloud Authentication
-GOOGLE_APPLICATION_CREDENTIALS        # Path to credentials JSON
-GOOGLE_APPLICATION_CREDENTIALS_JSON   # Inline credentials JSON
-GOOGLE_CREDENTIALS_BASE64             # Base64 encoded credentials
-
-# Server Configuration
-PORT=8000                             # Server port
-HOST=0.0.0.0                         # Server host
-
-# Cache Settings
-MAX_CACHE_SIZE=100                    # Maximum cached entries
-CACHE_EXPIRY_SECONDS=3600            # 1 hour TTL
+cd /home/mbuhidar/Code/mbuhidar/thrift_assist
+python vision_demo.py
 ```
 
-**Settings Management** (Future: `backend/core/config.py`):
+**Code Structure:**
 ```python
-class Settings(BaseSettings):
-    API_TITLE: str
-    API_VERSION: str
-    CORS_ORIGINS: list
-    MAX_CACHE_SIZE: int
-    CACHE_EXPIRY_SECONDS: int
-    DEFAULT_THRESHOLD: int = 75
-    DEFAULT_TEXT_SCALE: int = 100
+from vision import VisionPhraseDetector
+from config import VisionConfig
+
+def main():
+    config = VisionConfig(
+        fuzz_threshold=75,
+        angle_tolerance=15
+    )
+    
+    detector = VisionPhraseDetector(config)
+    
+    # Example 1: Books
+    results = detector.detect(
+        "image/books.jpg",
+        ['Lee Child', 'Tom Clancy'],
+        show_plot=True
+    )
+    
+    # Example 2: CDs
+    results = detector.detect(
+        "image/cds.jpg",
+        ['Billy Joel', 'U2'],
+        show_plot=True
+    )
+
+if __name__ == "__main__":
+    main()
 ```
+
+---
 
 ## Data Flow
 
-### 1. Image Upload & Detection
+### Complete Detection Flow
 
 ```
-User Upload → Frontend
-              │
-              ▼
-         FormData (file, phrases, threshold, text_scale)
-              │
-              ▼ POST /ocr/upload
-         API Layer (main.py)
-              │
-              ├─ Validate file type
-              ├─ Calculate image hash
-              └─ Check cache
-                   │
-                   ├─ Cache Hit  → Use cached image
-                   │                    │
-                   │                    ▼
-                   └─ Cache Miss → Process image
-                                        │
-                                        ├─ Decode image
-                                        ├─ Save temp file
-                                        └─ Cache result
-                                             │
-                                             ▼
-                                   OCR Service
-                                        │
-                                        ├─ Call Google Cloud Vision
-                                        ├─ Group text into lines
-                                        ├─ Find phrase matches
-                                        └─ Draw annotations
-                                             │
-                                             ▼
-                                   Format Response
-                                        │
-                                        ├─ Convert to JSON
-                                        ├─ Base64 encode image
-                                        └─ Add metadata
-                                             │
-                                             ▼
-                                   Return to Frontend
-                                        │
-                                        ▼
-                                   Display Results
+1. Client Application
+   ├─ Load image path
+   ├─ Define search phrases
+   └─ Set threshold/text_scale
+        │
+        ▼
+2. VisionPhraseDetector.detect()
+   ├─ Load image with cv2
+   ├─ Call _detect_text()
+   │   └─ Google Cloud Vision API
+   │       ├─ document_text_detection()
+   │       └─ Returns: TextAnnotations[]
+   ├─ TextLineGrouper.group()
+   │   ├─ Group by angle
+   │   ├─ Group by position
+   │   └─ Returns: structured text lines
+   ├─ For each search phrase:
+   │   └─ PhraseMatcher.find_matches()
+   │       ├─ Check if meaningful phrase
+   │       ├─ Search in single lines
+   │       ├─ Search spanning lines
+   │       └─ Returns: matches with scores
+   ├─ ImageAnnotator.draw_annotations()
+   │   ├─ Extract bboxes
+   │   ├─ Draw rectangles
+   │   ├─ Find label positions
+   │   └─ Draw labels with backgrounds
+   └─ Return results dict
+        │
+        ▼
+3. Display/Use Results
+   ├─ Show matplotlib plot (optional)
+   ├─ Print match statistics
+   └─ Access results programmatically
 ```
 
-### 2. Threshold Update (Using Cache)
+---
+
+### Text Grouping Flow
 
 ```
-Threshold Change → Frontend
-                        │
-                        ▼ POST /ocr/upload (same image hash)
-                   Check Cache
-                        │
-                        ├─ Found → Retrieve cached image path
-                        │          │
-                        │          ▼
-                        │     Re-run detection with new threshold
-                        │          │
-                        │          └─ Fast response (~500ms)
-                        │
-                        └─ Not Found → Full OCR process (~2-5s)
+TextAnnotations from Google API
+        │
+        ▼
+TextLineGrouper.group()
+        │
+        ├─ 1. Calculate angles
+        │   └─ atan2(p2.y-p1.y, p2.x-p1.x)
+        │
+        ├─ 2. Group by angle (±15° tolerance)
+        │   ├─ 0° → horizontal
+        │   ├─ 90° → vertical up
+        │   ├─ -90° → vertical down
+        │   └─ 180° → upside-down
+        │
+        ├─ 3. For each angle group:
+        │   ├─ Calculate position key
+        │   │   ├─ Horizontal: use y_position
+        │   │   ├─ Vertical: use x_position
+        │   │   └─ Diagonal: use center point
+        │   │
+        │   └─ Group by position (±20px tolerance)
+        │
+        └─ 4. Convert to text lines
+            ├─ Sort words by position
+            ├─ Join into line text
+            └─ Attach metadata (angle, position, annotations)
 ```
 
-## Caching Strategy
+---
 
-### Cache Key Generation
+### Phrase Matching Flow
 
-```python
-image_hash = MD5(image_bytes + text_scale)
+```
+PhraseMatcher.find_matches()
+        │
+        ├─ 1. Check if meaningful
+        │   └─ Skip if only common words
+        │
+        ├─ 2. Normalize phrase
+        │   ├─ Lowercase
+        │   └─ Fix OCR artifacts
+        │
+        ├─ 3. Search in single lines
+        │   ├─ Exact match → 100% score
+        │   ├─ Fuzzy match → RapidFuzz score
+        │   └─ Reverse match → upside-down text
+        │
+        ├─ 4. Search spanning lines (if multi-word)
+        │   ├─ Find words in current line
+        │   ├─ Look in adjacent lines (±3 lines)
+        │   ├─ Check compatibility:
+        │   │   ├─ Y-distance ≤ 100px
+        │   │   └─ Angle diff ≤ 30°
+        │   ├─ Calculate match percentage
+        │   └─ Create spanning match if ≥70%
+        │
+        └─ 5. Deduplicate
+            ├─ Generate unique keys
+            ├─ Keep highest scores
+            └─ Return sorted matches
 ```
 
-**Why include text_scale?**
-- Different text scales produce different annotated images
-- Ensures cache invalidation when annotation size changes
+---
 
-### Cache Storage
+## API Response Format
 
-```python
-ocr_cache = OrderedDict()  # LRU cache
+### Detection Results
 
-cache_entry = {
-    'timestamp': time.time(),
-    'ocr_data': {
-        'image_path': '/tmp/xyz.jpg',
-        'image_dimensions': [1920, 1080],
-        'all_text': 'detected text...',
-        'filename': 'upload.jpg',
-        'text_scale': 100
-    }
-}
-```
-
-### Cache Eviction
-
-- **LRU (Least Recently Used):** Oldest entries removed when cache is full
-- **TTL (Time To Live):** Entries expire after 1 hour
-- **Size Limit:** Maximum 100 entries
-
-### Cache Benefits
-
-1. **Performance:** Threshold updates are 5-10x faster
-2. **Cost Savings:** Reduces Google Cloud Vision API calls
-3. **User Experience:** Near-instant threshold adjustments
-4. **Resource Efficiency:** Reuses OCR results
-
-## API Request/Response Schemas
-
-### Upload & Detect Request
-
-```json
-{
-  "file": "<multipart/form-data>",
-  "search_phrases": "[\"Billy Joel\", \"U2\", \"Jewel\"]",
-  "threshold": 75,
-  "text_scale": 100
-}
-```
-
-### Detection Response
-
-```json
-{
-  "success": true,
-  "total_matches": 3,
-  "matches": {
-    "Billy Joel": [
-      {
-        "text": "BILLY JOEL",
-        "score": 100.0,
-        "match_type": "complete_phrase",
-        "angle": 0,
-        "is_spanning": false
-      }
-    ]
-  },
-  "processing_time_ms": 1250.5,
-  "image_dimensions": [1920, 1080],
-  "annotated_image_base64": "data:image/jpeg;base64,...",
-  "all_detected_text": "full OCR text...",
-  "filename": "image.jpg",
-  "cached": false
-}
-```
-
-## Inter-Service Communication Examples
-
-### Example 1: Complete Image Upload Flow
-
-#### 1. Frontend → API Route (`/ocr/upload`)
-
-**HTTP Request:**
-```http
-POST /ocr/upload HTTP/1.1
-Host: localhost:8000
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
-
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="file"; filename="cd_collection.jpg"
-Content-Type: image/jpeg
-
-[binary image data]
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="search_phrases"
-
-["Billy Joel", "U2", "Jewel"]
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="threshold"
-
-75
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="text_scale"
-
-100
-------WebKitFormBoundary7MA4YWxkTrZu0gW--
-```
-
-#### 2. API Route → Image Service
-
-**Function Call:**
-```python
-# In backend/api/routes/ocr.py
-
-image_data = await file.read()  # bytes
-
-# Validate image
-is_valid = image_service.validate_image_data(
-    image_data=image_data,
-    max_size_mb=10
-)
-# Returns: True
-
-# Convert to array
-image_array = image_service.base64_to_array(base64_string)
-# Returns: numpy.ndarray shape (1080, 1920, 3)
-
-# Save temp file
-temp_path = image_service.save_temp_image(image_array)
-# Returns: "/tmp/tmpxyz123.jpg"
-```
-
-#### 3. API Route → Cache Service
-
-**Function Call:**
-```python
-# Generate cache key
-image_hash = cache_service.get_image_hash(
-    image_data=image_data,
-    text_scale=100
-)
-# Returns: "a1b2c3d4e5f6g7h8i9j0"
-
-# Check cache
-cached_result = cache_service.get_cached_result(image_hash)
-# Returns: None (cache miss) or cached data dict
-```
-
-**Cache Miss Response:**
-```python
-None
-```
-
-**Cache Hit Response:**
 ```python
 {
-    'image_path': '/tmp/tmpxyz123.jpg',
-    'image_dimensions': [1920, 1080],
-    'all_text': 'BILLY JOEL Greatest Hits U2 The Joshua Tree...',
-    'filename': 'cd_collection.jpg',
-    'text_scale': 100
-}
-```
-
-#### 4. Cache Service → OCR Service (Cache Miss)
-
-**Function Call:**
-```python
-# In backend/api/routes/ocr.py
-
-results = ocr_service.detect_phrases(
-    image_path='/tmp/tmpxyz123.jpg',
-    search_phrases=['Billy Joel', 'U2', 'Jewel'],
-    threshold=75,
-    text_scale=100,
-    show_plot=False
-)
-```
-
-#### 5. OCR Service → Core OCR Module
-
-**Function Call:**
-```python
-# In backend/services/ocr_service.py
-
-from thriftassist_googlevision import detect_and_annotate_phrases
-
-results = detect_and_annotate_phrases(
-    image_path='/tmp/tmpxyz123.jpg',
-    search_phrases=['Billy Joel', 'U2', 'Jewel'],
-    threshold=75,
-    text_scale=100,
-    show_plot=False
-)
-```
-
-**Core OCR Module Response:**
-```python
-{
-    'image': numpy.ndarray,  # Original image
-    'annotated_image': numpy.ndarray,  # Image with bounding boxes
+    'image': np.ndarray,              # Original image
+    'annotated_image': np.ndarray,    # Annotated image
     'matches': {
         'Billy Joel': [
             (
                 {
                     'text': 'BILLY JOEL',
-                    'annotations': [<Annotation objects>],
-                    'y_position': 245,
-                    'angle': 0
+                    'annotations': [<Annotation>, ...],
+                    'y_position': 245.0,
+                    'angle': 0.0
                 },
-                100.0,  # score
-                'complete_phrase'  # match_type
+                100.0,                # score
+                'complete_phrase'     # match_type
             )
         ],
-        'U2': [
-            (
-                {
-                    'text': 'U2',
-                    'annotations': [<Annotation object>],
-                    'y_position': 380,
-                    'angle': 0
-                },
-                100.0,
-                'complete_phrase'
-            )
-        ]
+        'U2': [...]
     },
     'total_matches': 2,
-    'all_text': 'BILLY JOEL Greatest Hits Volume I & II\nU2 The Joshua Tree\nJEWEL Pieces of You...'
-}
-```
-
-#### 6. OCR Service → API Route (Formatted Results)
-
-**Function Call:**
-```python
-# In backend/services/ocr_service.py
-
-serializable_matches = ocr_service.format_matches_for_api(results)
-```
-
-**Formatted Response:**
-```python
-{
-    'Billy Joel': [
-        {
-            'text': 'BILLY JOEL',
-            'score': 100.0,
-            'match_type': 'complete_phrase',
-            'angle': 0,
-            'is_spanning': False
-        }
-    ],
-    'U2': [
-        {
-            'text': 'U2',
-            'score': 100.0,
-            'match_type': 'complete_phrase',
-            'angle': 0,
-            'is_spanning': False
-        }
-    ]
-}
-```
-
-#### 7. API Route → Image Service (Convert to Base64)
-
-**Function Call:**
-```python
-annotated_base64 = image_service.array_to_base64(
-    results['annotated_image']
-)
-```
-
-**Response:**
-```python
-'/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a...'
-```
-
-#### 8. API Route → Cache Service (Store Result)
-
-**Function Call:**
-```python
-cache_service.cache_result(
-    image_hash='a1b2c3d4e5f6g7h8i9j0',
-    ocr_data={
-        'image_path': '/tmp/tmpxyz123.jpg',
-        'image_dimensions': [1920, 1080],
-        'all_text': results.get('all_text', ''),
-        'filename': 'cd_collection.jpg',
-        'text_scale': 100
-    }
-)
-```
-
-#### 9. API Route → Frontend (Final Response)
-
-**HTTP Response:**
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{
-  "success": true,
-  "total_matches": 2,
-  "matches": {
-    "Billy Joel": [
-      {
-        "text": "BILLY JOEL",
-        "score": 100.0,
-        "match_type": "complete_phrase",
-        "angle": 0,
-        "is_spanning": false
-      }
-    ],
-    "U2": [
-      {
-        "text": "U2",
-        "score": 100.0,
-        "match_type": "complete_phrase",
-        "angle": 0,
-        "is_spanning": false
-      }
-    ]
-  },
-  "processing_time_ms": 1250.5,
-  "image_dimensions": [1920, 1080],
-  "annotated_image_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a...",
-  "all_detected_text": "BILLY JOEL Greatest Hits Volume I & II\nU2 The Joshua Tree\nJEWEL Pieces of You...",
-  "filename": "cd_collection.jpg",
-  "cached": false
+    'all_text': 'BILLY JOEL\nGreatest Hits\nU2\nThe Joshua Tree...'
 }
 ```
 
 ---
 
-### Example 2: Cached Threshold Update Flow
+## Configuration Options
 
-#### 1. Frontend → API Route (Same Image, Different Threshold)
+### VisionConfig Parameters
 
-**HTTP Request:**
-```http
-POST /ocr/upload HTTP/1.1
-Host: localhost:8000
-Content-Type: multipart/form-data
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `credentials_path` | str | `"credentials/..."` | Google Cloud credentials file |
+| `fuzz_threshold` | int | 75 | Fuzzy match threshold (0-100) |
+| `angle_tolerance` | int | 15 | Text angle grouping tolerance (degrees) |
+| `line_proximity_tolerance` | int | 20 | Line grouping distance (pixels) |
+| `default_text_scale` | int | 100 | Annotation text size (50-200%) |
+| `common_words` | Set[str] | {...} | Words to filter when alone |
 
-[Same image data]
-search_phrases: ["Billy Joel", "U2"]
-threshold: 85  # Changed from 75
-text_scale: 100
-```
+### Threshold Guide
 
-#### 2. API Route → Cache Service
+| Threshold | Behavior | Use Case |
+|-----------|----------|----------|
+| 90-100 | Very strict, near-exact matches | High precision needed |
+| 75-89 | Balanced, allows minor OCR errors | General use (recommended) |
+| 50-74 | Lenient, more false positives | Poor image quality |
 
-**Function Call:**
+---
+
+## Performance Characteristics
+
+### Detection Speed
+
+| Component | Typical Time | Notes |
+|-----------|--------------|-------|
+| Google Vision API | 1000-2500ms | Network dependent |
+| Text grouping | 10-50ms | Local processing |
+| Phrase matching | 50-200ms | Depends on phrase count |
+| Annotation drawing | 100-300ms | Depends on match count |
+| **Total** | **1200-3000ms** | Per image |
+
+### Memory Usage
+
+- Text annotations: ~1-5 MB per image
+- Image arrays: Width × Height × 3 bytes
+- Cache overhead: ~10 KB per entry
+
+---
+
+## Error Handling
+
+### Common Errors and Responses
+
+**Authentication Failure:**
 ```python
-image_hash = cache_service.get_image_hash(image_data, text_scale=100)
-# Returns: "a1b2c3d4e5f6g7h8i9j0" (same hash)
-
-cached_result = cache_service.get_cached_result(image_hash)
-# Returns: {cached data} (cache hit!)
+DefaultCredentialsError: Could not automatically determine credentials
 ```
+→ Set `GOOGLE_APPLICATION_CREDENTIALS` environment variable
 
-**Cache Hit Response:**
+**Invalid Image:**
 ```python
-{
-    'image_path': '/tmp/tmpxyz123.jpg',  # Existing temp file
-    'image_dimensions': [1920, 1080],
-    'all_text': 'BILLY JOEL Greatest Hits...',
-    'filename': 'cd_collection.jpg',
-    'text_scale': 100
-}
+cv2.error: Image is empty or corrupt
 ```
+→ Validate image file before processing
 
-#### 3. API Route → OCR Service (Skip Google API, Use Cached Image)
-
-**Function Call:**
+**No Text Detected:**
 ```python
-# Use cached image path - NO Google Cloud Vision API call!
-results = ocr_service.detect_phrases(
-    image_path='/tmp/tmpxyz123.jpg',  # From cache
-    search_phrases=['Billy Joel', 'U2'],
-    threshold=85,  # New threshold
-    text_scale=100,
-    show_plot=False
-)
+Returns: None (graceful failure)
+```
+→ Check image quality and text visibility
+
+**Import Errors:**
+```python
+ImportError: attempted relative import beyond top-level package
+```
+→ Run from correct directory or install package
+
+---
+
+## Extension Points
+
+### Future Enhancements
+
+1. **REST API Layer**
+   - FastAPI endpoints
+   - Image upload/download
+   - Session management
+   - WebSocket for real-time updates
+
+2. **Advanced Caching**
+   - Redis/Memcached integration
+   - Distributed cache
+   - Pre-computed results database
+
+3. **Batch Processing**
+   - Multiple image processing
+   - Parallel execution
+   - Progress tracking
+
+4. **Additional OCR Engines**
+   - Tesseract fallback
+   - AWS Textract integration
+   - Azure Computer Vision
+
+5. **Enhanced Matching**
+   - Regex pattern support
+   - Soundex phonetic matching
+   - Multi-language support
+
+---
+
+## Testing Strategy
+
+### Unit Tests (Future)
+
+```python
+# tests/test_grouper.py
+def test_horizontal_text_grouping()
+def test_vertical_text_grouping()
+def test_upside_down_text_grouping()
+
+# tests/test_matcher.py
+def test_exact_phrase_match()
+def test_fuzzy_phrase_match()
+def test_spanning_phrase_match()
+def test_common_word_filtering()
+
+# tests/test_annotator.py
+def test_bbox_extraction()
+def test_label_positioning()
+def test_overlap_avoidance()
+
+# tests/test_text_utils.py
+def test_text_normalization()
+def test_ocr_artifact_correction()
+
+# tests/test_geometry_utils.py
+def test_angle_calculation()
+def test_rectangle_overlap()
 ```
 
-**Processing Time Comparison:**
-- Without cache: ~2500ms (Google API call)
-- With cache: ~500ms (local processing only)
+### Integration Tests
 
-#### 4. API Route → Frontend (Fast Response)
-
-**HTTP Response:**
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{
-  "success": true,
-  "total_matches": 1,  # Fewer matches due to stricter threshold
-  "matches": {
-    "Billy Joel": [
-      {
-        "text": "BILLY JOEL",
-        "score": 100.0,
-        "match_type": "complete_phrase",
-        "angle": 0,
-        "is_spanning": false
-      }
-    ]
-  },
-  "processing_time_ms": 485.2,  # Much faster!
-  "image_dimensions": [1920, 1080],
-  "annotated_image_base64": "...",
-  "all_detected_text": "BILLY JOEL Greatest Hits...",
-  "filename": "cd_collection.jpg",
-  "cached": true  # Indicates cache was used
-}
+```python
+# tests/integration/test_end_to_end.py
+def test_full_detection_pipeline()
+def test_multi_angle_detection()
+def test_visualization_output()
 ```
 
 ---
 
-### Example 3: Health Check Flow
+## Deployment
 
-#### 1. Frontend → API Route
+### Package Installation
 
-**HTTP Request:**
-```http
-GET /health HTTP/1.1
-Host: localhost:8000
+```bash
+# Development install
+cd /home/mbuhidar/Code/mbuhidar/thrift_assist
+pip install -e .
+
+# Production install
+pip install git+https://github.com/yourusername/thrift_assist.git
 ```
 
-#### 2. API Route → OCR Service
+### Environment Setup
 
-**Function Call:**
-```python
-# In backend/api/routes/health.py
+```bash
+# Required
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/credentials.json"
 
-is_available = ocr_service.is_available()
+# Optional
+export VISION_THRESHOLD=75
+export VISION_TEXT_SCALE=100
 ```
 
-**Response:**
-```python
-True  # or False if OCR module not loaded
-```
+### Docker Deployment (Future)
 
-#### 3. API Route → Frontend
+```dockerfile
+FROM python:3.9-slim
 
-**HTTP Response:**
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00.123456",
-  "service": "ThriftAssist OCR API",
-  "ocr_available": true
-}
-```
+COPY thrift_assist/ ./thrift_assist/
+COPY credentials/ ./credentials/
 
----
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/key.json
 
-### Example 4: Cache Status Query
-
-#### 1. Frontend → API Route
-
-**HTTP Request:**
-```http
-GET /cache/status HTTP/1.1
-Host: localhost:8000
-```
-
-#### 2. API Route → Cache Service
-
-**Function Call:**
-```python
-# In backend/api/routes/cache.py
-
-status = cache_service.get_cache_status()
-```
-
-**Response:**
-```python
-{
-    'cache_size': 5,
-    'max_cache_size': 100,
-    'entries': [
-        {
-            'hash': 'a1b2c3d4...',
-            'timestamp': 1705318200.0,
-            'age_seconds': 120.5
-        },
-        {
-            'hash': 'e5f6g7h8...',
-            'timestamp': 1705318150.0,
-            'age_seconds': 170.3
-        },
-        # ... more entries
-    ]
-}
-```
-
-#### 3. API Route → Frontend
-
-**HTTP Response:**
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{
-  "success": true,
-  "cache_size": 5,
-  "max_cache_size": 100,
-  "entries": [
-    {
-      "hash": "a1b2c3d4...",
-      "timestamp": 1705318200.0,
-      "age_seconds": 120.5
-    },
-    {
-      "hash": "e5f6g7h8...",
-      "timestamp": 1705318150.0,
-      "age_seconds": 170.3
-    }
-  ]
-}
+CMD ["python", "-m", "thrift_assist.vision_demo"]
 ```
 
 ---
 
-### Example 5: Error Handling Flow
+## Changelog
 
-#### 1. Frontend → API Route (Invalid Image)
+### v1.0.0 (Current) - Modular Refactoring
 
-**HTTP Request:**
-```http
-POST /ocr/upload HTTP/1.1
-Host: localhost:8000
-Content-Type: multipart/form-data
+**Changes:**
+- ✅ Refactored monolithic script into modular packages
+- ✅ Separated concerns: vision, utils, config
+- ✅ Added proper package structure with `__init__.py`
+- ✅ Implemented dataclass configuration
+- ✅ Absolute imports for better compatibility
+- ✅ Created demo application
+- ✅ Updated documentation
 
-[corrupted image data]
-search_phrases: ["Billy Joel"]
-threshold: 75
-text_scale: 100
-```
-
-#### 2. API Route → Image Service
-
-**Function Call:**
+**Migration from v0.x:**
 ```python
-is_valid = image_service.validate_image_data(image_data, max_size_mb=10)
-```
+# Old (v0.x)
+from thriftassist_googlevision import detect_and_annotate_phrases
 
-**Response:**
-```python
-False  # Invalid image
-```
+# New (v1.0)
+from vision import VisionPhraseDetector
+from config import VisionConfig
 
-#### 3. API Route → Frontend (Error Response)
-
-**HTTP Response:**
-```http
-HTTP/1.1 400 Bad Request
-Content-Type: application/json
-
-{
-  "detail": "Invalid or oversized image"
-}
+detector = VisionPhraseDetector(VisionConfig())
+results = detector.detect(image_path, phrases)
 ```
 
 ---
 
-### Example 6: Google Cloud Vision API Communication
+## License
 
-#### Core OCR Module → Google Cloud Vision
-
-**API Call:**
-```python
-# In thriftassist_googlevision.py
-
-from google.cloud import vision
-
-client = vision.ImageAnnotatorClient()
-
-with open(image_path, 'rb') as image_file:
-    content = image_file.read()
-
-image = vision.Image(content=content)
-response = client.document_text_detection(image=image)
-```
-
-**Google Cloud Vision Response:**
-```python
-{
-    'text_annotations': [
-        {
-            'description': 'BILLY JOEL Greatest Hits Volume I & II\nU2 The Joshua Tree\nJEWEL Pieces of You',
-            'bounding_poly': {
-                'vertices': [
-                    {'x': 10, 'y': 20},
-                    {'x': 890, 'y': 20},
-                    {'x': 890, 'y': 650},
-                    {'x': 10, 'y': 650}
-                ]
-            }
-        },
-        {
-            'description': 'BILLY',
-            'bounding_poly': {
-                'vertices': [
-                    {'x': 45, 'y': 235},
-                    {'x': 125, 'y': 235},
-                    {'x': 125, 'y': 265},
-                    {'x': 45, 'y': 265}
-                ]
-            }
-        },
-        {
-            'description': 'JOEL',
-            'bounding_poly': {
-                'vertices': [
-                    {'x': 135, 'y': 235},
-                    {'x': 195, 'y': 235},
-                    {'x': 195, 'y': 265},
-                    {'x': 135, 'y': 265}
-                ]
-            }
-        },
-        # ... more text annotations
-    ],
-    'error': {
-        'message': ''  # Empty if no error
-    }
-}
-```
-
----
-
-## Message Flow Sequence Diagrams
-
-### Diagram 1: New Image Upload (Cache Miss)
-
-```
-Frontend    API Route    Cache Svc    OCR Svc     Core OCR    Google API
-   │            │            │            │            │            │
-   ├─POST──────>│            │            │            │            │
-   │ /upload    │            │            │            │            │
-   │            │            │            │            │            │
-   │            ├─hash()────>│            │            │            │
-   │            │<─hash──────┤            │            │            │
-   │            │            │            │            │            │
-   │            ├─cached()──>│            │            │            │
-   │            │<─None──────┤            │            │            │
-   │            │  (miss)    │            │            │            │
-   │            │            │            │            │            │
-   │            ├─detect()───────────────>│            │            │
-   │            │            │            │            │            │
-   │            │            │            ├─annotate()>│            │
-   │            │            │            │            │            │
-   │            │            │            │            ├─Vision────>│
-   │            │            │            │            │   API      │
-   │            │            │            │            │<─text──────┤
-   │            │            │            │            │            │
-   │            │            │            │<─results───┤            │
-   │            │            │            │            │            │
-   │            │<─formatted──────────────┤            │            │
-   │            │            │            │            │            │
-   │            ├─cache()───>│            │            │            │
-   │            │<─ok────────┤            │            │            │
-   │            │            │            │            │            │
-   │<─JSON──────┤            │            │            │            │
-   │  response  │            │            │            │            │
-   │            │            │            │            │            │
-```
-
-### Diagram 2: Threshold Update (Cache Hit)
-
-```
-Frontend    API Route    Cache Svc    OCR Svc     Core OCR
-   │            │            │            │            │
-   ├─POST──────>│            │            │            │
-   │ /upload    │ (same img, │            │            │
-   │            │  new %)    │            │            │
-   │            │            │            │            │
-   │            ├─hash()────>│            │            │
-   │            │<─hash──────┤            │            │
-   │            │  (same)    │            │            │
-   │            │            │            │            │
-   │            ├─cached()──>│            │            │
-   │            │<─data──────┤            │            │
-   │            │  (HIT!)    │            │            │
-   │            │            │            │            │
-   │            ├─detect()───────────────>│            │
-   │            │  (cached   │            │            │
-   │            │   path)    │            │            │
-   │            │            │            │            │
-   │            │            │            ├─annotate()>│
-   │            │            │            │ (skip API) │
-   │            │            │            │<─results───┤
-   │            │            │            │            │
-   │            │<─formatted──────────────┤            │
-   │            │            │            │            │
-   │<─JSON──────┤            │            │            │
-   │  response  │            │            │            │
-   │  (~500ms!) │            │            │            │
-   │            │            │            │            │
-
-Performance: ~500ms (5x faster - no Google API call!)
-```
-
-### Diagram 3: Health Check
-
-```
-Frontend    API Route    OCR Service
-   │            │            │
-   ├─GET───────>│            │
-   │ /health    │            │
-   │            │            │
-   │            ├─avail()───>│
-   │            │<─bool──────┤
-   │            │            │
-   │<─JSON──────┤            │
-   │  {status}  │            │
-   │            │            │
-```
-
-### Diagram 4: Cache Management
-
-```
-Frontend    API Route    Cache Service
-   │            │            │
-   ├─GET───────>│            │
-   │ /cache/    │            │
-   │  status    │            │
-   │            │            │
-   │            ├─status()──>│
-   │            │<─{data}────┤
-   │            │            │
-   │<─JSON──────┤            │
-   │  {cache}   │            │
-   │            │            │
-```
-   │               │               │
-   │               │<──{size,──────┤
-   │               │    entries}   │
-   │               │               │
-   │<──JSON────────┤               │
-   │  {cache_size, │               │
-   │   entries[]}  │               │
-   │               │               │
-```
+MIT License - See LICENSE file for details
