@@ -13,29 +13,25 @@ if project_root not in sys.path:
 
 from backend.core.config import settings
 
-# Import OCR functionality
+# Import OCR functionality using the modular detector
 try:
-    from thriftassist_googlevision import (
-        detect_and_annotate_phrases,
-        FUZZY_AVAILABLE,
-        COMMON_WORDS
-    )
+    from vision.detector import VisionPhraseDetector
+    from config.vision_config import VisionConfig
     OCR_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ OCR module not available: {e}")
     OCR_AVAILABLE = False
     
-    # Stub function for when OCR is unavailable
-    def detect_and_annotate_phrases(*args, **kwargs):
-        import numpy as np
-        return {
-            'total_matches': 0,
-            'matches': {},
-            'annotated_image': np.zeros((100, 100, 3), dtype=np.uint8),
-            'all_text': 'OCR module not available'
-        }
-    FUZZY_AVAILABLE = False
-    COMMON_WORDS = set()
+    # Stub class for when OCR is unavailable
+    class VisionPhraseDetector:
+        def detect(self, *args, **kwargs):
+            import numpy as np
+            return {
+                'total_matches': 0,
+                'matches': {},
+                'annotated_image': np.zeros((100, 100, 3), dtype=np.uint8),
+                'all_text': 'OCR module not available'
+            }
 
 
 class OCRService:
@@ -43,7 +39,14 @@ class OCRService:
     
     def __init__(self):
         self.ocr_available = OCR_AVAILABLE
-        self.fuzzy_available = FUZZY_AVAILABLE
+        if self.ocr_available:
+            # Initialize detector with config
+            config = VisionConfig()
+            config.fuzz_threshold = settings.DEFAULT_THRESHOLD
+            config.default_text_scale = settings.DEFAULT_TEXT_SCALE
+            self.detector = VisionPhraseDetector(config)
+        else:
+            self.detector = VisionPhraseDetector()  # Stub version
     
     def is_available(self) -> bool:
         """Check if OCR service is available."""
@@ -85,7 +88,7 @@ class OCRService:
         try:
             print(f"🔍 Running OCR with threshold={threshold}%, text_scale={text_scale}%")
             
-            results = detect_and_annotate_phrases(
+            results = self.detector.detect(
                 image_path=image_path,
                 search_phrases=search_phrases,
                 threshold=threshold,

@@ -2,32 +2,58 @@
 
 ## Overview
 
-ThriftAssist is a modular OCR system for detecting and annotating phrases in images using Google Cloud Vision API. The application has been fully refactored from a monolithic script into a clean, layered architecture.
+ThriftAssist is a modular OCR system for detecting and annotating phrases in images using Google Cloud Vision API. The application has been fully refactored from a monolithic script into a clean, layered architecture with FastAPI backend integration.
 
 ## Architecture Status
 
-### ✅ Migration Complete: Modular Architecture Active
+### ✅ Migration Complete: Modular Architecture with FastAPI Backend
 
-**Current (Recommended):**
-- `vision/` - Modular OCR package (primary implementation)
+**Current (Production):**
+- `backend/` - FastAPI web application with service layer architecture
+- `vision/` - Modular OCR package (core implementation)
 - `utils/` - Shared utilities
 - `config/` - Configuration management
 
 **Legacy (Compatibility Layer):**
-- `thriftassist_googlevision.py` - Wrapper providing backward compatibility
-  - **Status**: Wrapper only - redirects to modular implementation
-  - **All functionality**: Now powered by vision package
-  - **Deprecation**: Shows warnings, will be removed in future release
+- `thriftassist_googlevision.py` - Original monolithic implementation
+  - **Status**: Legacy reference implementation
+  - **Usage**: Backend services now use modular `VisionPhraseDetector`
+  - **Deprecation**: Maintained for reference, backend uses vision package
 
 ## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                       Client Applications                    │
+│                    Client Applications                       │
 │  ┌──────────────────────────────────────────────────────┐   │
+│  │ • Web Frontend (public/web_app.html)                 │   │
+│  │ • REST API Clients                                   │   │
 │  │ • Command Line Interface (vision_demo.py)            │   │
-│  │ • Python Scripts (import vision package)             │   │
-│  │ • Future: REST API / Web Interface                   │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    FastAPI Backend                          │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ API Layer (backend/api/)                             │   │
+│  │  ├─ main.py - FastAPI app configuration              │   │
+│  │  ├─ routes/ocr.py - OCR endpoints                    │   │
+│  │  ├─ routes/health.py - Health check                  │   │
+│  │  └─ routes/cache.py - Cache management               │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                              │                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ Service Layer (backend/services/)                    │   │
+│  │  ├─ ocr_service.py - OCR operations                  │   │
+│  │  ├─ cache_service.py - Result caching                │   │
+│  │  └─ image_service.py - Image processing              │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                              │                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ Core Layer (backend/core/)                           │   │
+│  │  ├─ config.py - Application settings                 │   │
+│  │  └─ credentials.py - Authentication                  │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -72,39 +98,38 @@ ThriftAssist is a modular OCR system for detecting and annotating phrases in ima
                                 │ • _find_label_    │
                                 │   position()      │
                                 └───────────────────┘
-                    ┌─────────────────┴─────────────────┐
-                    ▼                                   ▼
-        ┌───────────────────┐               ┌───────────────────┐
-        │  Utils Package    │               │  Config Package   │
-        │                   │               │                   │
-        │ • text_utils.py   │               │ • vision_config.py│
-        │   - normalize()   │               │   - VisionConfig  │
-        │   - is_meaningful │               │   - credentials   │
-        │                   │               │   - thresholds    │
-        │ • geometry_utils  │               │   - common_words  │
-        │   - calc_angle()  │               └───────────────────┘
-        │   - overlap()     │
-        │   - find_pos()    │
-        └───────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   External Services                         │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ Google Cloud Vision API                              │   │
-│  │ • document_text_detection()                          │   │
-│  │ • text_detection()                                   │   │
-│  │ • Multi-angle text recognition                       │   │
-│  │ • Bounding box coordinates                           │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Directory Structure
 
 ```
 thrift_assist/
-├── __init__.py                       # Package root
+├── main.py                           # Render.com deployment entry point
+├── run_api.py                        # Development server runner
+│
+├── backend/                          # FastAPI Application
+│   ├── __init__.py                   # Backend package root
+│   ├── api/                          # API layer
+│   │   ├── __init__.py
+│   │   ├── main.py                   # FastAPI app configuration
+│   │   ├── routes/
+│   │   │   ├── __init__.py
+│   │   │   ├── health.py             # Health check endpoints
+│   │   │   ├── ocr.py                # OCR processing endpoints
+│   │   │   └── cache.py              # Cache management endpoints
+│   │   └── models/                   # Request/response models
+│   │       ├── __init__.py
+│   │       ├── requests.py           # Pydantic request models
+│   │       └── responses.py          # Pydantic response models
+│   ├── services/                     # Business logic layer
+│   │   ├── __init__.py
+│   │   ├── ocr_service.py            # OCR operations using VisionPhraseDetector
+│   │   ├── cache_service.py          # Result caching
+│   │   └── image_service.py          # Image processing utilities
+│   └── core/                         # Core functionality
+│       ├── __init__.py
+│       ├── config.py                 # Application settings
+│       └── credentials.py            # Authentication setup
 │
 ├── vision/                           # Vision OCR package
 │   ├── __init__.py                   # Public API exports
@@ -122,375 +147,350 @@ thrift_assist/
 │   ├── __init__.py                   # Config exports
 │   └── vision_config.py              # Settings dataclass
 │
+├── public/                           # Web frontend assets
+│   └── web_app.html                  # Frontend interface
+│
 ├── credentials/                      # API credentials (gitignored)
 │   └── *.json                        # Google Cloud credentials
 │
-├── vision_demo.py                    # Demo/CLI application
-├── setup.py                          # Package installation
+├── thriftassist_googlevision.py      # Legacy monolithic implementation
+├── vision_demo.py                    # Standalone demo application
 ├── requirements.txt                  # Python dependencies
 ├── ARCHITECTURE.md                   # This file
 └── README.md                         # User documentation
 ```
 
-## Component Descriptions
+## Backend Service Integration
 
-### 1. Vision Package (`vision/`)
+### OCR Service Layer (`backend/services/ocr_service.py`)
 
-The core OCR functionality organized into specialized modules.
-
-#### **VisionPhraseDetector** (`vision/detector.py`)
-
-**Responsibilities:**
-- Main entry point for phrase detection
-- Google Cloud Vision API integration
-- Orchestrates grouping, matching, and annotation
-- Results visualization
-
-**Key Methods:**
+**Current Implementation:**
 ```python
-class VisionPhraseDetector:
-    def __init__(self, config: VisionConfig = None)
+from vision.detector import VisionPhraseDetector
+from config.vision_config import VisionConfig
+
+class OCRService:
+    def __init__(self):
+        if self.ocr_available:
+            config = VisionConfig()
+            config.fuzz_threshold = settings.DEFAULT_THRESHOLD
+            config.default_text_scale = settings.DEFAULT_TEXT_SCALE
+            self.detector = VisionPhraseDetector(config)
     
-    def detect(
-        image_path: str,
-        search_phrases: List[str],
-        threshold: int = None,
-        show_plot: bool = True,
-        text_scale: int = None
-    ) -> Optional[Dict]
-    
-    def _detect_text(image_path: str) -> TextAnnotations
-    def _print_orientation_info(text_lines: List[Dict])
-    def _show_results(annotated, phrase_matches)
+    def detect_phrases(self, image_path, search_phrases, threshold=None, 
+                      text_scale=None, show_plot=False):
+        return self.detector.detect(
+            image_path=image_path,
+            search_phrases=search_phrases,
+            threshold=threshold,
+            text_scale=text_scale,
+            show_plot=show_plot
+        )
 ```
 
-**Dependencies:**
-- `VisionConfig` - Configuration settings
-- `TextLineGrouper` - Line grouping logic
-- `PhraseMatcher` - Phrase detection logic
-- `ImageAnnotator` - Visual annotation
-- `google.cloud.vision` - Google Cloud API
-
----
-
-#### **TextLineGrouper** (`vision/grouper.py`)
-
-**Responsibilities:**
-- Groups individual word annotations into logical text lines
-- Handles multi-angle text (horizontal, vertical, diagonal, upside-down)
-- Position-based proximity grouping
-
-**Key Methods:**
+**Previous Implementation (Deprecated):**
 ```python
-class TextLineGrouper:
-    def __init__(self, angle_tolerance: int = 15)
-    
-    def group(text_annotations) -> List[Dict]
-    
-    def _group_by_angle(annotations) -> Dict[float, List]
-    def _group_by_position(annotations, angle: float) -> Dict[float, List]
-    def _calculate_position(annotation, angle: float) -> Tuple[float, float]
-    def _convert_to_text_lines(lines: Dict, angle: float) -> List[Dict]
+# Old approach - no longer used
+from thriftassist_googlevision import detect_and_annotate_phrases
+
+results = detect_and_annotate_phrases(
+    image_path=image_path,
+    search_phrases=search_phrases,
+    threshold=threshold,
+    text_scale=text_scale,
+    show_plot=show_plot
+)
 ```
 
-**Algorithm:**
-1. Calculate text angle for each annotation
-2. Group by normalized angle (±tolerance)
-3. Within angle groups, cluster by position
-4. Convert clusters to structured text lines
+### API Endpoints
 
-**Output Format:**
-```python
-[
-    {
-        'text': 'Billy Joel',
-        'annotations': [<Annotation>, <Annotation>],
-        'y_position': 245.0,
-        'angle': 0.0
-    },
-    ...
-]
+**OCR Processing:**
+- `POST /ocr/upload` - Upload image and detect phrases
+- `POST /ocr/detect` - Process with search parameters
+
+**System:**
+- `GET /health` - Service health check
+- `GET /cache/status` - Cache statistics
+
+**Legacy Support:**
+- `POST /upload-and-detect` - Backward compatibility endpoint
+
+## Migration Benefits
+
+### From Monolithic to Modular Backend
+
+**Before (thriftassist_googlevision.py):**
+- Single 2000+ line file
+- Direct function calls
+- Hardcoded configuration
+- No API interface
+- Limited reusability
+
+**After (Vision Package + FastAPI Backend):**
+- Separation of concerns
+- Dependency injection
+- Configurable via API
+- RESTful interface
+- Scalable architecture
+- Proper error handling
+- Response caching
+
+### Service Layer Advantages
+
+1. **Abstraction**: API routes don't directly interact with Google Cloud Vision
+2. **Configuration**: Backend settings integrate with VisionConfig
+3. **Error Handling**: Graceful failures with proper HTTP responses
+4. **Caching**: Service layer can cache results for repeated requests
+5. **Testing**: Service methods can be unit tested independently
+6. **Scaling**: Service instances can be distributed across workers
+
+## Data Flow Updates
+
+### FastAPI Request Flow
+
+```
+1. Client Request (POST /ocr/upload)
+   ├─ File upload via multipart/form-data
+   ├─ Search phrases in form fields
+   └─ Optional threshold/text_scale parameters
+        │
+        ▼
+2. API Route Handler (backend/api/routes/ocr.py)
+   ├─ Request validation (Pydantic models)
+   ├─ File processing (save to temp location)
+   └─ Call OCR Service
+        │
+        ▼
+3. OCR Service (backend/services/ocr_service.py)
+   ├─ Configure VisionPhraseDetector with settings
+   ├─ Call detector.detect() method
+   └─ Format results for API response
+        │
+        ▼
+4. VisionPhraseDetector (vision/detector.py)
+   ├─ Google Cloud Vision API integration
+   ├─ Text grouping and phrase matching
+   └─ Image annotation generation
+        │
+        ▼
+5. API Response
+   ├─ JSON response with match data
+   ├─ Base64 encoded annotated image
+   └─ HTTP status codes and error handling
 ```
 
----
+### Configuration Integration
 
-#### **PhraseMatcher** (`vision/matcher.py`)
-
-**Responsibilities:**
-- Finds exact and fuzzy phrase matches
-- Handles multi-line spanning phrases
-- Case-insensitive matching with OCR error correction
-- Deduplicates matches
-
-**Key Methods:**
+**Backend Settings → Vision Config:**
 ```python
-class PhraseMatcher:
-    def __init__(self, config: VisionConfig)
+# backend/core/config.py
+class Settings(BaseSettings):
+    DEFAULT_THRESHOLD: int = 75
+    DEFAULT_TEXT_SCALE: int = 100
     
-    def find_matches(
-        phrase: str,
-        text_lines: List[Dict],
-        full_text: str,
-        threshold: int = 85
-    ) -> List[Tuple[Dict, float, str]]
-    
-    def _search_in_lines(...) -> List
-    def _search_spanning(...) -> List
-    def _calculate_similarity(phrase: str, text: str) -> float
-    def _deduplicate_matches(matches: List) -> List
+# backend/services/ocr_service.py  
+config = VisionConfig()
+config.fuzz_threshold = settings.DEFAULT_THRESHOLD
+config.default_text_scale = settings.DEFAULT_TEXT_SCALE
 ```
 
-**Matching Types:**
-- `complete_phrase` - Exact substring match (100%)
-- `fuzzy_phrase` - Fuzzy match (threshold-dependent)
-- `upside_down` - Reversed text match (>95%)
-- `exact_spanning` - Multi-line exact match (100%)
-- `fuzzy_spanning` - Multi-line fuzzy match (70-99%)
+## Deployment Architecture
 
-**Fuzzy Matching Features:**
-- Uses RapidFuzz library
-- `token_set_ratio` for word-order flexibility
-- Reverse matching for upside-down text
-- Character reversal detection
+### Render.com Production Setup
 
----
-
-#### **ImageAnnotator** (`vision/annotator.py`)
-
-**Responsibilities:**
-- Draws bounding boxes around detected phrases
-- Smart label placement avoiding overlaps
-- Leader lines when labels can't be placed nearby
-- Scalable text sizing
-
-**Key Methods:**
+**Entry Point:**
 ```python
-class ImageAnnotator:
-    def __init__(self, text_scale: int = 100)
-    
-    def draw_annotations(
-        image,
-        phrase_matches: Dict,
-        phrase_colors: Dict = None
-    ) -> np.ndarray
-    
-    def _extract_bbox(match_data: Dict, phrase: str) -> Tuple
-    def _draw_label(image, phrase, score, bbox, color, positions)
-    def _find_label_position(bbox, text_w, text_h, img_shape, labels) -> Tuple
+# main.py - Render.com entry point
+from backend.api.main import app
+
+# Start command: uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
-**Annotation Features:**
-- Color-coded bounding boxes per phrase
-- Tight bbox extraction (exact word boundaries)
-- Label collision avoidance
-- Automatic leader line generation
-- Configurable text scale (50-200%)
-
----
-
-### 2. Utils Package (`utils/`)
-
-#### **text_utils.py**
-
-**Functions:**
-```python
-def normalize_text_for_search(text: str) -> str
-    """
-    Normalize text for matching:
-    - Lowercase conversion
-    - Whitespace normalization
-    - OCR artifact correction ('rn' → 'm', '|' → 'I', etc.)
-    """
-
-def is_meaningful_phrase(phrase: str, common_words: Set[str]) -> bool
-    """
-    Filter common words:
-    - Single words: reject if common
-    - Multi-word: require at least one non-common word
-    - Allow repeated words (e.g., "The The")
-    """
+**Environment Variables:**
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/key.json
+API_TITLE="ThriftAssist OCR API"
+DEFAULT_THRESHOLD=75
+DEFAULT_TEXT_SCALE=100
 ```
 
-**OCR Corrections:**
+### Development Setup
+
+**Local Development:**
+```bash
+# Use enhanced development runner
+python run_api.py
+
+# Direct uvicorn (alternative)
+uvicorn backend.api.main:app --reload --port 8000
+```
+
+## API Response Format Updates
+
+### Enhanced Response Structure
+
 ```python
-char_map = {
-    '|': 'I',    # Vertical bar → I
-    '¡': '!',    # Inverted exclamation
-    '∩': 'n',    # Upside-down u
-    'ɹ': 'r',    # Upside-down r
-    'ɐ': 'a',    # Upside-down a
-    'ǝ': 'e',    # Upside-down e
-    'ᴍ': 'w',    # Small caps M
-    'rn': 'm',   # Two chars misread
-    'cl': 'd',   # c+l misread
-    'ii': 'n',   # Two i's
+{
+    "success": true,
+    "message": "OCR processing completed",
+    "data": {
+        "total_matches": 2,
+        "processing_time_ms": 1547,
+        "matches": {
+            "Billy Joel": [
+                {
+                    "text": "BILLY JOEL", 
+                    "score": 100.0,
+                    "match_type": "complete_phrase",
+                    "angle": 0.0,
+                    "is_spanning": false,
+                    "explanation": {
+                        "phrase_searched": "Billy Joel",
+                        "text_found": "BILLY JOEL",
+                        "overall_score": 100.0,
+                        "confidence_level": "Very High",
+                        "reasoning": ["Exact substring match found (case-insensitive)"]
+                    }
+                }
+            ]
+        },
+        "annotated_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+        "image_info": {
+            "width": 1024,
+            "height": 768,
+            "orientations_detected": ["horizontal", "upside-down"]
+        }
+    }
 }
 ```
 
----
+## Performance Optimizations
 
-#### **geometry_utils.py**
+### Service Layer Improvements
 
-**Functions:**
+1. **Connection Pooling**: Reuse Google Cloud Vision client instances
+2. **Result Caching**: Cache results by image hash and search parameters  
+3. **Async Processing**: FastAPI async endpoints for better concurrency
+4. **Image Optimization**: Resize large images before processing
+5. **Background Tasks**: Process annotations asynchronously
+
+### Scaling Considerations
+
+- **Horizontal Scaling**: Multiple FastAPI workers with shared cache
+- **Load Balancing**: Distribute requests across service instances
+- **Database Integration**: Store results in persistent storage
+- **CDN Integration**: Serve annotated images from CDN
+
+## Testing Strategy Updates
+
+### Backend Testing Structure
+
 ```python
-def calculate_text_angle(vertices) -> float
-    """Calculate text rotation angle from bounding box vertices."""
+# tests/unit/services/test_ocr_service.py
+def test_ocr_service_initialization()
+def test_detect_phrases_success()
+def test_detect_phrases_with_invalid_image()
+def test_format_matches_for_api()
 
-def rectangles_overlap(rect1: Tuple, rect2: Tuple) -> bool
-    """Check if two rectangles (x1,y1,x2,y2) overlap."""
+# tests/unit/api/test_ocr_routes.py  
+def test_upload_endpoint_success()
+def test_upload_endpoint_validation_errors()
+def test_detect_endpoint_with_parameters()
 
-def find_non_overlapping_position(
-    rect: Tuple,
-    existing_positions: List[Tuple],
-    image_shape: Tuple
-) -> Tuple
-    """Find position that doesn't overlap with existing labels."""
+# tests/integration/test_end_to_end.py
+def test_full_api_workflow()
+def test_vision_detector_integration()
 ```
 
-**Label Positioning Algorithm:**
-1. Try 12 candidate positions around bbox
-2. Check overlap with bbox and existing labels
-3. Adjust position using offsets
-4. Fallback to stacked vertical positioning
-5. Ensure within image bounds
+## Migration Guide
 
----
+### For Existing Code Using Legacy Implementation
 
-### 3. Config Package (`config/`)
-
-#### **VisionConfig** (`vision_config.py`)
-
-**Dataclass:**
+**Old Pattern:**
 ```python
-@dataclass
-class VisionConfig:
-    # API Settings
-    credentials_path: str = "credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json"
-    
-    # Matching Settings
-    fuzz_threshold: int = 75           # Similarity threshold (0-100)
-    angle_tolerance: int = 15          # Text angle grouping (degrees)
-    line_proximity_tolerance: int = 20 # Line grouping distance (pixels)
-    
-    # Display Settings
-    default_text_scale: int = 100      # Label text size (percentage)
-    
-    # Word Filtering
-    common_words: Set[str] = field(default_factory=lambda: {...})
-    
-    def setup_credentials(self):
-        """Set GOOGLE_APPLICATION_CREDENTIALS env var."""
-```
+from thriftassist_googlevision import detect_and_annotate_phrases
 
-**Configuration Usage:**
-```python
-# Default config
-config = VisionConfig()
-
-# Custom config
-config = VisionConfig(
-    fuzz_threshold=85,
-    angle_tolerance=10,
-    default_text_scale=120
+results = detect_and_annotate_phrases(
+    image_path="image.jpg",
+    search_phrases=["Billy Joel", "U2"], 
+    threshold=75,
+    show_plot=False
 )
-
-detector = VisionPhraseDetector(config)
 ```
 
----
-
-### 4. Demo Application (`vision_demo.py`)
-
-**Purpose:** Command-line interface demonstrating vision package usage
-
-**Features:**
-- Multiple example use cases
-- Book title detection
-- CD/media detection
-- Results visualization
-
-**Usage:**
-```bash
-cd /home/mbuhidar/Code/mbuhidar/thrift_assist
-python vision_demo.py
-```
-
-**Code Structure:**
+**New Pattern (Direct Vision Package):**
 ```python
 from vision import VisionPhraseDetector
 from config import VisionConfig
 
-def main():
-    config = VisionConfig(
-        fuzz_threshold=75,
-        angle_tolerance=15
-    )
-    
-    detector = VisionPhraseDetector(config)
-    
-    # Example 1: Books
-    results = detector.detect(
-        "image/books.jpg",
-        ['Lee Child', 'Tom Clancy'],
-        show_plot=True
-    )
-    
-    # Example 2: CDs
-    results = detector.detect(
-        "image/cds.jpg",
-        ['Billy Joel', 'U2'],
-        show_plot=True
-    )
+config = VisionConfig(fuzz_threshold=75)
+detector = VisionPhraseDetector(config)
 
-if __name__ == "__main__":
-    main()
+results = detector.detect(
+    image_path="image.jpg",
+    search_phrases=["Billy Joel", "U2"],
+    show_plot=False
+)
 ```
+
+**New Pattern (Via FastAPI Backend):**
+```python
+import requests
+
+files = {"file": open("image.jpg", "rb")}
+data = {
+    "search_phrases": "Billy Joel,U2",
+    "threshold": 75
+}
+
+response = requests.post("http://localhost:8000/ocr/upload", 
+                        files=files, data=data)
+results = response.json()
+```
+
+## Changelog
+
+### v2.0.0 (Current) - FastAPI Backend Integration
+
+**Backend Changes:**
+- ✅ FastAPI application with modular architecture
+- ✅ Service layer using VisionPhraseDetector instead of legacy functions  
+- ✅ RESTful API endpoints for OCR processing
+- ✅ Pydantic models for request/response validation
+- ✅ Async processing support
+- ✅ Health check and cache management endpoints
+- ✅ Render.com deployment configuration
+
+**OCR Service Migration:**
+- ✅ Replaced direct `thriftassist_googlevision` imports
+- ✅ Integrated `VisionPhraseDetector` with backend configuration
+- ✅ Enhanced error handling and response formatting
+- ✅ Added explainability data to API responses
+
+**Deployment Updates:**
+- ✅ Production-ready main.py for Render.com
+- ✅ Development server with enhanced logging
+- ✅ Environment variable configuration
+- ✅ Static file serving for web frontend
+
+### Migration Benefits Summary
+
+| Aspect | Before | After |
+|--------|---------|-------|
+| **Architecture** | Monolithic script | Modular FastAPI backend |
+| **OCR Integration** | Direct function calls | Service layer with VisionPhraseDetector |
+| **Configuration** | Hardcoded values | Environment variables + VisionConfig |
+| **Interface** | Command line only | REST API + CLI |
+| **Error Handling** | Print statements | HTTP status codes + structured responses |
+| **Deployment** | Manual execution | Cloud platform ready |
+| **Scaling** | Single process | Multi-worker support |
+| **Testing** | Manual verification | Unit/integration test framework |
 
 ---
 
-## Data Flow
+## License
 
-### Complete Detection Flow
-
-```
-1. Client Application
-   ├─ Load image path
-   ├─ Define search phrases
-   └─ Set threshold/text_scale
-        │
-        ▼
-2. VisionPhraseDetector.detect()
-   ├─ Load image with cv2
-   ├─ Call _detect_text()
-   │   └─ Google Cloud Vision API
-   │       ├─ document_text_detection()
-   │       └─ Returns: TextAnnotations[]
-   ├─ TextLineGrouper.group()
-   │   ├─ Group by angle
-   │   ├─ Group by position
-   │   └─ Returns: structured text lines
-   ├─ For each search phrase:
-   │   └─ PhraseMatcher.find_matches()
-   │       ├─ Check if meaningful phrase
-   │       ├─ Search in single lines
-   │       ├─ Search spanning lines
-   │       └─ Returns: matches with scores
-   ├─ ImageAnnotator.draw_annotations()
-   │   ├─ Extract bboxes
-   │   ├─ Draw rectangles
-   │   ├─ Find label positions
-   │   └─ Draw labels with backgrounds
-   └─ Return results dict
-        │
-        ▼
-3. Display/Use Results
-   ├─ Show matplotlib plot (optional)
-   ├─ Print match statistics
-   └─ Access results programmatically
-```
-
----
-
+MIT License - See LICENSE file for details
 ### Text Grouping Flow
 
 ```
