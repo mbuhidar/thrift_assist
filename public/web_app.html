@@ -323,15 +323,94 @@
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             margin-top: 15px;
+            cursor: zoom-in;
+            transition: transform 0.3s ease;
         }
 
-        .error {
-            background: #fed7d7;
-            color: #c53030;
-            padding: 15px;
+        /* Zoom functionality styles */
+        .image-container {
+            position: relative;
+            overflow: hidden;
             border-radius: 8px;
             margin-top: 15px;
-            border-left: 4px solid #e53e3e;
+            background: #f8f9fa;
+            display: inline-block;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .image-preview.zoomable {
+            cursor: zoom-in;
+            user-select: none;
+            -webkit-user-select: none;
+            display: block;
+            transform-origin: 0 0;
+            transition: none;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .image-preview.zoomed {
+            cursor: grab;
+        }
+
+        .image-preview.zoomed:active {
+            cursor: grabbing;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 8px;
+            padding: 8px;
+            display: none;
+            z-index: 1000;
+        }
+
+        .zoom-controls.visible {
+            display: flex;
+            gap: 5px;
+        }
+
+        .zoom-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 4px;
+            width: 35px;
+            height: 35px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .zoom-btn:hover {
+            background: white;
+        }
+
+        .zoom-btn:active {
+            transform: scale(0.95);
+        }
+
+        .zoom-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .zoom-info.visible {
+            display: block;
         }
 
         /* Mobile optimizations */
@@ -515,7 +594,15 @@
 
                     <div>
                         <h3 style="margin: 20px 0 10px 0;">📸 Annotated Image</h3>
-                        <img id="annotatedImage" class="image-preview" alt="Annotated result">
+                        <div class="image-container" id="imageContainer">
+                            <img id="annotatedImage" class="image-preview zoomable" alt="Annotated result">
+                            <div class="zoom-controls" id="zoomControls">
+                                <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
+                                <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">−</button>
+                                <button class="zoom-btn" id="resetZoomBtn" title="Reset Zoom">⌂</button>
+                            </div>
+                            <div class="zoom-info" id="zoomInfo">100%</div>
+                        </div>
                     </div>
                 </div>
 
@@ -589,7 +676,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         document.getElementById('textScale').addEventListener('input', function() {
             document.getElementById('textScaleValue').textContent = this.value + '%';
         });
-        
+
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -597,7 +684,9 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const imageFile = document.getElementById('imageFile').files[0];
             const searchPhrasesText = document.getElementById('searchPhrases').value;
             const threshold = document.getElementById('threshold').value;
-            const textScale = document.getElementById('textScale').value;  // Get text scale value
+            const textScale = document.getElementById('textScale').value;
+            
+            console.log('Form submission - textScale value:', textScale); // Debug log
             
             if (!imageFile) {
                 showError('Please select an image file');
@@ -627,9 +716,78 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 formData.append('file', imageFile);
                 formData.append('search_phrases', JSON.stringify(searchPhrases));
                 formData.append('threshold', threshold);
-                formData.append('text_scale', textScale);  // Add text scale to form data
+                formData.append('text_scale', textScale);
+                
+                console.log('Sending to API with text_scale:', textScale); // Debug log
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                console.log('API response:', result); // Debug log
+                
+                if (result.success) {
+                    displayResults(result, searchPhrases);
+                } else {
+                    showError(result.error_message || 'An error occurred while processing the image');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to connect to the API. Make sure the service is running on ' + API_BASE_URL);
+            } finally {
+                showLoading(false);
+            }
+        });
+        
+        async function analyzeImage() {
+            const fileInput = document.getElementById('imageInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select an image first');
+                return;
+            }
+
+            // Get text size value
+            const textSizeSlider = document.getElementById('textSize');
+            const textSize = parseInt(textSizeSlider.value);
+            
+            // Show alert on mobile to verify value is being read
+            if (window.innerWidth < 768) {
+                alert('Text size: ' + textSize + 'px');
+            }
+            
+            // Show loading state
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('text_size', textSize);
+
+            // Get search phrases
+            const searchPhrasesInput = document.getElementById('searchPhrases');
+            const searchPhrases = searchPhrasesInput.value
+                .split('\n')
+                .map(phrase => phrase.trim())
+                .filter(phrase => phrase.length > 0);
+
+            if (searchPhrases.length > 0) {
+                formData.append('search_phrases', JSON.stringify(searchPhrases));
+            }
+
+            console.log('Sending to API:', {
+                textSize: textSize,
+                searchPhrases: searchPhrases,
+                hasFile: !!file
+            }); // Debug log
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/ocr`, {
                     method: 'POST',
                     body: formData
                 });
@@ -648,7 +806,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             } finally {
                 showLoading(false);
             }
-        });
+        }
         
         function showLoading(show) {
             const loading = document.getElementById('loading');
@@ -741,7 +899,15 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             
             // Update annotated image
             if (result.annotated_image_base64) {
-                annotatedImage.src = `data:image/jpeg;base64,${result.annotated_image_base64}`;
+                const annotatedImage = document.getElementById('annotatedImage');
+                const imageContainer = document.getElementById('imageContainer');
+                
+                // Initialize zoom if not already done
+                if (!imageZoom) {
+                    imageZoom = new ImageZoom(annotatedImage, imageContainer);
+                }
+                
+                imageZoom.setImage(`data:image/jpeg;base64,${result.annotated_image_base64}`);
                 annotatedImage.style.display = 'block';
             }
         }
@@ -780,6 +946,406 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     Supported formats: JPG, PNG, GIF, BMP<br>
                     Selected file: ${file.name} (${fileSizeMB} MB, ${fileType})
                 `;
+            }
+        });
+
+        // Image zoom functionality
+        class ImageZoom {
+            constructor(imageElement, containerElement) {
+                this.image = imageElement;
+                this.container = containerElement;
+                this.scale = 1;
+                this.translateX = 0;
+                this.translateY = 0;
+                this.isDragging = false;
+                this.dragStart = { x: 0, y: 0 };
+                this.lastTouch = { x: 0, y: 0, distance: 0 };
+                this.imageLoaded = false;
+                this.hasMoved = false;
+                
+                this.init();
+            }
+            
+            init() {
+                this.image.addEventListener('load', () => {
+                    this.imageLoaded = true;
+                    this.resetZoom();
+                });
+                
+                this.image.addEventListener('click', (e) => this.handleClick(e));
+                this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.image.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
+                this.image.addEventListener('wheel', (e) => this.handleWheel(e));
+                
+                this.image.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                this.image.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+                this.image.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+                
+                this.image.addEventListener('contextmenu', (e) => e.preventDefault());
+                
+                document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
+                document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
+                document.getElementById('resetZoomBtn').addEventListener('click', () => this.resetZoom());
+                
+                this.image.addEventListener('dragstart', (e) => e.preventDefault());
+            }
+            
+            handleClick(e) {
+                if (!this.imageLoaded || this.hasMoved) {
+                    this.hasMoved = false;
+                    return;
+                }
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (this.scale === 1) {
+                    this.zoomToContainerCenter(1.8);
+                }
+            }
+            
+            handleMouseDown(e) {
+                if (!this.imageLoaded) return;
+                
+                this.hasMoved = false;
+                
+                if (this.scale > 1) {
+                    this.isDragging = true;
+                    this.dragStart.x = e.clientX - this.translateX;
+                    this.dragStart.y = e.clientY - this.translateY;
+                    this.image.style.cursor = 'grabbing';
+                }
+                e.preventDefault();
+            }
+            
+            handleMouseMove(e) {
+                if (!this.imageLoaded) return;
+                
+                if (this.isDragging && this.scale > 1) {
+                    const newTranslateX = e.clientX - this.dragStart.x;
+                    const newTranslateY = e.clientY - this.dragStart.y;
+                    
+                    if (Math.abs(newTranslateX - this.translateX) > 2 || Math.abs(newTranslateY - this.translateY) > 2) {
+                        this.hasMoved = true;
+                    }
+                    
+                    this.translateX = newTranslateX;
+                    this.translateY = newTranslateY;
+                    this.constrainTranslation();
+                    this.updateTransform();
+                    e.preventDefault();
+                }
+            }
+            
+            handleMouseUp(e) {
+                if (!this.imageLoaded) return;
+                
+                this.isDragging = false;
+                if (this.scale > 1) {
+                    this.image.style.cursor = 'grab';
+                } else {
+                    this.image.style.cursor = 'zoom-in';
+                }
+            }
+            
+            handleWheel(e) {
+                if (!this.imageLoaded) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Get mouse/touchpad position in container coordinates
+                const containerRect = this.container.getBoundingClientRect();
+                const containerX = e.clientX - containerRect.left;
+                const containerY = e.clientY - containerRect.top;
+                
+                // Find what point in the base image is under the cursor
+                const baseImageX = (containerX - this.translateX) / this.scale;
+                const baseImageY = (containerY - this.translateY) / this.scale;
+                
+                // Calculate new scale
+                const delta = e.deltaY > 0 ? 0.95 : 1.05;
+                const newScale = Math.max(1, Math.min(5, this.scale * delta));
+                
+                if (newScale !== this.scale) {
+                    // Recalculate translation to keep the point under the cursor
+                    this.translateX = containerX - (baseImageX * newScale);
+                    this.translateY = containerY - (baseImageY * newScale);
+                    this.scale = newScale;
+                    
+                    this.constrainTranslation();
+                    this.updateTransform();
+                    this.updateUI();
+                }
+            }
+            
+            handleTouchStart(e) {
+                if (!this.imageLoaded) return;
+                
+                if (e.touches.length === 1) {
+                    if (this.scale > 1) {
+                        this.isDragging = true;
+                        this.dragStart.x = e.touches[0].clientX - this.translateX;
+                        this.dragStart.y = e.touches[0].clientY - this.translateY;
+                    }
+                    this.lastTouch.x = e.touches[0].clientX;
+                    this.lastTouch.y = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    this.isDragging = false;
+                    
+                    // Store initial pinch state
+                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                    this.lastTouch.initialDistance = distance;
+                    this.lastTouch.initialScale = this.scale;
+                }
+                e.preventDefault();
+            }
+            
+            handleTouchMove(e) {
+                if (!this.imageLoaded) return;
+                
+                if (e.touches.length === 1 && this.isDragging && this.scale > 1) {
+                    this.translateX = e.touches[0].clientX - this.dragStart.x;
+                    this.translateY = e.touches[0].clientY - this.dragStart.y;
+                    this.constrainTranslation();
+                    this.updateTransform();
+                } else if (e.touches.length === 2 && this.lastTouch.initialDistance) {
+                    const currentDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                    
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    
+                    const containerRect = this.container.getBoundingClientRect();
+                    const containerX = midX - containerRect.left;
+                    const containerY = midY - containerRect.top;
+                    
+                    const baseImageX = (containerX - this.translateX) / this.scale;
+                    const baseImageY = (containerY - this.translateY) / this.scale;
+                    
+                    const scaleRatio = currentDistance / this.lastTouch.initialDistance;
+                    const dampedRatio = 1 + (scaleRatio - 1) * 0.6;
+                    const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * dampedRatio));
+                    
+                    if (Math.abs(newScale - this.scale) > 0.01) {
+                        this.translateX = containerX - (baseImageX * newScale);
+                        this.translateY = containerY - (baseImageY * newScale);
+                        this.scale = newScale;
+                        
+                        this.constrainTranslation();
+                        this.updateTransform();
+                        this.updateUI();
+                    }
+                }
+                e.preventDefault();
+            }
+            
+            getTouchDistance(touch1, touch2) {
+                const dx = touch1.clientX - touch2.clientX;
+                const dy = touch1.clientY - touch2.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            
+            zoomToPoint(newScale, pointX, pointY) {
+                if (!this.imageLoaded) return;
+                
+                // Get container dimensions
+                const containerWidth = this.container.clientWidth;
+                const containerHeight = this.container.clientHeight;
+                
+                // Convert normalized point (0-1) to container coordinates
+                const containerX = pointX * containerWidth;
+                const containerY = pointY * containerHeight;
+                
+                // Find what point in the base image is at this container position
+                const baseImageX = (containerX - this.translateX) / this.scale;
+                const baseImageY = (containerY - this.translateY) / this.scale;
+                
+                // Calculate new translation to keep this point at the same container position
+                this.translateX = containerX - (baseImageX * newScale);
+                this.translateY = containerY - (baseImageY * newScale);
+                this.scale = newScale;
+                
+                this.constrainTranslation();
+                this.updateTransform();
+                this.updateUI();
+            }
+            
+            zoomIn() {
+                if (!this.imageLoaded) return;
+                const newScale = Math.min(5, this.scale * 1.15);
+                this.zoomToContainerCenter(newScale);
+            }
+            
+            zoomOut() {
+                if (!this.imageLoaded) return;
+                const newScale = Math.max(1, this.scale / 1.15);
+                this.zoomToContainerCenter(newScale);
+            }
+            
+            zoomToContainerCenter(newScale) {
+                if (!this.imageLoaded) return;
+                
+                const containerCenterX = this.container.clientWidth / 2;
+                const containerCenterY = this.container.clientHeight / 2;
+                
+                const baseWidth = this.image.naturalWidth || this.image.width;
+                const baseHeight = this.image.naturalHeight || this.image.height;
+                
+                const imagePointX = (containerCenterX - this.translateX) / this.scale;
+                const imagePointY = (containerCenterY - this.translateY) / this.scale;
+                
+                this.scale = newScale;
+                
+                this.translateX = containerCenterX - (imagePointX * this.scale);
+                this.translateY = containerCenterY - (imagePointY * this.scale);
+                
+                this.constrainTranslation();
+                this.updateTransform();
+                this.updateUI();
+            }
+            
+            resetZoom() {
+                this.scale = 1;
+                this.translateX = 0;
+                this.translateY = 0;
+                this.updateTransform();
+                this.updateUI();
+            }
+            
+            updateTransform() {
+                if (!isFinite(this.translateX)) {
+                    console.warn('Invalid translateX, resetting');
+                    this.translateX = 0;
+                }
+                if (!isFinite(this.translateY)) {
+                    console.warn('Invalid translateY, resetting');
+                    this.translateY = 0;
+                }
+                if (!isFinite(this.scale) || this.scale < 1) {
+                    console.warn('Invalid scale, resetting');
+                    this.scale = 1;
+                }
+                
+                // Force hardware acceleration on mobile
+                const transform = `translate3d(${this.translateX}px, ${this.translateY}px, 0) scale(${this.scale})`;
+                this.image.style.transform = transform;
+                this.image.style.transformOrigin = '0 0';
+                this.image.style.willChange = 'transform';  // Hint to browser for optimization
+                
+                if (this.scale > 1) {
+                    this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
+                    this.image.classList.add('zoomed');
+                    this.image.classList.remove('zoomable');
+                } else {
+                    this.image.style.cursor = 'zoom-in';
+                    this.image.classList.remove('zoomed');
+                    this.image.classList.add('zoomable');
+                }
+            }
+            
+            constrainTranslation() {
+                if (this.scale <= 1) {
+                    this.translateX = 0;
+                    this.translateY = 0;
+                    return;
+                }
+                
+                const containerWidth = this.container.clientWidth;
+                const containerHeight = this.container.clientHeight;
+                
+                const baseWidth = this.image.offsetWidth;
+                const baseHeight = this.image.offsetHeight;
+                
+                // Safeguard against zero or undefined dimensions
+                if (!baseWidth || !baseHeight) {
+                    console.warn('Image dimensions not available yet');
+                    return;
+                }
+                
+                const scaledWidth = baseWidth * this.scale;
+                const scaledHeight = baseHeight * this.scale;
+                
+                // Horizontal constraints
+                if (scaledWidth <= containerWidth) {
+                    this.translateX = (containerWidth - scaledWidth) / 2;
+                } else {
+                    const maxX = 0;
+                    const minX = containerWidth - scaledWidth;
+                    
+                    // Progressive buffer based on zoom level to prevent disappearing
+                    let buffer = 0;
+                    if (this.scale > 3.5) {
+                        buffer = 100; // 350%+ zoom needs larger buffer
+                    } else if (this.scale > 2.5) {
+                        buffer = 75;  // 250%+ zoom
+                    } else if (this.scale > 2) {
+                        buffer = 50;  // 200%+ zoom
+                    }
+                    
+                    this.translateX = Math.max(minX - buffer, Math.min(maxX + buffer, this.translateX));
+                }
+                
+                // Vertical constraints
+                if (scaledHeight <= containerHeight) {
+                    this.translateY = (containerHeight - scaledHeight) / 2;
+                } else {
+                    const maxY = 0;
+                    const minY = containerHeight - scaledHeight;
+                    
+                    // Progressive buffer based on zoom level to prevent disappearing
+                    let buffer = 0;
+                    if (this.scale > 3.5) {
+                        buffer = 100; // 350%+ zoom needs larger buffer
+                    } else if (this.scale > 2.5) {
+                        buffer = 75;  // 250%+ zoom
+                    } else if (this.scale > 2) {
+                        buffer = 50;  // 200%+ zoom
+                    }
+                    
+                    this.translateY = Math.max(minY - buffer, Math.min(maxY + buffer, this.translateY));
+                }
+            }
+            
+            updateUI() {
+                const zoomControls = document.getElementById('zoomControls');
+                const zoomInfo = document.getElementById('zoomInfo');
+                
+                if (this.scale > 1.01) {
+                    zoomControls.classList.add('visible');
+                    zoomInfo.classList.add('visible');
+                    zoomInfo.textContent = `${Math.round(this.scale * 100)}%`;
+                } else {
+                    zoomControls.classList.remove('visible');
+                    zoomInfo.classList.remove('visible');
+                }
+                
+                const zoomInBtn = document.getElementById('zoomInBtn');
+                const zoomOutBtn = document.getElementById('zoomOutBtn');
+                
+                zoomInBtn.disabled = this.scale >= 5;
+                zoomOutBtn.disabled = this.scale <= 1;
+                
+                zoomInBtn.style.opacity = this.scale >= 5 ? '0.5' : '1';
+                zoomOutBtn.style.opacity = this.scale <= 1 ? '0.5' : '1';
+            }
+            
+            setImage(src) {
+                this.imageLoaded = false;
+                this.resetZoom();
+                this.image.src = src;
+            }
+        }
+
+        // Initialize zoom functionality
+        let imageZoom = null;
+
+        // Test connection on page load   
+        window.addEventListener('load', async function() {
+            const isConnected = await testConnection();
+            if (!isConnected) {
+                showError(`API not available at ${API_BASE_URL}. Start the service with: ./start_web_service.sh`);
             }
         });
     </script>
