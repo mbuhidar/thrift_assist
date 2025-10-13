@@ -4,7 +4,8 @@ OCR service for text detection and phrase matching.
 
 import os
 import sys
-from typing import List, Dict, Any, Optional
+import re
+from typing import List, Dict, Any, Optional, Tuple, Set
 
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -161,6 +162,189 @@ def try_reverse_text_matching(phrase, text):
         return 0
 
 
+def preprocess_text(text: str) -> str:
+    """
+    Advanced text preprocessing for better matching.
+    Handles special characters, whitespace, and common OCR artifacts.
+    """
+    if not text:
+        return ""
+    
+    # Remove excessive whitespace
+    text = re.sub(r'\s+', ' ', text)
+    
+    # Handle common OCR artifacts
+    text = text.replace('|', 'I').replace('0', 'O')  # Common substitutions
+    
+    # Normalize quotes and apostrophes
+    text = text.replace('\u2018', "'").replace('\u2019', "'")  # Single quotes
+    text = text.replace('\u201c', '"').replace('\u201d', '"')  # Double quotes
+    
+    # Remove special characters but keep alphanumeric and basic punctuation
+    text = re.sub(r'[^\w\s\-.,!?\'"]', ' ', text)
+    
+    return text.strip()
+
+
+def extract_phrases_from_text(text: str, min_words: int = 2, max_words: int = 5) -> Set[str]:
+    """
+    Extract meaningful phrases from text for matching.
+    Returns phrases of different lengths for better coverage.
+    """
+    if not text:
+        return set()
+    
+    words = preprocess_text(text).split()
+    phrases = set()
+    
+    # Extract n-grams of different sizes
+    for n in range(min_words, min(max_words + 1, len(words) + 1)):
+        for i in range(len(words) - n + 1):
+            phrase = ' '.join(words[i:i+n])
+            if is_meaningful_phrase(phrase):
+                phrases.add(phrase.lower())
+    
+    return phrases
+
+
+def calculate_multi_algorithm_score(phrase: str, text: str) -> Tuple[float, str]:
+    """
+    Calculate similarity using multiple fuzzy matching algorithms.
+    Returns the best score and the algorithm that produced it.
+    """
+    if not FUZZY_AVAILABLE:
+        # Simple substring matching fallback
+        phrase_lower = phrase.lower()
+        text_lower = text.lower()
+        if phrase_lower in text_lower:
+            return 100.0, 'exact'
+        elif any(word in text_lower for word in phrase_lower.split()):
+            return 50.0, 'partial'
+        return 0.0, 'none'
+    
+    try:
+        phrase_normalized = normalize_text_for_search(phrase)
+        text_normalized = normalize_text_for_search(text)
+    except:
+        phrase_normalized = phrase.lower()
+        text_normalized = text.lower()
+    
+    scores = {}
+    
+    try:
+        # Exact substring match (highest priority)
+        if phrase_normalized in text_normalized:
+            return 100.0, 'exact'
+        
+        # Token set ratio (good for word order variations)
+        scores['token_set'] = fuzz.token_set_ratio(phrase_normalized, text_normalized)
+        
+        # Token sort ratio (good for reordered words)
+        scores['token_sort'] = fuzz.token_sort_ratio(phrase_normalized, text_normalized)
+        
+        # Partial ratio (good for substring matches)
+        scores['partial'] = fuzz.partial_ratio(phrase_normalized, text_normalized)
+        
+        # Standard ratio (character-level similarity)
+        scores['ratio'] = fuzz.ratio(phrase_normalized, text_normalized)
+        
+        # Word-level matching
+        phrase_words = set(phrase_normalized.split())
+        text_words = set(text_normalized.split())
+        word_overlap = len(phrase_words & text_words) / len(phrase_words) * 100 if phrase_words else 0
+        scores['word_overlap'] = word_overlap
+        
+    except Exception as e:
+        print(f"⚠️ Error in fuzzy matching: {e}")
+        return 0.0, 'error'
+    
+    # Return best score and algorithm
+    if scores:
+        best_algo = max(scores.items(), key=lambda x: x[1])
+        return float(best_algo[1]), best_algo[0]
+    
+    return 0.0, 'none'
+
+
+def find_spanning_matches(phrase: str, text_blocks: List[Dict[str, Any]], threshold: int = 70) -> List[Tuple[str, float, str]]:
+    """
+    Find matches that span across multiple lines/blocks of text.
+    This helps catch phrases that are split across lines.
+    """
+    if not text_blocks or len(text_blocks) < 2:
+        return []
+    
+    matches = []
+    phrase_normalized = normalize_text_for_search(phrase) if OCR_AVAILABLE else phrase.lower()
+    
+    # Try combinations of adjacent blocks
+    for i in range(len(text_blocks) - 1):
+        # Try 2-3 adjacent blocks
+        for span_size in [2, 3]:
+            if i + span_size > len(text_blocks):
+                break
+            
+            # Combine text from adjacent blocks
+            combined_text = ' '.join(
+                block.get('description', '') for block in text_blocks[i:i+span_size]
+            )
+            
+            if not combined_text.strip():
+                continue
+            
+            # Calculate similarity
+            score, algo = calculate_multi_algorithm_score(phrase, combined_text)
+            
+            if score >= threshold:
+                matches.append((
+                    combined_text,
+                    score,
+                    f'spanning_{span_size}_blocks_{algo}'
+                ))
+    
+    return matches
+
+
+def enhance_match_with_context(
+    phrase: str,
+    matched_text: str,
+    score: float,
+    match_type: str,
+    surrounding_text: List[str] = None
+) -> Dict[str, Any]:
+    """
+    Enhance match data with contextual information.
+    """
+    enhancement = {
+        'matched_text': matched_text,
+        'score': score,
+        'match_type': match_type,
+        'context': {},
+        'quality_indicators': {}
+    }
+    
+    # Add surrounding context if available
+    if surrounding_text:
+        enhancement['context']['surrounding'] = surrounding_text
+        enhancement['context']['appears_in_sentence'] = any(
+            matched_text.lower() in context.lower() for context in surrounding_text
+        )
+    
+    # Quality indicators
+    phrase_words = set(phrase.lower().split())
+    matched_words = set(matched_text.lower().split())
+    
+    enhancement['quality_indicators']['word_coverage'] = (
+        len(phrase_words & matched_words) / len(phrase_words) * 100 if phrase_words else 0
+    )
+    enhancement['quality_indicators']['exact_word_match'] = phrase_words == matched_words
+    enhancement['quality_indicators']['length_ratio'] = (
+        len(matched_text) / len(phrase) if phrase else 0
+    )
+    
+    return enhancement
+
+
 class OCRService:
     """Service for OCR text detection and phrase matching."""
     
@@ -195,6 +379,7 @@ class OCRService:
     ) -> Optional[Dict[str, Any]]:
         """
         Detect phrases in an image using Google Cloud Vision API.
+        Enhanced with multi-pass matching and spanning text detection.
         """
         if not self.ocr_available:
             print("❌ OCR service not available")
@@ -217,30 +402,41 @@ class OCRService:
         try:
             print(f"🔍 Running OCR with threshold={threshold}%, text_scale={text_scale}%")
             
-            # Pre-filter meaningful phrases if utility is available
+            # Pre-filter and expand phrases
             filtered_phrases = []
+            expanded_phrases = set()
+            
             for phrase in search_phrases:
                 try:
                     if is_meaningful_phrase(phrase):
                         filtered_phrases.append(phrase)
+                        # Also extract sub-phrases for better matching
+                        expanded_phrases.update(extract_phrases_from_text(phrase, min_words=1, max_words=4))
                     else:
                         print(f"⏭️  Skipping common word phrase: '{phrase}'")
                 except:
-                    # If is_meaningful_phrase fails, include the phrase anyway
                     filtered_phrases.append(phrase)
             
-            if not filtered_phrases:
-                filtered_phrases = search_phrases  # Fallback to all phrases
+            # Combine original and expanded phrases
+            all_search_phrases = list(set(filtered_phrases) | expanded_phrases)
+            
+            if not all_search_phrases:
+                all_search_phrases = search_phrases
+            
+            print(f"📝 Searching for {len(filtered_phrases)} phrases (+ {len(expanded_phrases)} expanded)")
             
             results = self.detector.detect(
                 image_path=image_path,
-                search_phrases=filtered_phrases,
+                search_phrases=all_search_phrases,
                 threshold=threshold,
                 text_scale=text_scale,
                 show_plot=show_plot
             )
             
             if results:
+                # Post-process with advanced matching
+                results = self._apply_advanced_matching(results, search_phrases, threshold)
+                
                 print(f"✅ OCR completed: {results.get('total_matches', 0)} matches found")
                 
                 # Enhance results with explainability data
@@ -268,6 +464,84 @@ class OCRService:
                 'total_matches': 0,
                 'all_text': f'OCR error: {str(e)}'
             }
+    
+    def _apply_advanced_matching(
+        self,
+        results: Dict[str, Any],
+        original_phrases: List[str],
+        threshold: int
+    ) -> Dict[str, Any]:
+        """
+        Apply advanced multi-pass matching to improve results.
+        """
+        if not results or 'all_text' not in results:
+            return results
+        
+        all_text = results.get('all_text', '')
+        existing_matches = results.get('matches', {})
+        
+        # Get text blocks if available for spanning detection
+        text_blocks = results.get('text_blocks', [])
+        
+        enhanced_matches = dict(existing_matches)
+        
+        # Multi-pass matching for each original phrase
+        for phrase in original_phrases:
+            if phrase in enhanced_matches and enhanced_matches[phrase]:
+                continue  # Already has matches
+            
+            # Try different matching strategies
+            new_matches = []
+            
+            # Strategy 1: Multi-algorithm scoring on full text
+            score, algo = calculate_multi_algorithm_score(phrase, all_text)
+            if score >= threshold:
+                new_matches.append((
+                    {'text': all_text, 'source': 'full_text'},
+                    score,
+                    f'multi_algo_{algo}'
+                ))
+            
+            # Strategy 2: Spanning text detection
+            if text_blocks:
+                spanning_matches = find_spanning_matches(phrase, text_blocks, threshold)
+                for text, score, match_type in spanning_matches:
+                    new_matches.append((
+                        {'text': text, 'source': 'spanning'},
+                        score,
+                        match_type
+                    ))
+            
+            # Strategy 3: Preprocessed text matching
+            preprocessed = preprocess_text(all_text)
+            if preprocessed and preprocessed != all_text:
+                score, algo = calculate_multi_algorithm_score(phrase, preprocessed)
+                if score >= threshold:
+                    new_matches.append((
+                        {'text': preprocessed, 'source': 'preprocessed'},
+                        score,
+                        f'preprocessed_{algo}'
+                    ))
+            
+            if new_matches:
+                # Deduplicate and sort by score
+                seen_texts = set()
+                unique_matches = []
+                for match_data, score, match_type in sorted(new_matches, key=lambda x: x[1], reverse=True):
+                    text = match_data.get('text', '')
+                    if text not in seen_texts:
+                        unique_matches.append((match_data, score, match_type))
+                        seen_texts.add(text)
+                
+                if phrase in enhanced_matches:
+                    enhanced_matches[phrase].extend(unique_matches)
+                else:
+                    enhanced_matches[phrase] = unique_matches
+        
+        results['matches'] = enhanced_matches
+        results['total_matches'] = sum(len(matches) for matches in enhanced_matches.values())
+        
+        return results
     
     def _enhance_with_explanations(self, results: Dict[str, Any], threshold: int) -> Dict[str, Any]:
         """
@@ -303,12 +577,13 @@ class OCRService:
     
     def calculate_match_similarity(self, phrase: str, text: str) -> float:
         """
-        Calculate similarity between phrase and text using fuzzy matching logic.
+        Calculate similarity between phrase and text using advanced fuzzy matching.
         """
         if not self.ocr_available or not FUZZY_AVAILABLE:
             return 0.0
         
-        return try_reverse_text_matching(phrase, text)
+        score, _ = calculate_multi_algorithm_score(phrase, text)
+        return score
     
     def normalize_search_text(self, text: str) -> str:
         """
