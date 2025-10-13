@@ -201,7 +201,14 @@ def extract_phrases_from_text(text: str, min_words: int = 2, max_words: int = 5)
     for n in range(min_words, min(max_words + 1, len(words) + 1)):
         for i in range(len(words) - n + 1):
             phrase = ' '.join(words[i:i+n])
-            if is_meaningful_phrase(phrase):
+            # Only validate if OCR is available, otherwise include all phrases
+            if OCR_AVAILABLE:
+                try:
+                    if is_meaningful_phrase(phrase):
+                        phrases.add(phrase.lower())
+                except:
+                    phrases.add(phrase.lower())
+            else:
                 phrases.add(phrase.lower())
     
     return phrases
@@ -402,42 +409,43 @@ class OCRService:
         try:
             print(f"🔍 Running OCR with threshold={threshold}%, text_scale={text_scale}%")
             
-            # Pre-filter and expand phrases
+            # Pre-filter meaningful phrases - but don't expand yet
             filtered_phrases = []
-            expanded_phrases = set()
             
             for phrase in search_phrases:
                 try:
-                    if is_meaningful_phrase(phrase):
-                        filtered_phrases.append(phrase)
-                        # Also extract sub-phrases for better matching
-                        expanded_phrases.update(extract_phrases_from_text(phrase, min_words=1, max_words=4))
-                    else:
-                        print(f"⏭️  Skipping common word phrase: '{phrase}'")
+                    # Only filter out truly meaningless phrases (like single common words)
+                    if len(phrase.split()) == 1 and not is_meaningful_phrase(phrase):
+                        print(f"⏭️  Skipping single common word: '{phrase}'")
+                        continue
+                    filtered_phrases.append(phrase)
                 except:
+                    # On error, include the phrase
                     filtered_phrases.append(phrase)
             
-            # Combine original and expanded phrases
-            all_search_phrases = list(set(filtered_phrases) | expanded_phrases)
+            # Use filtered phrases or fallback to all if filtering removed everything
+            if not filtered_phrases:
+                filtered_phrases = search_phrases
+                print("⚠️ All phrases filtered, using original list")
             
-            if not all_search_phrases:
-                all_search_phrases = search_phrases
+            print(f"📝 Searching for {len(filtered_phrases)} phrases")
             
-            print(f"📝 Searching for {len(filtered_phrases)} phrases (+ {len(expanded_phrases)} expanded)")
-            
+            # Run the detector with original phrases only
             results = self.detector.detect(
                 image_path=image_path,
-                search_phrases=all_search_phrases,
+                search_phrases=filtered_phrases,
                 threshold=threshold,
                 text_scale=text_scale,
                 show_plot=show_plot
             )
             
             if results:
-                # Post-process with advanced matching
-                results = self._apply_advanced_matching(results, search_phrases, threshold)
+                print(f"✅ Initial OCR: {results.get('total_matches', 0)} matches found")
                 
-                print(f"✅ OCR completed: {results.get('total_matches', 0)} matches found")
+                # Only apply advanced matching for phrases that had NO matches
+                results = self._apply_advanced_matching(results, filtered_phrases, threshold)
+                
+                print(f"✅ After advanced matching: {results.get('total_matches', 0)} total matches")
                 
                 # Enhance results with explainability data
                 results = self._enhance_with_explanations(results, threshold)
@@ -472,7 +480,8 @@ class OCRService:
         threshold: int
     ) -> Dict[str, Any]:
         """
-        Apply advanced multi-pass matching to improve results.
+        Apply advanced multi-pass matching ONLY for phrases with no matches.
+        This preserves original detector results while adding fallback matching.
         """
         if not results or 'all_text' not in results:
             return results
@@ -484,44 +493,98 @@ class OCRService:
         text_blocks = results.get('text_blocks', [])
         
         enhanced_matches = dict(existing_matches)
+        phrases_needing_help = []
         
-        # Multi-pass matching for each original phrase
+        # Identify phrases that need additional matching
         for phrase in original_phrases:
-            if phrase in enhanced_matches and enhanced_matches[phrase]:
-                continue  # Already has matches
-            
-            # Try different matching strategies
+            if phrase not in enhanced_matches or not enhanced_matches[phrase]:
+                phrases_needing_help.append(phrase)
+        
+        if not phrases_needing_help:
+            print("✅ All phrases already matched by primary detector")
+            return results
+        
+        print(f"🔄 Applying advanced matching for {len(phrases_needing_help)} unmatched phrases")
+        
+        # Multi-pass matching ONLY for phrases without matches
+        for phrase in phrases_needing_help:
             new_matches = []
             
-            # Strategy 1: Multi-algorithm scoring on full text
-            score, algo = calculate_multi_algorithm_score(phrase, all_text)
-            if score >= threshold:
-                new_matches.append((
-                    {'text': all_text, 'source': 'full_text'},
-                    score,
-                    f'multi_algo_{algo}'
-                ))
-            
-            # Strategy 2: Spanning text detection
+            # Strategy 1: Try to find the phrase in individual text blocks first
             if text_blocks:
+                for block in text_blocks:
+                    block_text = block.get('description', '')
+                    if not block_text:
+                        continue
+                    
+                    score, algo = calculate_multi_algorithm_score(phrase, block_text)
+                    if score >= threshold:
+                        # Use the block's vertices for annotation
+                        match_info = {
+                            'text': block_text,
+                            'source': 'text_block',
+                            'vertices': block.get('vertices', []),
+                            'bounds': block.get('bounding_poly', {}),
+                        }
+                        new_matches.append((
+                            match_info,
+                            score,
+                            f'block_match_{algo}'
+                        ))
+                        print(f"  ✓ '{phrase}' matched in text block via {algo} (score: {score})")
+                        break  # Found in a block, no need to continue
+            
+            # Strategy 2: Spanning text detection (preserves bounds from original blocks)
+            if not new_matches and text_blocks and len(text_blocks) >= 2:
                 spanning_matches = find_spanning_matches(phrase, text_blocks, threshold)
                 for text, score, match_type in spanning_matches:
+                    # Find the blocks that were combined for this match
+                    match_info = {
+                        'text': text,
+                        'source': 'spanning',
+                        'is_spanning': True
+                    }
                     new_matches.append((
-                        {'text': text, 'source': 'spanning'},
+                        match_info,
                         score,
                         match_type
                     ))
+                    print(f"  ✓ '{phrase}' found spanning text (score: {score})")
+                    break
             
-            # Strategy 3: Preprocessed text matching
-            preprocessed = preprocess_text(all_text)
-            if preprocessed and preprocessed != all_text:
-                score, algo = calculate_multi_algorithm_score(phrase, preprocessed)
+            # Strategy 3: Full text fallback (no annotation possible)
+            if not new_matches:
+                score, algo = calculate_multi_algorithm_score(phrase, all_text)
                 if score >= threshold:
+                    match_info = {
+                        'text': all_text,
+                        'source': 'full_text',
+                        'warning': 'Match found in full text but cannot be annotated on image'
+                    }
                     new_matches.append((
-                        {'text': preprocessed, 'source': 'preprocessed'},
+                        match_info,
                         score,
-                        f'preprocessed_{algo}'
+                        f'multi_algo_{algo}'
                     ))
+                    print(f"  ✓ '{phrase}' matched via {algo} (score: {score}) - no annotation available")
+            
+            # Strategy 4: Preprocessed text matching (last resort)
+            if not new_matches:
+                preprocessed = preprocess_text(all_text)
+                if preprocessed and preprocessed != all_text:
+                    score, algo = calculate_multi_algorithm_score(phrase, preprocessed)
+                    if score >= threshold:
+                        match_info = {
+                            'text': preprocessed,
+                            'source': 'preprocessed',
+                            'warning': 'Match found in preprocessed text but cannot be annotated on image'
+                        }
+                        new_matches.append((
+                            match_info,
+                            score,
+                            f'preprocessed_{algo}'
+                        ))
+                        print(f"  ✓ '{phrase}' matched preprocessed text (score: {score}) - no annotation available")
             
             if new_matches:
                 # Deduplicate and sort by score
@@ -533,10 +596,9 @@ class OCRService:
                         unique_matches.append((match_data, score, match_type))
                         seen_texts.add(text)
                 
-                if phrase in enhanced_matches:
-                    enhanced_matches[phrase].extend(unique_matches)
-                else:
-                    enhanced_matches[phrase] = unique_matches
+                enhanced_matches[phrase] = unique_matches
+            else:
+                print(f"  ✗ '{phrase}' - no matches found")
         
         results['matches'] = enhanced_matches
         results['total_matches'] = sum(len(matches) for matches in enhanced_matches.values())
@@ -626,8 +688,17 @@ class OCRService:
                     'score': float(score) if score is not None else 0.0,
                     'match_type': match_type or 'unknown',
                     'angle': match_data.get('angle', 0) if isinstance(match_data, dict) else 0,
-                    'is_spanning': 'span_info' in match_data if isinstance(match_data, dict) else False
+                    'is_spanning': match_data.get('is_spanning', False) if isinstance(match_data, dict) else False
                 }
+                
+                # Add bounding box info if available
+                if isinstance(match_data, dict):
+                    if 'vertices' in match_data:
+                        match_dict['vertices'] = match_data['vertices']
+                    if 'bounds' in match_data:
+                        match_dict['bounds'] = match_data['bounds']
+                    if 'warning' in match_data:
+                        match_dict['warning'] = match_data['warning']
                 
                 # Add explanation if available
                 if isinstance(match_data, dict) and 'explanation' in match_data:
