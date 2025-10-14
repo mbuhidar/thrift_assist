@@ -73,58 +73,147 @@ def explain_match_score(phrase, matched_text, score, match_type):
         phrase_normalized = phrase.lower()
         text_normalized = matched_text.lower()
     
-    # Exact match reasoning
-    if phrase_normalized in text_normalized:
-        explanation['reasoning'].append("Exact substring match found (case-insensitive)")
-        explanation['confidence_factors']['exact_match'] = 100
+    # Track what made this match work
+    match_strengths = []
     
-    # Word-level analysis
-    phrase_words = set(phrase_normalized.split())
-    text_words = set(text_normalized.split())
-    common_words = phrase_words & text_words
+    # 1. Exact match analysis (most reliable)
+    if phrase_normalized == text_normalized:
+        explanation['reasoning'].append("✓ Perfect match - searched text exactly matches found text")
+        explanation['confidence_factors']['exact_match'] = 100
+        match_strengths.append('exact_match')
+    elif phrase_normalized in text_normalized:
+        explanation['reasoning'].append("✓ Complete phrase found within the text")
+        explanation['confidence_factors']['substring_match'] = 100
+        match_strengths.append('substring')
+    elif text_normalized in phrase_normalized:
+        explanation['reasoning'].append("✓ Found text contains most of your search phrase")
+        explanation['confidence_factors']['contained_match'] = 95
+        match_strengths.append('partial_substring')
+    
+    # 2. Word-level analysis (more flexible)
+    phrase_words = phrase_normalized.split()
+    text_words = text_normalized.split()
+    common_words = set(phrase_words) & set(text_words)
     
     if common_words:
         word_match_pct = (len(common_words) / len(phrase_words)) * 100
-        explanation['confidence_factors']['word_overlap'] = round(word_match_pct, 1)
-        explanation['reasoning'].append(
-            f"{len(common_words)}/{len(phrase_words)} words matched: {', '.join(sorted(common_words))}"
+        explanation['confidence_factors']['word_match_rate'] = round(word_match_pct, 1)
+        
+        if len(common_words) == len(phrase_words):
+            explanation['reasoning'].append(
+                f"✓ All {len(phrase_words)} words found: '{', '.join(sorted(common_words))}'"
+            )
+            match_strengths.append('all_words')
+        else:
+            missing = set(phrase_words) - common_words
+            explanation['reasoning'].append(
+                f"✓ Found {len(common_words)}/{len(phrase_words)} words: '{', '.join(sorted(common_words))}'"
+            )
+            if missing:
+                explanation['warnings'].append(
+                    f"Missing words: '{', '.join(sorted(missing))}' - verify this is the correct match"
+                )
+    
+    # 3. Word order analysis
+    if len(phrase_words) > 1 and len(common_words) > 1:
+        phrase_positions = {word: i for i, word in enumerate(phrase_words) if word in common_words}
+        text_positions = {word: i for i, word in enumerate(text_words) if word in common_words}
+        
+        order_preserved = True
+        for i, word1 in enumerate(sorted(common_words, key=lambda w: phrase_positions.get(w, 999))):
+            for word2 in list(sorted(common_words, key=lambda w: phrase_positions.get(w, 999)))[i+1:]:
+                if phrase_positions.get(word1, 0) < phrase_positions.get(word2, 0):
+                    if text_positions.get(word1, 0) > text_positions.get(word2, 0):
+                        order_preserved = False
+                        break
+        
+        if order_preserved:
+            explanation['reasoning'].append("✓ Words appear in the correct order")
+            explanation['confidence_factors']['word_order'] = 100
+            match_strengths.append('correct_order')
+        else:
+            explanation['reasoning'].append("⚠ Words found but in different order than searched")
+            explanation['confidence_factors']['word_order'] = 60
+            explanation['warnings'].append("Word order differs from search - may be a different phrase")
+    
+    # 4. Length analysis
+    length_ratio = len(text_normalized) / len(phrase_normalized) if phrase_normalized else 1
+    if 0.8 <= length_ratio <= 1.2:
+        explanation['reasoning'].append("✓ Text length matches expected length")
+        match_strengths.append('length_match')
+    elif length_ratio > 2:
+        explanation['warnings'].append(
+            "Found text is much longer than search phrase - may include extra words"
+        )
+    elif length_ratio < 0.5:
+        explanation['warnings'].append(
+            "Found text is much shorter than search phrase - may be incomplete"
         )
     
-    # Character similarity
-    if FUZZY_AVAILABLE:
-        try:
-            char_similarity = fuzz.ratio(phrase_normalized, text_normalized)
-            explanation['confidence_factors']['character_similarity'] = char_similarity
-            
-            if char_similarity < 70:
-                explanation['warnings'].append("Low character-level similarity - may be a false positive")
-        except:
-            pass
+    # 5. Orientation/special cases
+    if 'upside' in match_type.lower():
+        explanation['reasoning'].append("⚠ Text was detected upside-down")
+        explanation['warnings'].append("Text orientation is inverted - verify the image was scanned correctly")
+    elif 'reverse' in match_type.lower():
+        explanation['reasoning'].append("⚠ Text was detected in reverse")
+        explanation['warnings'].append("Text is mirrored or reversed - check image orientation")
     
-    # Orientation analysis
-    if match_type in ['upside_down', 'reversed']:
-        explanation['reasoning'].append(f"Text detected at unusual orientation ({match_type})")
-        explanation['warnings'].append("Verify this match - text may be rotated or mirrored")
+    if 'span' in match_type.lower():
+        explanation['reasoning'].append("ℹ Match spans across multiple lines")
+        explanation['confidence_factors']['multi_line'] = True
+        explanation['warnings'].append("This phrase was split across lines - format may differ from original")
     
-    # Spanning match explanation
-    if 'span' in match_type:
-        explanation['reasoning'].append("Match spans multiple lines of text")
-        explanation['confidence_factors']['spanning'] = True
+    # 6. Match algorithm used
+    if 'token_set' in match_type:
+        explanation['reasoning'].append("ℹ Matched using word-set comparison (handles word order variations)")
+    elif 'token_sort' in match_type:
+        explanation['reasoning'].append("ℹ Matched using sorted-word comparison (handles reordering)")
+    elif 'partial' in match_type:
+        explanation['reasoning'].append("ℹ Matched using partial text comparison (handles substrings)")
+    elif 'block' in match_type:
+        explanation['reasoning'].append("✓ Found in a distinct text block on the image")
     
-    # Final confidence assessment
+    # 7. Final confidence assessment with detailed reasoning
     if score == 100:
         explanation['confidence_level'] = 'Very High'
-        explanation['recommendation'] = 'This is an exact match'
-    elif score >= 85:
+        explanation['recommendation'] = 'Perfect match - you can be confident this is correct'
+        if 'exact_match' in match_strengths:
+            explanation['summary'] = 'Exact character-by-character match found'
+        else:
+            explanation['summary'] = 'All criteria matched perfectly'
+    elif score >= 90:
+        explanation['confidence_level'] = 'Very High'
+        explanation['recommendation'] = 'Excellent match - very likely correct'
+        explanation['summary'] = f"Strong match with {len(match_strengths)} positive indicators"
+    elif score >= 80:
         explanation['confidence_level'] = 'High'
-        explanation['recommendation'] = 'Strong match - likely correct'
+        explanation['recommendation'] = 'Strong match - should be reliable'
+        explanation['summary'] = f"Good match quality ({len(match_strengths)} strengths, {len(explanation['warnings'])} concerns)"
     elif score >= 70:
         explanation['confidence_level'] = 'Medium'
-        explanation['recommendation'] = 'Probable match - verify if critical'
+        explanation['recommendation'] = 'Probable match - verify if important'
+        explanation['summary'] = 'Moderate match - manual verification suggested for critical use'
+    elif score >= 60:
+        explanation['confidence_level'] = 'Medium'
+        explanation['recommendation'] = 'Possible match - check carefully before using'
+        explanation['summary'] = 'Weaker match - review the found text to confirm it matches your needs'
     else:
         explanation['confidence_level'] = 'Low'
-        explanation['recommendation'] = 'Weak match - manual verification recommended'
-        explanation['warnings'].append(f"Score below 70% - may be incorrect")
+        explanation['recommendation'] = 'Uncertain match - manual verification required'
+        explanation['summary'] = 'Low confidence - this may not be what you\'re looking for'
+        explanation['warnings'].append(f"Match score is only {score:.0f}% - consider this a suggestion, not a definite match")
+    
+    # 8. Add helpful context about what made the match work
+    if match_strengths:
+        strength_descriptions = {
+            'exact_match': 'identical text',
+            'substring': 'complete phrase present',
+            'all_words': 'all words found',
+            'correct_order': 'proper word sequence',
+            'length_match': 'appropriate length'
+        }
+        strengths_text = ', '.join(strength_descriptions.get(s, s) for s in match_strengths[:3])
+        explanation['match_quality'] = f"Matched based on: {strengths_text}"
     
     return explanation
 
