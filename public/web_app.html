@@ -725,6 +725,73 @@
     </div>
 
     <script>
+        // Device detection
+        const DeviceDetector = {
+            isMobile: false,
+            isTablet: false,
+            isDesktop: false,
+            isTouchDevice: false,
+            userAgent: '',
+            
+            init() {
+                this.userAgent = navigator.userAgent.toLowerCase();
+                
+                // Check for touch capability
+                this.isTouchDevice = ('ontouchstart' in window) || 
+                                     (navigator.maxTouchPoints > 0) || 
+                                     (navigator.msMaxTouchPoints > 0);
+                
+                // Check screen size
+                const width = window.innerWidth;
+                
+                // Check for mobile devices
+                const mobileRegex = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i;
+                const tabletRegex = /ipad|android(?!.*mobile)|tablet/i;
+                
+                if (mobileRegex.test(this.userAgent) || (this.isTouchDevice && width < 768)) {
+                    this.isMobile = true;
+                } else if (tabletRegex.test(this.userAgent) || (this.isTouchDevice && width >= 768 && width < 1024)) {
+                    this.isTablet = true;
+                } else {
+                    this.isDesktop = true;
+                }
+                
+                console.log('📱 Device Detection:', {
+                    isMobile: this.isMobile,
+                    isTablet: this.isTablet,
+                    isDesktop: this.isDesktop,
+                    isTouchDevice: this.isTouchDevice,
+                    screenWidth: width
+                });
+                
+                // Add device class to body for CSS targeting
+                if (this.isMobile) document.body.classList.add('device-mobile');
+                if (this.isTablet) document.body.classList.add('device-tablet');
+                if (this.isDesktop) document.body.classList.add('device-desktop');
+                if (this.isTouchDevice) document.body.classList.add('touch-device');
+                
+                return this;
+            },
+            
+            // Helper methods
+            shouldUseSimplifiedUI() {
+                return this.isMobile;
+            },
+            
+            shouldAutoExpandResults() {
+                return this.isDesktop;
+            },
+            
+            getOptimalImageQuality() {
+                if (this.isMobile) return 'medium';
+                if (this.isTablet) return 'high';
+                return 'max';
+            }
+        };
+        
+        // Initialize device detection on load
+        const device = DeviceDetector.init();
+        
         // Updated API URL detection for integrated deployment
         const API_BASE_URL = (() => {
             const protocol = window.location.protocol;
@@ -747,6 +814,13 @@
             const textarea = document.getElementById('searchPhrases');
             textarea.placeholder = `Enter phrases separated by commas
 Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
+            
+            // Device-specific adjustments
+            if (device.isMobile) {
+                console.log('📱 Mobile device detected - applying optimizations');
+                // Simpler placeholder for mobile
+                textarea.placeholder = 'Enter phrases, separated by commas';
+            }
             
             // Test API connection
             console.log('Testing API connection...');
@@ -902,10 +976,21 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             // Update matches list with explainability emphasis
             if (result.total_matches > 0) {
                 let matchesHTML = '<h3>🎯 Found Matches</h3>';
-                matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Click "Why?" to understand how each match was found</p>';
+                
+                // Device-specific instructions
+                if (device.isMobile) {
+                    matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Tap "Why?" for match details</p>';
+                } else {
+                    matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Click "Why?" to understand how each match was found</p>';
+                }
                 
                 for (const [phrase, matches] of Object.entries(result.matches)) {
                     const matchId = phrase.replace(/\s+/g, '-').toLowerCase();
+                    
+                    // Auto-expand first match on desktop
+                    const shouldAutoExpand = device.shouldAutoExpandResults() && 
+                                            Object.keys(result.matches).indexOf(phrase) === 0;
+                    
                     matchesHTML += `
                         <div class="match-item">
                             <div class="match-phrase">
@@ -913,11 +998,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                                 <div>
                                     <span class="match-count">${matches.length}</span>
                                     <span class="toggle-details" onclick="toggleMatchDetails('${matchId}')">
-                                        <span id="toggle-${matchId}">expand ▼</span>
+                                        <span id="toggle-${matchId}">${shouldAutoExpand ? 'hide ▲' : 'expand ▼'}</span>
                                     </span>
                                 </div>
                             </div>
-                            <div id="details-${matchId}" class="collapsible-content">
+                            <div id="details-${matchId}" class="collapsible-content" style="${shouldAutoExpand ? 'max-height: 500px; padding: 15px;' : ''}">
                                 ${matches.map((match, idx) => {
                                     const confidenceLevel = match.explanation?.confidence_level || 'Medium';
                                     const confidenceClass = `confidence-${confidenceLevel.toLowerCase().replace(' ', '-')}`;
@@ -1183,13 +1268,13 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.lastTouch = { x: 0, y: 0, distance: 0 };
                 this.imageLoaded = false;
                 this.hasMoved = false;
-                this.isTouchDevice = false;
-                this.pinchZoomActive = false;  // Track if pinch zoom is active
-                this.pinchCenter = { x: 0.5, y: 0.5 };  // Store pinch center point
-                this.lastPinchTime = 0;  // Track last pinch time
-                this.wheelZoomActive = false;  // Track if wheel zoom is active
-                this.wheelCenter = { x: 0.5, y: 0.5 };  // Store wheel zoom center
-                this.lastWheelTime = 0;  // Track last wheel event
+                this.isTouchDevice = device.isTouchDevice;  // Use detected touch capability
+                this.pinchZoomActive = false;
+                this.pinchCenter = { x: 0.5, y: 0.5 };
+                this.lastPinchTime = 0;
+                this.wheelZoomActive = false;
+                this.wheelCenter = { x: 0.5, y: 0.5 };
+                this.lastWheelTime = 0;
                 
                 this.init();
             }
@@ -1201,25 +1286,22 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 });
                 
                 this.image.addEventListener('click', (e) => this.handleClick(e));
-                this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-                this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-                this.image.addEventListener('mouseup', (e) => this.handleMouseUp(e));
-                this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
-                this.image.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
                 
-                // Only add touch listeners on actual touch devices
-                this.image.addEventListener('touchstart', (e) => {
-                    this.isTouchDevice = true;  // Mark as touch device
-                    this.handleTouchStart(e);
-                }, { passive: false, once: false });
+                // Desktop/mouse events
+                if (!device.isMobile) {
+                    this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                    this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                    this.image.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                    this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
+                    this.image.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                }
                 
-                this.image.addEventListener('touchmove', (e) => {
-                    if (this.isTouchDevice) this.handleTouchMove(e);
-                }, { passive: false });
-                
-                this.image.addEventListener('touchend', (e) => {
-                    if (this.isTouchDevice) this.handleTouchEnd(e);
-                }, { passive: false });
+                // Touch events (mobile and touch-enabled devices)
+                if (this.isTouchDevice) {
+                    this.image.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+                    this.image.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+                    this.image.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+                }
                 
                 this.image.addEventListener('contextmenu', (e) => e.preventDefault());
                 
