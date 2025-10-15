@@ -1287,16 +1287,18 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 
                 this.image.addEventListener('click', (e) => this.handleClick(e));
                 
-                // Desktop/mouse events
+                // Always add mouse events (they work on mobile too as fallback)
+                this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.image.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
+                
+                // Desktop-only: wheel events
                 if (!device.isMobile) {
-                    this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-                    this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-                    this.image.addEventListener('mouseup', (e) => this.handleMouseUp(e));
-                    this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
                     this.image.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
                 }
                 
-                // Touch events (mobile and touch-enabled devices)
+                // Touch events for all touch-capable devices
                 if (this.isTouchDevice) {
                     this.image.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
                     this.image.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
@@ -1457,13 +1459,17 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (!this.imageLoaded) return;
                 
                 if (e.touches.length === 1) {
+                    // Store initial touch for click detection
+                    this.hasMoved = false;
+                    this.lastTouch.x = e.touches[0].clientX;
+                    this.lastTouch.y = e.touches[0].clientY;
+                    this.lastTouch.startTime = Date.now();
+                    
                     if (this.scale > 1) {
                         this.isDragging = true;
                         this.dragStart.x = e.touches[0].clientX - this.translateX;
                         this.dragStart.y = e.touches[0].clientY - this.translateY;
                     }
-                    this.lastTouch.x = e.touches[0].clientX;
-                    this.lastTouch.y = e.touches[0].clientY;
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
@@ -1486,12 +1492,20 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             handleTouchMove(e) {
                 if (!this.imageLoaded) return;
                 
-                if (e.touches.length === 1 && this.isDragging && this.scale > 1) {
-                    this.translateX = e.touches[0].clientX - this.dragStart.x;
-                    this.translateY = e.touches[0].clientY - this.dragStart.y;
-                    this.constrainTranslation();
-                    this.updateTransform();
+                if (e.touches.length === 1 && this.scale > 1) {
+                    // Single finger drag when zoomed
+                    const touchX = e.touches[0].clientX;
+                    const touchY = e.touches[0].clientY;
+                    
+                    if (this.isDragging) {
+                        this.translateX = touchX - this.dragStart.x;
+                        this.translateY = touchY - this.dragStart.y;
+                        this.constrainTranslation();
+                        this.updateTransform();
+                        this.hasMoved = true;
+                    }
                 } else if (e.touches.length === 2) {
+                    // Two finger pinch zoom
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
                     const scaleFactor = distance / this.lastTouch.distance;
                     const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * scaleFactor));
@@ -1499,6 +1513,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     if (newScale !== this.scale) {
                         // Use stored center point for consistent zoom
                         this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
+                        this.hasMoved = true;
                     }
                 }
                 e.preventDefault();
@@ -1508,21 +1523,34 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (!this.imageLoaded) return;
                 
                 if (e.touches.length === 0) {
+                    const now = Date.now();
+                    const touchDuration = now - (this.lastTouch.startTime || now);
+                    
                     this.isDragging = false;
                     
-                    const now = Date.now();
-                    if (this.lastTap && (now - this.lastTap) < 300) {
-                        if (this.scale === 1) {
-                            const rect = this.image.getBoundingClientRect();
-                            const x = (this.lastTouch.x - rect.left) / rect.width;
-                            const y = (this.lastTouch.y - rect.top) / rect.height;
-                            this.zoomToPoint(1.8, x, y);
+                    // Double tap to zoom (only if no movement and quick tap)
+                    if (!this.hasMoved && touchDuration < 300) {
+                        if (this.lastTap && (now - this.lastTap) < 300) {
+                            if (this.scale === 1) {
+                                const rect = this.image.getBoundingClientRect();
+                                const x = (this.lastTouch.x - rect.left) / rect.width;
+                                const y = (this.lastTouch.y - rect.top) / rect.height;
+                                this.zoomToPoint(1.8, x, y);
+                            } else {
+                                this.resetZoom();
+                            }
+                            this.lastTap = 0; // Reset to prevent triple-tap
                         } else {
-                            this.resetZoom();
+                            this.lastTap = now;
                         }
+                    } else {
+                        this.lastTap = 0;
                     }
-                    this.lastTap = now;
+                    
+                    this.hasMoved = false;
                 }
+                
+                e.preventDefault();
             }
             
             getTouchDistance(touch1, touch2) {
