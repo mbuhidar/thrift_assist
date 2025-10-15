@@ -101,11 +101,12 @@ class TextLineGrouper:
         
         for line_pos in sorted(lines.keys()):
             line_words = sorted(lines[line_pos], key=lambda x: x[0])
+            # Preserve original text case in the 'text' field for display
             line_text = ' '.join([word[1] for word in line_words]).strip()
             
             if line_text:
                 text_lines.append({
-                    'text': line_text,
+                    'text': line_text,  # Original case preserved for labels
                     'annotations': [word[2] for word in line_words],
                     'y_position': line_pos,
                     'angle': angle
