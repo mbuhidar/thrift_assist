@@ -2,7 +2,7 @@
 API request models.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
 
@@ -15,7 +15,8 @@ class PhraseDetectionRequest(BaseModel):
     image_base64: Optional[str] = Field(None, description="Base64 encoded image")
     max_image_width: int = Field(2560, description="Maximum image width")
     
-    @validator('search_phrases')
+    @field_validator('search_phrases')
+    @classmethod
     def validate_search_phrases(cls, v):
         if not v:
             raise ValueError("search_phrases cannot be empty")
@@ -24,12 +25,13 @@ class PhraseDetectionRequest(BaseModel):
         return [phrase.strip() for phrase in v]
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "search_phrases": ["Billy Joel", "U2", "Jewel"],
                 "threshold": 75,
                 "text_scale": 100,
-                "image_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+                "image_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+                "max_image_width": 2560
             }
         }
 
@@ -43,7 +45,7 @@ class UpdateThresholdRequest(BaseModel):
     image_hash: str
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "search_phrases": ["Billy Joel", "U2"],
                 "threshold": 80,
