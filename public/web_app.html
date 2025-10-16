@@ -749,27 +749,45 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="textScale">Text Size: <span id="textScaleValue" class="slider-value">100%</span></label>
-                        <div class="slider-container">
-                            <input type="range" id="textScale" min="50" max="200" value="100" step="10">
-                            <div class="slider-labels">
-                                <span>Small</span>
-                                <span>Large</span>
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;">
+                            <div>
+                                <label for="uiTextScale" style="text-align: center;">Page Font Size</label>
+                                <select id="uiTextScale" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; cursor: pointer; text-align: center; text-align-last: center;">
+                                    <option value="50">50%</option>
+                                    <option value="75">75%</option>
+                                    <option value="100" selected>100%</option>
+                                    <option value="125">125%</option>
+                                    <option value="150">150%</option>
+                                    <option value="175">175%</option>
+                                    <option value="200">200%</option>
+                                    <option value="250">250%</option>
+                                    <option value="300">300%</option>
+                                </select>
+                            </div>
+                            <div style="position: relative; display: flex; align-items: center; padding: 0 10px;">
+                                <div style="position: absolute; left: -10px; right: 50%; height: 2px; background: #e2e8f0; top: 50%;"></div>
+                                <div style="position: absolute; left: 50%; right: -10px; height: 2px; background: #e2e8f0; top: 50%;"></div>
+                                <button type="button" id="syncTextScales" title="Sync font sizes" style="position: relative; z-index: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; cursor: pointer; font-size: 16px; transition: all 0.2s;">
+                                    🔗
+                                </button>
+                            </div>
+                            <div>
+                                <label for="textScale" style="text-align: center;">Annotation Font Size</label>
+                                <select id="textScale" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; cursor: pointer; text-align: center; text-align-last: center;">
+                                    <option value="50">50%</option>
+                                    <option value="75">75%</option>
+                                    <option value="100" selected>100%</option>
+                                    <option value="125">125%</option>
+                                    <option value="150">150%</option>
+                                    <option value="175">175%</option>
+                                    <option value="200">200%</option>
+                                    <option value="250">250%</option>
+                                    <option value="300">300%</option>
+                                </select>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="uiTextScale">UI Text Size: <span id="uiTextScaleValue" class="slider-value">Medium</span></label>
-                        <div class="slider-container">
-                            <input type="range" id="uiTextScale" min="1" max="4" value="2" step="1">
-                            <div class="slider-labels">
-                                <span>Small</span>
-                                <span>XLarge</span>
-                            </div>
-                        </div>
-                        <div style="font-size: 0.85em; color: #666; margin-top: 5px;">
-                            Adjusts all text on this page
+                        <div style="font-size: 0.85em; color: #666; margin-top: 8px;">
+                            Page font adjusts this interface, annotation font adjusts text on images. Click 🔗 to sync both.
                         </div>
                     </div>
 
@@ -957,51 +975,112 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             document.getElementById('thresholdValue').textContent = this.value + '%';
         });
         
-        // Update text scale value display
-        document.getElementById('textScale').addEventListener('input', function() {
-            document.getElementById('textScaleValue').textContent = this.value + '%';
+        // UI Text Scale Control - Percentage-based with extended range
+        const uiTextScalePercentToClass = {
+            50: 'text-scale-small',
+            75: 'text-scale-small',
+            100: 'text-scale-medium',
+            125: 'text-scale-large',
+            150: 'text-scale-xlarge',
+            175: 'text-scale-xlarge',
+            200: 'text-scale-xlarge',
+            250: 'text-scale-xlarge',
+            300: 'text-scale-xlarge'
+        };
+        
+        // Track sync state
+        let textScalesLinked = false;
+        
+        // Load saved preferences or default to 100%
+        const savedUiTextScale = localStorage.getItem('uiTextScale') || '100';
+        const savedTextScale = localStorage.getItem('textScale') || '100';
+        const savedSyncState = localStorage.getItem('textScalesLinked') === 'true';
+        
+        document.getElementById('uiTextScale').value = savedUiTextScale;
+        document.getElementById('textScale').value = savedTextScale;
+        textScalesLinked = savedSyncState;
+        
+        applyUiTextScale(savedUiTextScale);
+        updateSyncButton();
+        
+        document.getElementById('uiTextScale').addEventListener('change', function() {
+            const scaleValue = this.value;
+            applyUiTextScale(scaleValue);
+            localStorage.setItem('uiTextScale', scaleValue);
+            
+            // If linked, update annotation scale and trigger reanalyze
+            if (textScalesLinked) {
+                document.getElementById('textScale').value = scaleValue;
+                localStorage.setItem('textScale', scaleValue);
+                autoReanalyze();
+            }
         });
         
-        // UI Text Scale Control
-        const uiTextScaleMap = {
-            1: 'Small',
-            2: 'Medium',
-            3: 'Large',
-            4: 'XLarge'
-        };
-        
-        const uiTextScaleClasses = {
-            1: 'text-scale-small',
-            2: 'text-scale-medium',
-            3: 'text-scale-large',
-            4: 'text-scale-xlarge'
-        };
-        
-        // Load saved UI text scale preference
-        const savedUiTextScale = localStorage.getItem('uiTextScale') || '2';
-        document.getElementById('uiTextScale').value = savedUiTextScale;
-        applyUiTextScale(savedUiTextScale);
-        
-        document.getElementById('uiTextScale').addEventListener('input', function() {
+        document.getElementById('textScale').addEventListener('change', function() {
             const scaleValue = this.value;
-            document.getElementById('uiTextScaleValue').textContent = uiTextScaleMap[scaleValue];
-            applyUiTextScale(scaleValue);
-            // Save preference
-            localStorage.setItem('uiTextScale', scaleValue);
+            localStorage.setItem('textScale', scaleValue);
+            
+            // If linked, update page scale
+            if (textScalesLinked) {
+                document.getElementById('uiTextScale').value = scaleValue;
+                applyUiTextScale(scaleValue);
+                localStorage.setItem('uiTextScale', scaleValue);
+            }
+            
+            // Always trigger reanalyze when annotation text size changes
+            autoReanalyze();
+        });
+        
+        // Sync button functionality
+        document.getElementById('syncTextScales').addEventListener('click', function() {
+            textScalesLinked = !textScalesLinked;
+            localStorage.setItem('textScalesLinked', textScalesLinked);
+            updateSyncButton();
+            
+            // If enabling sync, match the scales immediately
+            if (textScalesLinked) {
+                const uiScale = document.getElementById('uiTextScale').value;
+                document.getElementById('textScale').value = uiScale;
+                localStorage.setItem('textScale', uiScale);
+            }
         });
         
         function applyUiTextScale(scaleValue) {
             // Remove all text scale classes
-            Object.values(uiTextScaleClasses).forEach(className => {
+            Object.values(uiTextScalePercentToClass).forEach(className => {
                 document.body.classList.remove(className);
             });
             
             // Add the selected scale class
-            const className = uiTextScaleClasses[scaleValue];
+            const className = uiTextScalePercentToClass[scaleValue] || 'text-scale-medium';
             document.body.classList.add(className);
+        }
+        
+        function updateSyncButton() {
+            const btn = document.getElementById('syncTextScales');
+            if (textScalesLinked) {
+                btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                btn.style.color = 'white';
+                btn.style.borderColor = '#5a67d8';
+                btn.title = 'Font sizes synced (click to unlink)';
+            } else {
+                btn.style.background = 'white';
+                btn.style.color = '#333';
+                btn.style.borderColor = '#e2e8f0';
+                btn.title = 'Sync font sizes';
+            }
+        }
+        
+        // Auto-reanalyze function
+        function autoReanalyze() {
+            const imageFile = document.getElementById('imageFile').files[0];
+            const searchPhrasesText = document.getElementById('searchPhrases').value;
             
-            // Update the display value
-            document.getElementById('uiTextScaleValue').textContent = uiTextScaleMap[scaleValue];
+            // Only auto-submit if we have both image and phrases
+            if (imageFile && searchPhrasesText.trim()) {
+                console.log('🔄 Auto-reanalyzing with new annotation text size...');
+                document.getElementById('ocrForm').dispatchEvent(new Event('submit'));
+            }
         }
         
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
