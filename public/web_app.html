@@ -991,6 +991,10 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         // Track sync state
         let textScalesLinked = false;
         
+        // Force reset to 100% (remove these lines after first load if you want persistence)
+        localStorage.setItem('uiTextScale', '100');
+        localStorage.setItem('textScale', '100');
+        
         // Load saved preferences or default to 100%
         const savedUiTextScale = localStorage.getItem('uiTextScale') || '100';
         const savedTextScale = localStorage.getItem('textScale') || '100';
@@ -1208,9 +1212,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 for (const [phrase, matches] of Object.entries(result.matches)) {
                     const matchId = phrase.replace(/\s+/g, '-').toLowerCase();
                     
-                    // Auto-expand first match on desktop
-                    const shouldAutoExpand = device.shouldAutoExpandResults() && 
-                                            Object.keys(result.matches).indexOf(phrase) === 0;
+                    // All matches collapsed by default - no auto-expand
                     
                     matchesHTML += `
                         <div class="match-item">
@@ -1219,11 +1221,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                                 <div>
                                     <span class="match-count">${matches.length}</span>
                                     <span class="toggle-details" onclick="toggleMatchDetails('${matchId}')">
-                                        <span id="toggle-${matchId}">${shouldAutoExpand ? 'hide ▲' : 'expand ▼'}</span>
+                                        <span id="toggle-${matchId}">expand ▼</span>
                                     </span>
                                 </div>
                             </div>
-                            <div id="details-${matchId}" class="collapsible-content" style="${shouldAutoExpand ? 'max-height: 500px; padding: 15px;' : ''}">
+                            <div id="details-${matchId}" class="collapsible-content">
                                 ${matches.map((match, idx) => {
                                     const confidenceLevel = match.explanation?.confidence_level || 'Medium';
                                     const confidenceClass = `confidence-${confidenceLevel.toLowerCase().replace(' ', '-')}`;
