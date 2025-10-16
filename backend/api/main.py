@@ -8,6 +8,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 import os
 import sys
+import gc
+
+# Memory optimization: Set environment variables before imports
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'  # For Apple Silicon
+os.environ['OMP_NUM_THREADS'] = '2'  # Limit OpenMP threads
+os.environ['OPENBLAS_NUM_THREADS'] = '2'  # Limit OpenBLAS threads
+os.environ['MKL_NUM_THREADS'] = '2'  # Limit MKL threads
+os.environ['VECLIB_MAXIMUM_THREADS'] = '2'  # Limit vecLib threads
+os.environ['NUMEXPR_NUM_THREADS'] = '2'  # Limit NumExpr threads
 
 # Add project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,6 +65,43 @@ else:
 app.include_router(health.router)
 app.include_router(ocr.router)
 app.include_router(cache.router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup with memory optimization."""
+    print("🚀 Starting ThriftAssist API...")
+    print("💾 Memory optimization: Enabled")
+    
+    # Force garbage collection at startup
+    gc.collect()
+    
+    # Lazy load OCR service (don't initialize until first request)
+    from backend.services.ocr_service import ocr_service
+    print(f"📦 OCR Service: {'Available' if ocr_service.is_available() else 'Not Available'}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    print("🛑 Shutting down ThriftAssist API...")
+    
+    # Clear caches and force garbage collection
+    from backend.services.cache_service import cache_service
+    cache_service.clear_cache()
+    
+    gc.collect()
+
+
+@app.middleware("http")
+async def cleanup_after_request(request, call_next):
+    """Force garbage collection after each request to minimize memory footprint."""
+    response = await call_next(request)
+    
+    # Cleanup after processing
+    gc.collect()
+    
+    return response
 
 
 # Backward compatibility routes (redirect old endpoints to new ones)

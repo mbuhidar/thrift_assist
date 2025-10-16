@@ -4,6 +4,7 @@ Image processing utilities for resizing and optimization.
 
 from PIL import Image
 import logging
+import gc
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ def resize_image_for_display(image: Image.Image, max_width: int) -> Image.Image:
     1. Never upscaling (only downscale if needed)
     2. Always maintaining aspect ratio
     3. Preserving image quality
+    4. Minimizing memory usage
     
     Args:
         image: PIL Image object (typically with annotations)
@@ -49,6 +51,11 @@ def resize_image_for_display(image: Image.Image, max_width: int) -> Image.Image:
             Image.Resampling.LANCZOS  # High-quality downsampling filter
         )
         logger.info("Image resized successfully using LANCZOS filter")
+        
+        # Clear original image from memory if it's large
+        if original_width > 2000 or original_height > 2000:
+            gc.collect()
+        
         return resized_image
     except Exception as e:
         logger.error(f"Error resizing image: {e}")
@@ -59,7 +66,7 @@ def resize_image_for_display(image: Image.Image, max_width: int) -> Image.Image:
 def calculate_optimal_jpeg_quality(image_width: int) -> int:
     """
     Calculate optimal JPEG quality based on image width.
-    Larger images can use slightly lower quality without visible degradation.
+    Lower quality for larger images to reduce memory usage.
     
     Args:
         image_width: Width of the image in pixels
@@ -68,8 +75,8 @@ def calculate_optimal_jpeg_quality(image_width: int) -> int:
         JPEG quality value (1-100)
     """
     if image_width <= 800:
-        return 95  # Highest quality for small images
+        return 92  # High quality for small images (reduced from 95)
     elif image_width <= 1920:
-        return 92  # High quality for medium images
+        return 88  # Good quality for medium images (reduced from 92)
     else:
-        return 90  # Still high quality for large images
+        return 85  # Balanced quality for large images (reduced from 90)

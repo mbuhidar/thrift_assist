@@ -10,6 +10,7 @@ import json
 import os
 import io
 import base64
+import gc
 
 from backend.services.ocr_service import ocr_service
 from backend.services.cache_service import cache_service
@@ -240,7 +241,13 @@ async def upload_and_detect(
             annotated_pil.save(buffered, format="JPEG", quality=jpeg_quality, optimize=True)
             annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
             
-            print(f"📐 Image resized for device: {annotated_pil.width}×{annotated_pil.height} (quality: {jpeg_quality})")
+            # Clean up large objects
+            del annotated_cv2
+            del annotated_pil
+            del buffered
+            gc.collect()
+            
+            print(f"📐 Image resized for device: quality={jpeg_quality}")
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
@@ -275,3 +282,6 @@ async def upload_and_detect(
             "processing_time_ms": processing_time,
             "error_message": str(e)
         })
+    finally:
+        # Force garbage collection after processing
+        gc.collect()
