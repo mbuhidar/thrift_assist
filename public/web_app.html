@@ -33,13 +33,12 @@
 
         .header h1 {
             font-size: 2.5em;
-            margin-bottom: 10px;
+            margin-bottom: 0.625em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header p {
             font-size: 1.2em;
-            opacity: 0.9;
         }
 
         .main-content {
@@ -52,7 +51,7 @@
         .card {
             background: white;
             border-radius: 15px;
-            padding: 25px;
+            padding: 1.5625em;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             transition: transform 0.3s ease;
         }
@@ -63,10 +62,10 @@
 
         .card h2 {
             color: #5a67d8;
-            margin-bottom: 20px;
+            margin-bottom: 1.25em;
             font-size: 1.5em;
             border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+            padding-bottom: 0.625em;
         }
 
         .form-group {
@@ -75,20 +74,22 @@
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 0.5em;
             font-weight: 600;
             color: #4a5568;
+            font-size: 0.875em;
         }
 
         .form-group input[type="file"],
         .form-group input[type="number"],
         .form-group input[type="range"],
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
-            padding: 12px;
+            padding: 0.75em;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 1em;
             transition: border-color 0.3s ease;
         }
 
@@ -146,10 +147,10 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 15px 30px;
+            padding: 0.9375em 1.875em;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 1em;
             font-weight: 600;
             transition: all 0.3s ease;
             width: 100%;
@@ -176,7 +177,7 @@
         }
 
         .collapsible-header {
-            padding: 12px 15px;
+            padding: 0.75em 0.9375em;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
@@ -208,14 +209,12 @@
         }
 
         .collapsible.open .collapsible-content {
-            max-height: 500px;
-            padding: 15px;
+            max-height: 31.25em;  /* 500px at default */
+            padding: 0.9375em;
         }
 
         .help-text {
-            font-size: 0.9em;
-            color: #666;
-            line-height: 1.5;
+            font-size: 0.9em;  /* Proportional to body */
         }
 
         .loading {
@@ -246,8 +245,8 @@
         .results-summary {
             background: #f7fafc;
             border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
+            padding: 0.9375em;
+            margin-bottom: 1.25em;
             border-left: 4px solid #48bb78;
         }
 
@@ -269,8 +268,8 @@
         .match-item {
             background: #f8f9fa;
             border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 10px;
+            padding: 0.75em;
+            margin-bottom: 0.625em;
             border-left: 3px solid #5a67d8;
         }
 
@@ -289,8 +288,8 @@
             background: #fff;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 10px;
+            padding: 0.75em;
+            margin-bottom: 0.625em;
         }
         
         .match-header {
@@ -337,14 +336,14 @@
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 0.8em;
-            margin-left: 10px;
+            margin-left: 0.625em;
         }
 
         .toggle-details {
             font-size: 0.8em;
             color: #5a67d8;
             cursor: pointer;
-            margin-left: 10px;
+            margin-left: 0.625em;
             text-decoration: underline;
         }
 
@@ -450,8 +449,8 @@
         .explanation-panel {
             background: #f8f9ff;
             border-left: 4px solid #5a67d8;
-            padding: 12px;
-            margin-top: 10px;
+            padding: 0.75em;
+            margin-top: 0.625em;
             border-radius: 4px;
             font-size: 0.85em;
         }
@@ -524,7 +523,7 @@
             transform: scale(0.95);
         }
         
-        /* Global text scaling */
+        /* Global text scaling - proportional sizing */
         body.text-scale-small {
             font-size: 14px;
         }
@@ -540,12 +539,84 @@
         body.text-scale-xlarge {
             font-size: 20px;
         }
+        
+        /* Proportional element scaling based on text size */
+        .form-group input[type="file"],
+        .form-group input[type="number"],
+        .form-group textarea,
+        .form-group select {
+            font-size: 1em;  /* Scale with body font */
+            padding: 0.75em;  /* Proportional padding */
+        }
+        
+        .btn {
+            font-size: 1em;  /* Scale with body font */
+            padding: 0.9375em 1.875em;  /* Proportional padding (15px/16px, 30px/16px) */
+        }
+        
+        .form-group label {
+            font-size: 0.875em;  /* 14px at default */
+            margin-bottom: 0.5em;
+        }
+        
+        .card {
+            padding: 1.5625em;  /* 25px at default */
+        }
+        
+        .card h2 {
+            font-size: 1.5em;  /* Proportional to body */
+            margin-bottom: 1.25em;
+            padding-bottom: 0.625em;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;  /* Proportional to body */
+            margin-bottom: 0.625em;
+        }
+
+        .header p {
+            font-size: 1.2em;  /* Proportional to body */
+        }
+
+        .collapsible-header {
+            font-size: 0.9em;  /* Proportional to body */
+            padding: 0.75em 0.9375em;  /* Proportional padding */
+        }
+
+        .collapsible.open .collapsible-content {
+            max-height: 31.25em;  /* 500px at default */
+            padding: 0.9375em;
+        }
+
+        .help-text {
+            font-size: 0.9em;  /* Proportional to body */
+        }
+
+        .match-item {
+            padding: 0.75em;
+            margin-bottom: 0.625em;
+        }
+
+        .match-details {
+            padding: 0.75em;
+            margin-bottom: 0.625em;
+        }
+
+        .results-summary {
+            padding: 0.9375em;
+            margin-bottom: 1.25em;
+        }
+
+        .explanation-panel {
+            padding: 0.75em;
+            margin-top: 0.625em;
+        }
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
-                gap: 20px;
+                gap: 1.25em;  /* Proportional gap */
             }
             
             .header h1 {
@@ -557,7 +628,7 @@
             }
 
             .card {
-                padding: 20px;
+                padding: 1.25em;  /* Proportional padding */
             }
             
             .card h2 {
@@ -568,19 +639,26 @@
                 font-size: 15px;
             }
             
-            .form-group label {
-                font-size: 14px;
+            /* Proportional scaling for mobile text-scale classes */
+            body.text-scale-small {
+                font-size: 13px;
             }
             
-            .form-group input,
-            .form-group textarea,
-            .form-group select {
+            body.text-scale-medium {
                 font-size: 15px;
             }
             
-            .btn {
-                font-size: 16px;
-                padding: 16px 30px;
+            body.text-scale-large {
+                font-size: 17px;
+            }
+            
+            body.text-scale-xlarge {
+                font-size: 19px;
+            }
+            
+            /* All elements scale proportionally with em units */
+            .form-group label {
+                font-size: 0.933em;  /* Slightly larger for mobile */
             }
             
             .match-phrase {
@@ -597,12 +675,13 @@
             
             .match-score {
                 font-size: 0.75em;
-                padding: 2px 6px;
+                padding: 0.125em 0.5em;  /* Proportional padding */
             }
             
             .match-count {
                 font-size: 0.75em;
-                padding: 2px 6px;
+                padding: 0.125em 0.5em;
+                margin-left: 0.625em;
             }
             
             .explanation-panel {
@@ -612,7 +691,7 @@
             .stat {
                 display: block;
                 margin-right: 0;
-                margin-bottom: 5px;
+                margin-bottom: 0.3125em;  /* Proportional margin */
                 font-size: 0.9em;
             }
 
@@ -623,15 +702,7 @@
 
             .match-count {
                 margin-left: 0;
-                margin-top: 5px;
-            }
-            
-            .help-text {
-                font-size: 0.9em;
-            }
-            
-            .collapsible-header {
-                font-size: 0.9em;
+                margin-top: 0.3125em;  /* Proportional margin */
             }
             
             .toggle-details {
@@ -649,11 +720,11 @@
 
         @media (max-width: 480px) {
             .container {
-                padding: 10px;
+                padding: 0.625em;  /* Proportional padding */
             }
 
             .card {
-                padding: 15px;
+                padding: 0.9375em;  /* Proportional padding */
             }
 
             .header h1 {
@@ -668,14 +739,21 @@
                 font-size: 14px;
             }
             
-            .form-group input,
-            .form-group textarea,
-            .form-group select {
+            /* Proportional scaling for small mobile text-scale classes */
+            body.text-scale-small {
+                font-size: 12px;
+            }
+            
+            body.text-scale-medium {
                 font-size: 14px;
             }
             
-            .btn {
-                font-size: 15px;
+            body.text-scale-large {
+                font-size: 16px;
+            }
+            
+            body.text-scale-xlarge {
+                font-size: 18px;
             }
 
             .slider-labels {
@@ -770,8 +848,11 @@
                     <div class="form-group">
                         <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;">
                             <div>
-                                <label for="uiTextScale" style="text-align: center;">Page Font Size</label>
-                                <select id="uiTextScale" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; cursor: pointer; text-align: center; text-align-last: center;">
+                                <label for="uiTextScale" style="text-align: center; line-height: 1.2;">
+                                    <div>Page</div>
+                                    <div>Font Size</div>
+                                </label>
+                                <select id="uiTextScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
                                     <option value="50">50%</option>
                                     <option value="75">75%</option>
                                     <option value="100" selected>100%</option>
@@ -791,8 +872,11 @@
                                 </button>
                             </div>
                             <div>
-                                <label for="textScale" style="text-align: center;">Annotation Font Size</label>
-                                <select id="textScale" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; cursor: pointer; text-align: center; text-align-last: center;">
+                                <label for="textScale" style="text-align: center; line-height: 1.2;">
+                                    <div>Annotation</div>
+                                    <div>Font Size</div>
+                                </label>
+                                <select id="textScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
                                     <option value="50">50%</option>
                                     <option value="75">75%</option>
                                     <option value="100" selected>100%</option>
@@ -1077,6 +1161,9 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             // Add the selected scale class
             const className = uiTextScalePercentToClass[scaleValue] || 'text-scale-medium';
             document.body.classList.add(className);
+            
+            // Force immediate layout recalculation to apply new font sizes
+            document.body.offsetHeight;
         }
         
         function updateSyncButton() {
@@ -1113,7 +1200,15 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const imageFile = document.getElementById('imageFile').files[0];
             const searchPhrasesText = document.getElementById('searchPhrases').value;
             const threshold = document.getElementById('threshold').value;
-            const textScale = document.getElementById('textScale').value;  // Get text scale value
+            let textScale = document.getElementById('textScale').value;  // Get text scale value
+            
+            // Boost annotation text size for mobile devices
+            if (device.isMobile || device.isTablet) {
+                const scaleInt = parseInt(textScale);
+                // Increase by 50% for mobile/tablet, capped at 300%
+                textScale = Math.min(300, Math.round(scaleInt * 1.5)).toString();
+                console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
+            }
             
             if (!imageFile) {
                 showError('Please select an image file');
@@ -1143,7 +1238,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 formData.append('file', imageFile);
                 formData.append('search_phrases', JSON.stringify(searchPhrases));
                 formData.append('threshold', threshold);
-                formData.append('text_scale', textScale);  // Add text scale to form data
+                formData.append('text_scale', textScale);  // Add boosted text scale to form data
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',
