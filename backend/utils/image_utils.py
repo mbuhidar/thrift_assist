@@ -17,6 +17,9 @@ def resize_image_for_display(image: Image.Image, max_width: int) -> Image.Image:
     3. Preserving image quality
     4. Minimizing memory usage
     
+    NOTE: This function is kept for compatibility but for large images,
+    prefer resizing with OpenCV before converting to PIL.
+    
     Args:
         image: PIL Image object (typically with annotations)
         max_width: Maximum width requested by frontend (device-specific)
@@ -66,7 +69,7 @@ def resize_image_for_display(image: Image.Image, max_width: int) -> Image.Image:
 def calculate_optimal_jpeg_quality(image_width: int) -> int:
     """
     Calculate optimal JPEG quality based on image width.
-    Lower quality for larger images to reduce memory usage.
+    Lower quality for larger images to reduce memory and bandwidth usage.
     
     Args:
         image_width: Width of the image in pixels
@@ -75,8 +78,8 @@ def calculate_optimal_jpeg_quality(image_width: int) -> int:
         JPEG quality value (1-100)
     """
     if image_width <= 800:
-        return 92  # High quality for small images (reduced from 95)
+        return 88  # Good quality for small images
     elif image_width <= 1920:
-        return 88  # Good quality for medium images (reduced from 92)
+        return 85  # Balanced quality for medium images
     else:
-        return 85  # Balanced quality for large images (reduced from 90)
+        return 82  # Reasonable quality for large images

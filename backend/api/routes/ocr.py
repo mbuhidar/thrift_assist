@@ -23,105 +23,6 @@ from backend.core.config import settings
 router = APIRouter(prefix="/ocr", tags=["ocr"])
 
 
-@router.post("/detect", response_model=PhraseDetectionResponse)
-async def detect_phrases(request: PhraseDetectionRequest):
-    """
-    Detect phrases in base64-encoded image.
-    
-    This endpoint accepts a base64-encoded image and searches for specified phrases.
-    """
-    start_time = datetime.now()
-    
-    try:
-        if not request.image_base64:
-            raise HTTPException(status_code=400, detail="image_base64 is required")
-        
-        # Convert base64 to image
-        image = image_service.base64_to_array(request.image_base64)
-        if image is None:
-            raise HTTPException(status_code=400, detail="Invalid image format")
-        
-        # Save to temporary file
-        temp_image_path = image_service.save_temp_image(image)
-        if not temp_image_path:
-            raise HTTPException(status_code=500, detail="Failed to save image")
-        
-        try:
-            # Run OCR detection
-            results = ocr_service.detect_phrases(
-                image_path=temp_image_path,
-                search_phrases=request.search_phrases,
-                threshold=request.threshold,
-                text_scale=request.text_scale,
-                show_plot=False
-            )
-            
-            if not results:
-                return PhraseDetectionResponse(
-                    success=False,
-                    total_matches=0,
-                    matches={},
-                    processing_time_ms=0,
-                    error_message="Failed to process image or no text detected"
-                )
-            
-            # Format matches for API response
-            serializable_matches = ocr_service.format_matches_for_api(results)
-            
-            # Convert annotated image to base64 with device-optimized resizing
-            annotated_image_base64 = None
-            if 'annotated_image' in results:
-                from PIL import Image
-                import cv2
-                
-                # Convert numpy array to PIL Image
-                annotated_cv2 = results['annotated_image']
-                annotated_pil = Image.fromarray(cv2.cvtColor(annotated_cv2, cv2.COLOR_BGR2RGB))
-                
-                # Get max_image_width from request or use default
-                max_width = getattr(request, 'max_image_width', 2560)
-                
-                # Resize for optimal display (only downscale, never upscale)
-                annotated_pil = resize_image_for_display(annotated_pil, max_width)
-                
-                # Calculate optimal JPEG quality
-                jpeg_quality = calculate_optimal_jpeg_quality(annotated_pil.width)
-                
-                # Encode to base64
-                buffered = io.BytesIO()
-                annotated_pil.save(buffered, format="JPEG", quality=jpeg_quality, optimize=True)
-                annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-            
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
-            
-            return PhraseDetectionResponse(
-                success=True,
-                total_matches=results['total_matches'],
-                matches=serializable_matches,
-                processing_time_ms=processing_time,
-                image_dimensions=[image.shape[1], image.shape[0]],
-                annotated_image_base64=annotated_image_base64,
-                all_detected_text=results.get('all_text', '')
-            )
-            
-        finally:
-            # Clean up temporary file
-            if temp_image_path and os.path.exists(temp_image_path):
-                os.unlink(temp_image_path)
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        processing_time = (datetime.now() - start_time).total_seconds() * 1000
-        return PhraseDetectionResponse(
-            success=False,
-            total_matches=0,
-            matches={},
-            processing_time_ms=processing_time,
-            error_message=str(e)
-        )
-
-
 @router.post("/upload")
 async def upload_and_detect(
     file: UploadFile = File(...),
@@ -187,15 +88,24 @@ async def upload_and_detect(
             if not temp_image_path:
                 raise HTTPException(status_code=500, detail="Failed to save image")
             
+            # Clean up immediately
+            del image_array
+            del image
+            gc.collect()
+            
             # Cache the image info
             cache_service.cache_result(image_hash, {
                 'image_path': temp_image_path,
-                'image_dimensions': [image.shape[1], image.shape[0]],
+                'image_dimensions': None,  # Will be set from results
                 'filename': file.filename,
                 'text_scale': text_scale
             })
         
-        # Run OCR detection (on FULL resolution)
+        # Clear uploaded data from memory
+        del image_data
+        gc.collect()
+        
+        # Run OCR detection
         results = ocr_service.detect_phrases(
             image_path=temp_image_path,
             search_phrases=phrases_list,
@@ -221,17 +131,37 @@ async def upload_and_detect(
             from PIL import Image
             import cv2
             
-            # Convert numpy array to PIL Image
+            # Get original dimensions before any processing
+            original_height, original_width = results['annotated_image'].shape[:2]
+            
+            # MEMORY OPTIMIZATION: Resize BEFORE converting to PIL if image is large
             annotated_cv2 = results['annotated_image']
+            
+            # Pre-resize with OpenCV if needed (more memory efficient than PIL for large images)
+            if original_width > max_image_width:
+                scale_factor = max_image_width / original_width
+                new_width = max_image_width
+                new_height = int(original_height * scale_factor)
+                
+                # Resize with OpenCV (in-place operation, more memory efficient)
+                annotated_cv2 = cv2.resize(
+                    annotated_cv2, 
+                    (new_width, new_height), 
+                    interpolation=cv2.INTER_LANCZOS4
+                )
+                
+                print(f"📐 Pre-resized with OpenCV: {original_width}×{original_height} → {new_width}×{new_height}")
+                
+                # Clear original from memory immediately
+                del results['annotated_image']
+                gc.collect()
+            
+            # Now convert smaller image to PIL
             annotated_pil = Image.fromarray(cv2.cvtColor(annotated_cv2, cv2.COLOR_BGR2RGB))
             
-            # THEN resize for display (AFTER OCR and annotations)
-            if 'annotated_image' in results:
-                # Convert to PIL
-                annotated_pil = Image.fromarray(cv2.cvtColor(annotated_cv2, cv2.COLOR_BGR2RGB))
-                
-                # Resize here - AFTER all processing
-                annotated_pil = resize_image_for_display(annotated_pil, max_image_width)
+            # Clear OpenCV image
+            del annotated_cv2
+            gc.collect()
             
             # Calculate optimal JPEG quality
             jpeg_quality = calculate_optimal_jpeg_quality(annotated_pil.width)
@@ -241,30 +171,37 @@ async def upload_and_detect(
             annotated_pil.save(buffered, format="JPEG", quality=jpeg_quality, optimize=True)
             annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
             
-            # Clean up large objects
-            del annotated_cv2
+            # Clean up everything immediately
             del annotated_pil
             del buffered
             gc.collect()
             
-            print(f"📐 Image resized for device: quality={jpeg_quality}")
+            print(f"📐 Final image size: quality={jpeg_quality}")
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
         # Get image dimensions
-        if cached_result and 'image_dimensions' in cached_result:
+        if cached_result and 'image_dimensions' in cached_result and cached_result['image_dimensions']:
             image_dims = cached_result['image_dimensions']
         else:
-            image_dims = [results['annotated_image'].shape[1], results['annotated_image'].shape[0]] if 'annotated_image' in results else [0, 0]
+            # Get from original results before cleanup
+            if 'annotated_image' in results:
+                image_dims = [results['annotated_image'].shape[1], results['annotated_image'].shape[0]]
+            else:
+                image_dims = [original_width, original_height]
+        
+        # Clear results from memory
+        del results
+        gc.collect()
         
         return JSONResponse({
             "success": True,
-            "total_matches": results['total_matches'],
+            "total_matches": len(serializable_matches),
             "matches": serializable_matches,
             "processing_time_ms": processing_time,
             "image_dimensions": image_dims,
             "annotated_image_base64": annotated_image_base64,
-            "all_detected_text": results.get('all_text', ''),
+            "all_detected_text": "",  # Don't store full text to save memory
             "filename": file.filename,
             "cached": cached_result is not None
         })
@@ -283,5 +220,140 @@ async def upload_and_detect(
             "error_message": str(e)
         })
     finally:
-        # Force garbage collection after processing
+        # Always clean up at the end
+        gc.collect()
+
+
+@router.post("/detect", response_model=PhraseDetectionResponse)
+async def detect_phrases(request: PhraseDetectionRequest):
+    """
+    Detect phrases in base64-encoded image.
+    
+    This endpoint accepts a base64-encoded image and searches for specified phrases.
+    """
+    start_time = datetime.now()
+    
+    try:
+        if not request.image_base64:
+            raise HTTPException(status_code=400, detail="image_base64 is required")
+        
+        # Convert base64 to image
+        image = image_service.base64_to_array(request.image_base64)
+        if image is None:
+            raise HTTPException(status_code=400, detail="Invalid image format")
+        
+        # Save to temporary file
+        temp_image_path = image_service.save_temp_image(image)
+        if not temp_image_path:
+            raise HTTPException(status_code=500, detail="Failed to save image")
+        
+        # Clear image from memory immediately after saving
+        original_dims = [image.shape[1], image.shape[0]]
+        del image
+        gc.collect()
+        
+        try:
+            # Run OCR detection
+            results = ocr_service.detect_phrases(
+                image_path=temp_image_path,
+                search_phrases=request.search_phrases,
+                threshold=request.threshold,
+                text_scale=request.text_scale,
+                show_plot=False
+            )
+            
+            if not results:
+                return PhraseDetectionResponse(
+                    success=False,
+                    total_matches=0,
+                    matches={},
+                    processing_time_ms=0,
+                    error_message="Failed to process image or no text detected"
+                )
+            
+            # Format matches for API response
+            serializable_matches = ocr_service.format_matches_for_api(results)
+            
+            # Convert annotated image to base64 with device-optimized resizing
+            annotated_image_base64 = None
+            if 'annotated_image' in results:
+                from PIL import Image
+                import cv2
+                
+                annotated_cv2 = results['annotated_image']
+                original_height, original_width = annotated_cv2.shape[:2]
+                
+                # Get max_image_width from request
+                max_width = request.max_image_width
+                
+                # MEMORY OPTIMIZATION: Resize with OpenCV BEFORE PIL conversion
+                if original_width > max_width:
+                    scale_factor = max_width / original_width
+                    new_width = max_width
+                    new_height = int(original_height * scale_factor)
+                    
+                    annotated_cv2 = cv2.resize(
+                        annotated_cv2,
+                        (new_width, new_height),
+                        interpolation=cv2.INTER_LANCZOS4
+                    )
+                    
+                    # Clear original
+                    del results['annotated_image']
+                    gc.collect()
+                
+                # Convert smaller image to PIL
+                annotated_pil = Image.fromarray(cv2.cvtColor(annotated_cv2, cv2.COLOR_BGR2RGB))
+                
+                # Clear OpenCV image
+                del annotated_cv2
+                gc.collect()
+                
+                # Calculate optimal JPEG quality
+                jpeg_quality = calculate_optimal_jpeg_quality(annotated_pil.width)
+                
+                # Encode to base64
+                buffered = io.BytesIO()
+                annotated_pil.save(buffered, format="JPEG", quality=jpeg_quality, optimize=True)
+                annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                
+                # Cleanup
+                del annotated_pil
+                del buffered
+                gc.collect()
+            
+            processing_time = (datetime.now() - start_time).total_seconds() * 1000
+            
+            # Clear results
+            del results
+            gc.collect()
+            
+            return PhraseDetectionResponse(
+                success=True,
+                total_matches=len(serializable_matches),
+                matches=serializable_matches,
+                processing_time_ms=processing_time,
+                image_dimensions=original_dims,
+                annotated_image_base64=annotated_image_base64,
+                all_detected_text=""  # Don't return full text to save memory
+            )
+            
+        finally:
+            # Clean up temporary file
+            if temp_image_path and os.path.exists(temp_image_path):
+                os.unlink(temp_image_path)
+            gc.collect()
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = (datetime.now() - start_time).total_seconds() * 1000
+        return PhraseDetectionResponse(
+            success=False,
+            total_matches=0,
+            matches={},
+            processing_time_ms=processing_time,
+            error_message=str(e)
+        )
+    finally:
         gc.collect()

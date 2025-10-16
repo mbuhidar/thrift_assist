@@ -38,3 +38,28 @@ def check_memory_limit(limit_mb: float = 512) -> bool:
         force_garbage_collection()
         return False
     return True
+
+
+def get_memory_info() -> dict:
+    """Get detailed memory information."""
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+
+    return {
+        "rss_mb": mem_info.rss / 1024 / 1024,
+        "vms_mb": mem_info.vms / 1024 / 1024,
+        "percent": process.memory_percent(),
+        "available_mb": psutil.virtual_memory().available / 1024 / 1024,
+    }
+
+
+def log_memory_info(context: str = ""):
+    """Log detailed memory information."""
+    info = get_memory_info()
+    logger.info(
+        f"💾 Memory {context}: "
+        f"RSS={info['rss_mb']:.1f}MB "
+        f"VMS={info['vms_mb']:.1f}MB "
+        f"({info['percent']:.1f}% of system)"
+    )
+    return info
