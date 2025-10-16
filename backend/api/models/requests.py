@@ -13,6 +13,7 @@ class PhraseDetectionRequest(BaseModel):
     threshold: Optional[int] = Field(75, ge=50, le=100, description="Similarity threshold (50-100)")
     text_scale: Optional[int] = Field(100, ge=50, le=200, description="Text size scale (50-200)")
     image_base64: Optional[str] = Field(None, description="Base64 encoded image")
+    max_image_width: int = Field(2560, description="Maximum image width")
     
     @validator('search_phrases')
     def validate_search_phrases(cls, v):
