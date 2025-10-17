@@ -33,13 +33,12 @@
 
         .header h1 {
             font-size: 2.5em;
-            margin-bottom: 10px;
+            margin-bottom: 0.625em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header p {
             font-size: 1.2em;
-            opacity: 0.9;
         }
 
         .main-content {
@@ -52,7 +51,7 @@
         .card {
             background: white;
             border-radius: 15px;
-            padding: 25px;
+            padding: 1.5625em;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             transition: transform 0.3s ease;
         }
@@ -63,10 +62,10 @@
 
         .card h2 {
             color: #5a67d8;
-            margin-bottom: 20px;
+            margin-bottom: 1.25em;
             font-size: 1.5em;
             border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+            padding-bottom: 0.625em;
         }
 
         .form-group {
@@ -75,20 +74,22 @@
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 0.5em;
             font-weight: 600;
             color: #4a5568;
+            font-size: 0.875em;
         }
 
         .form-group input[type="file"],
         .form-group input[type="number"],
         .form-group input[type="range"],
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
-            padding: 12px;
+            padding: 0.75em;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 1em;
             transition: border-color 0.3s ease;
         }
 
@@ -146,10 +147,10 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 15px 30px;
+            padding: 0.9375em 1.875em;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 1em;
             font-weight: 600;
             transition: all 0.3s ease;
             width: 100%;
@@ -176,7 +177,7 @@
         }
 
         .collapsible-header {
-            padding: 12px 15px;
+            padding: 0.75em 0.9375em;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
@@ -208,14 +209,12 @@
         }
 
         .collapsible.open .collapsible-content {
-            max-height: 500px;
-            padding: 15px;
+            max-height: 31.25em;  /* 500px at default */
+            padding: 0.9375em;
         }
 
         .help-text {
-            font-size: 0.9em;
-            color: #666;
-            line-height: 1.5;
+            font-size: 0.9em;  /* Proportional to body */
         }
 
         .loading {
@@ -246,8 +245,8 @@
         .results-summary {
             background: #f7fafc;
             border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
+            padding: 0.9375em;
+            margin-bottom: 1.25em;
             border-left: 4px solid #48bb78;
         }
 
@@ -269,8 +268,8 @@
         .match-item {
             background: #f8f9fa;
             border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 10px;
+            padding: 0.75em;
+            margin-bottom: 0.625em;
             border-left: 3px solid #5a67d8;
         }
 
@@ -289,8 +288,8 @@
             background: #fff;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 10px;
+            padding: 0.75em;
+            margin-bottom: 0.625em;
         }
         
         .match-header {
@@ -337,14 +336,14 @@
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 0.8em;
-            margin-left: 10px;
+            margin-left: 0.625em;
         }
 
         .toggle-details {
             font-size: 0.8em;
             color: #5a67d8;
             cursor: pointer;
-            margin-left: 10px;
+            margin-left: 0.625em;
             text-decoration: underline;
         }
 
@@ -450,8 +449,8 @@
         .explanation-panel {
             background: #f8f9ff;
             border-left: 4px solid #5a67d8;
-            padding: 12px;
-            margin-top: 10px;
+            padding: 0.75em;
+            margin-top: 0.625em;
             border-radius: 4px;
             font-size: 0.85em;
         }
@@ -523,12 +522,101 @@
         .toggle-explanation:active {
             transform: scale(0.95);
         }
+        
+        /* Global text scaling - proportional sizing */
+        body.text-scale-small {
+            font-size: 14px;
+        }
+        
+        body.text-scale-medium {
+            font-size: 16px;
+        }
+        
+        body.text-scale-large {
+            font-size: 18px;
+        }
+        
+        body.text-scale-xlarge {
+            font-size: 20px;
+        }
+        
+        /* Proportional element scaling based on text size */
+        .form-group input[type="file"],
+        .form-group input[type="number"],
+        .form-group textarea,
+        .form-group select {
+            font-size: 1em;  /* Scale with body font */
+            padding: 0.75em;  /* Proportional padding */
+        }
+        
+        .btn {
+            font-size: 1em;  /* Scale with body font */
+            padding: 0.9375em 1.875em;  /* Proportional padding (15px/16px, 30px/16px) */
+        }
+        
+        .form-group label {
+            font-size: 0.875em;  /* 14px at default */
+            margin-bottom: 0.5em;
+        }
+        
+        .card {
+            padding: 1.5625em;  /* 25px at default */
+        }
+        
+        .card h2 {
+            font-size: 1.5em;  /* Proportional to body */
+            margin-bottom: 1.25em;
+            padding-bottom: 0.625em;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;  /* Proportional to body */
+            margin-bottom: 0.625em;
+        }
+
+        .header p {
+            font-size: 1.2em;  /* Proportional to body */
+        }
+
+        .collapsible-header {
+            font-size: 0.9em;  /* Proportional to body */
+            padding: 0.75em 0.9375em;  /* Proportional padding */
+        }
+
+        .collapsible.open .collapsible-content {
+            max-height: 31.25em;  /* 500px at default */
+            padding: 0.9375em;
+        }
+
+        .help-text {
+            font-size: 0.9em;  /* Proportional to body */
+        }
+
+        .match-item {
+            padding: 0.75em;
+            margin-bottom: 0.625em;
+        }
+
+        .match-details {
+            padding: 0.75em;
+            margin-bottom: 0.625em;
+        }
+
+        .results-summary {
+            padding: 0.9375em;
+            margin-bottom: 1.25em;
+        }
+
+        .explanation-panel {
+            padding: 0.75em;
+            margin-top: 0.625em;
+        }
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
-                gap: 20px;
+                gap: 1.25em;  /* Proportional gap */
             }
             
             .header h1 {
@@ -540,13 +628,71 @@
             }
 
             .card {
-                padding: 20px;
+                padding: 1.25em;  /* Proportional padding */
+            }
+            
+            .card h2 {
+                font-size: 1.4em;
+            }
+            
+            body {
+                font-size: 15px;
+            }
+            
+            /* Proportional scaling for mobile text-scale classes */
+            body.text-scale-small {
+                font-size: 13px;
+            }
+            
+            body.text-scale-medium {
+                font-size: 15px;
+            }
+            
+            body.text-scale-large {
+                font-size: 17px;
+            }
+            
+            body.text-scale-xlarge {
+                font-size: 19px;
+            }
+            
+            /* All elements scale proportionally with em units */
+            .form-group label {
+                font-size: 0.933em;  /* Slightly larger for mobile */
+            }
+            
+            .match-phrase {
+                font-size: 1em;
+            }
+            
+            .match-details {
+                font-size: 0.9em;
+            }
+            
+            .match-text-preview {
+                font-size: 0.85em;
+            }
+            
+            .match-score {
+                font-size: 0.75em;
+                padding: 0.125em 0.5em;  /* Proportional padding */
+            }
+            
+            .match-count {
+                font-size: 0.75em;
+                padding: 0.125em 0.5em;
+                margin-left: 0.625em;
+            }
+            
+            .explanation-panel {
+                font-size: 0.85em;
             }
 
             .stat {
                 display: block;
                 margin-right: 0;
-                margin-bottom: 5px;
+                margin-bottom: 0.3125em;  /* Proportional margin */
+                font-size: 0.9em;
             }
 
             .match-phrase {
@@ -556,25 +702,62 @@
 
             .match-count {
                 margin-left: 0;
-                margin-top: 5px;
+                margin-top: 0.3125em;  /* Proportional margin */
+            }
+            
+            .toggle-details {
+                font-size: 0.75em;
+            }
+            
+            .toggle-explanation {
+                font-size: 0.75em;
+            }
+            
+            .slider-labels {
+                font-size: 0.8em;
             }
         }
 
         @media (max-width: 480px) {
             .container {
-                padding: 10px;
+                padding: 0.625em;  /* Proportional padding */
             }
 
             .card {
-                padding: 15px;
+                padding: 0.9375em;  /* Proportional padding */
             }
 
             .header h1 {
                 font-size: 1.8em;
             }
+            
+            .header p {
+                font-size: 0.95em;
+            }
+            
+            body {
+                font-size: 14px;
+            }
+            
+            /* Proportional scaling for small mobile text-scale classes */
+            body.text-scale-small {
+                font-size: 12px;
+            }
+            
+            body.text-scale-medium {
+                font-size: 14px;
+            }
+            
+            body.text-scale-large {
+                font-size: 16px;
+            }
+            
+            body.text-scale-xlarge {
+                font-size: 18px;
+            }
 
             .slider-labels {
-                font-size: 0.8em;
+                font-size: 0.75em;
             }
         }
     </style>
@@ -663,13 +846,51 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="textScale">Text Size: <span id="textScaleValue" class="slider-value">100%</span></label>
-                        <div class="slider-container">
-                            <input type="range" id="textScale" min="50" max="200" value="100" step="10">
-                            <div class="slider-labels">
-                                <span>Small</span>
-                                <span>Large</span>
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;">
+                            <div>
+                                <label for="uiTextScale" style="text-align: center; line-height: 1.2;">
+                                    <div>Page</div>
+                                    <div>Font Size</div>
+                                </label>
+                                <select id="uiTextScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
+                                    <option value="50">50%</option>
+                                    <option value="75">75%</option>
+                                    <option value="100" selected>100%</option>
+                                    <option value="125">125%</option>
+                                    <option value="150">150%</option>
+                                    <option value="175">175%</option>
+                                    <option value="200">200%</option>
+                                    <option value="250">250%</option>
+                                    <option value="300">300%</option>
+                                </select>
                             </div>
+                            <div style="position: relative; display: flex; align-items: center; padding: 0 10px;">
+                                <div style="position: absolute; left: -10px; right: 50%; height: 2px; background: #e2e8f0; top: 50%;"></div>
+                                <div style="position: absolute; left: 50%; right: -10px; height: 2px; background: #e2e8f0; top: 50%;"></div>
+                                <button type="button" id="syncTextScales" title="Sync font sizes" style="position: relative; z-index: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; cursor: pointer; font-size: 16px; transition: all 0.2s;">
+                                    🔗
+                                </button>
+                            </div>
+                            <div>
+                                <label for="textScale" style="text-align: center; line-height: 1.2;">
+                                    <div>Annotation</div>
+                                    <div>Font Size</div>
+                                </label>
+                                <select id="textScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
+                                    <option value="50">50%</option>
+                                    <option value="75">75%</option>
+                                    <option value="100" selected>100%</option>
+                                    <option value="125">125%</option>
+                                    <option value="150">150%</option>
+                                    <option value="175">175%</option>
+                                    <option value="200">200%</option>
+                                    <option value="250">250%</option>
+                                    <option value="300">300%</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.85em; color: #666; margin-top: 8px;">
+                            Page font adjusts this interface, annotation font adjusts text on images. Click 🔗 to sync both.
                         </div>
                     </div>
 
@@ -725,6 +946,73 @@
     </div>
 
     <script>
+        // Device detection
+        const DeviceDetector = {
+            isMobile: false,
+            isTablet: false,
+            isDesktop: false,
+            isTouchDevice: false,
+            userAgent: '',
+            
+            init() {
+                this.userAgent = navigator.userAgent.toLowerCase();
+                
+                // Check for touch capability
+                this.isTouchDevice = ('ontouchstart' in window) || 
+                                     (navigator.maxTouchPoints > 0) || 
+                                     (navigator.msMaxTouchPoints > 0);
+                
+                // Check screen size
+                const width = window.innerWidth;
+                
+                // Check for mobile devices
+                const mobileRegex = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i;
+                const tabletRegex = /ipad|android(?!.*mobile)|tablet/i;
+                
+                if (mobileRegex.test(this.userAgent) || (this.isTouchDevice && width < 768)) {
+                    this.isMobile = true;
+                } else if (tabletRegex.test(this.userAgent) || (this.isTouchDevice && width >= 768 && width < 1024)) {
+                    this.isTablet = true;
+                } else {
+                    this.isDesktop = true;
+                }
+                
+                console.log('📱 Device Detection:', {
+                    isMobile: this.isMobile,
+                    isTablet: this.isTablet,
+                    isDesktop: this.isDesktop,
+                    isTouchDevice: this.isTouchDevice,
+                    screenWidth: width
+                });
+                
+                // Add device class to body for CSS targeting
+                if (this.isMobile) document.body.classList.add('device-mobile');
+                if (this.isTablet) document.body.classList.add('device-tablet');
+                if (this.isDesktop) document.body.classList.add('device-desktop');
+                if (this.isTouchDevice) document.body.classList.add('touch-device');
+                
+                return this;
+            },
+            
+            // Helper methods
+            shouldUseSimplifiedUI() {
+                return this.isMobile;
+            },
+            
+            shouldAutoExpandResults() {
+                return this.isDesktop;
+            },
+            
+            getOptimalImageQuality() {
+                if (this.isMobile) return 'medium';
+                if (this.isTablet) return 'high';
+                return 'max';
+            }
+        };
+        
+        // Initialize device detection on load
+        const device = DeviceDetector.init();
+        
         // Updated API URL detection for integrated deployment
         const API_BASE_URL = (() => {
             const protocol = window.location.protocol;
@@ -747,6 +1035,13 @@
             const textarea = document.getElementById('searchPhrases');
             textarea.placeholder = `Enter phrases separated by commas
 Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
+            
+            // Device-specific adjustments
+            if (device.isMobile) {
+                console.log('📱 Mobile device detected - applying optimizations');
+                // Simpler placeholder for mobile
+                textarea.placeholder = 'Enter phrases, separated by commas';
+            }
             
             // Test API connection
             console.log('Testing API connection...');
@@ -783,11 +1078,121 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             document.getElementById('thresholdValue').textContent = this.value + '%';
         });
         
-        // Update text scale value display
-        document.getElementById('textScale').addEventListener('input', function() {
-            document.getElementById('textScaleValue').textContent = this.value + '%';
+        // UI Text Scale Control - Percentage-based with extended range
+        const uiTextScalePercentToClass = {
+            50: 'text-scale-small',
+            75: 'text-scale-small',
+            100: 'text-scale-medium',
+            125: 'text-scale-large',
+            150: 'text-scale-xlarge',
+            175: 'text-scale-xlarge',
+            200: 'text-scale-xlarge',
+            250: 'text-scale-xlarge',
+            300: 'text-scale-xlarge'
+        };
+        
+        // Track sync state
+        let textScalesLinked = false;
+        
+        // Force reset to 100% (remove these lines after first load if you want persistence)
+        localStorage.setItem('uiTextScale', '100');
+        localStorage.setItem('textScale', '100');
+        
+        // Load saved preferences or default to 100%
+        const savedUiTextScale = localStorage.getItem('uiTextScale') || '100';
+        const savedTextScale = localStorage.getItem('textScale') || '100';
+        const savedSyncState = localStorage.getItem('textScalesLinked') === 'true';
+        
+        document.getElementById('uiTextScale').value = savedUiTextScale;
+        document.getElementById('textScale').value = savedTextScale;
+        textScalesLinked = savedSyncState;
+        
+        applyUiTextScale(savedUiTextScale);
+        updateSyncButton();
+        
+        document.getElementById('uiTextScale').addEventListener('change', function() {
+            const scaleValue = this.value;
+            applyUiTextScale(scaleValue);
+            localStorage.setItem('uiTextScale', scaleValue);
+            
+            // If linked, update annotation scale and trigger reanalyze
+            if (textScalesLinked) {
+                document.getElementById('textScale').value = scaleValue;
+                localStorage.setItem('textScale', scaleValue);
+                autoReanalyze();
+            }
         });
-
+        
+        document.getElementById('textScale').addEventListener('change', function() {
+            const scaleValue = this.value;
+            localStorage.setItem('textScale', scaleValue);
+            
+            // If linked, update page scale
+            if (textScalesLinked) {
+                document.getElementById('uiTextScale').value = scaleValue;
+                applyUiTextScale(scaleValue);
+                localStorage.setItem('uiTextScale', scaleValue);
+            }
+            
+            // Always trigger reanalyze when annotation text size changes
+            autoReanalyze();
+        });
+        
+        // Sync button functionality
+        document.getElementById('syncTextScales').addEventListener('click', function() {
+            textScalesLinked = !textScalesLinked;
+            localStorage.setItem('textScalesLinked', textScalesLinked);
+            updateSyncButton();
+            
+            // If enabling sync, match the scales immediately
+            if (textScalesLinked) {
+                const uiScale = document.getElementById('uiTextScale').value;
+                document.getElementById('textScale').value = uiScale;
+                localStorage.setItem('textScale', uiScale);
+            }
+        });
+        
+        function applyUiTextScale(scaleValue) {
+            // Remove all text scale classes
+            Object.values(uiTextScalePercentToClass).forEach(className => {
+                document.body.classList.remove(className);
+            });
+            
+            // Add the selected scale class
+            const className = uiTextScalePercentToClass[scaleValue] || 'text-scale-medium';
+            document.body.classList.add(className);
+            
+            // Force immediate layout recalculation to apply new font sizes
+            document.body.offsetHeight;
+        }
+        
+        function updateSyncButton() {
+            const btn = document.getElementById('syncTextScales');
+            if (textScalesLinked) {
+                btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                btn.style.color = 'white';
+                btn.style.borderColor = '#5a67d8';
+                btn.title = 'Font sizes synced (click to unlink)';
+            } else {
+                btn.style.background = 'white';
+                btn.style.color = '#333';
+                btn.style.borderColor = '#e2e8f0';
+                btn.title = 'Sync font sizes';
+            }
+        }
+        
+        // Auto-reanalyze function
+        function autoReanalyze() {
+            const imageFile = document.getElementById('imageFile').files[0];
+            const searchPhrasesText = document.getElementById('searchPhrases').value;
+            
+            // Only auto-submit if we have both image and phrases
+            if (imageFile && searchPhrasesText.trim()) {
+                console.log('🔄 Auto-reanalyzing with new annotation text size...');
+                document.getElementById('ocrForm').dispatchEvent(new Event('submit'));
+            }
+        }
+        
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -795,9 +1200,15 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const imageFile = document.getElementById('imageFile').files[0];
             const searchPhrasesText = document.getElementById('searchPhrases').value;
             const threshold = document.getElementById('threshold').value;
-            const textScale = document.getElementById('textScale').value;
+            let textScale = document.getElementById('textScale').value;  // Get text scale value
             
-            console.log('Form submission - textScale value:', textScale); // Debug log
+            // Boost annotation text size for mobile devices
+            if (device.isMobile || device.isTablet) {
+                const scaleInt = parseInt(textScale);
+                // Increase by 50% for mobile/tablet, capped at 300%
+                textScale = Math.min(300, Math.round(scaleInt * 1.5)).toString();
+                console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
+            }
             
             if (!imageFile) {
                 showError('Please select an image file');
@@ -827,9 +1238,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 formData.append('file', imageFile);
                 formData.append('search_phrases', JSON.stringify(searchPhrases));
                 formData.append('threshold', threshold);
-                formData.append('text_scale', textScale);
-                
-                console.log('Sending to API with text_scale:', textScale); // Debug log
+                formData.append('text_scale', textScale);  // Add boosted text scale to form data
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',
@@ -973,10 +1382,19 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             // Update matches list with explainability emphasis
             if (result.total_matches > 0) {
                 let matchesHTML = '<h3>🎯 Found Matches</h3>';
-                matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Click "Why?" to understand how each match was found</p>';
+                
+                // Device-specific instructions
+                if (device.isMobile) {
+                    matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Tap "Why?" for match details</p>';
+                } else {
+                    matchesHTML += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">💡 Click "Why?" to understand how each match was found</p>';
+                }
                 
                 for (const [phrase, matches] of Object.entries(result.matches)) {
                     const matchId = phrase.replace(/\s+/g, '-').toLowerCase();
+                    
+                    // All matches collapsed by default - no auto-expand
+                    
                     matchesHTML += `
                         <div class="match-item">
                             <div class="match-phrase">
@@ -1254,13 +1672,13 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.lastTouch = { x: 0, y: 0, distance: 0 };
                 this.imageLoaded = false;
                 this.hasMoved = false;
-                this.isTouchDevice = false;
-                this.pinchZoomActive = false;  // Track if pinch zoom is active
-                this.pinchCenter = { x: 0.5, y: 0.5 };  // Store pinch center point
-                this.lastPinchTime = 0;  // Track last pinch time
-                this.wheelZoomActive = false;  // Track if wheel zoom is active
-                this.wheelCenter = { x: 0.5, y: 0.5 };  // Store wheel zoom center
-                this.lastWheelTime = 0;  // Track last wheel event
+                this.isTouchDevice = device.isTouchDevice;  // Use detected touch capability
+                this.pinchZoomActive = false;
+                this.pinchCenter = { x: 0.5, y: 0.5 };
+                this.lastPinchTime = 0;
+                this.wheelZoomActive = false;
+                this.wheelCenter = { x: 0.5, y: 0.5 };
+                this.lastWheelTime = 0;
                 
                 this.init();
             }
@@ -1272,25 +1690,24 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 });
                 
                 this.image.addEventListener('click', (e) => this.handleClick(e));
+                
+                // Always add mouse events (they work on mobile too as fallback)
                 this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
                 this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
                 this.image.addEventListener('mouseup', (e) => this.handleMouseUp(e));
                 this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
-                this.image.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
                 
-                // Only add touch listeners on actual touch devices
-                this.image.addEventListener('touchstart', (e) => {
-                    this.isTouchDevice = true;  // Mark as touch device
-                    this.handleTouchStart(e);
-                }, { passive: false, once: false });
+                // Desktop-only: wheel events
+                if (!device.isMobile) {
+                    this.image.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                }
                 
-                this.image.addEventListener('touchmove', (e) => {
-                    if (this.isTouchDevice) this.handleTouchMove(e);
-                }, { passive: false });
-                
-                this.image.addEventListener('touchend', (e) => {
-                    if (this.isTouchDevice) this.handleTouchEnd(e);
-                }, { passive: false });
+                // Touch events for all touch-capable devices
+                if (this.isTouchDevice) {
+                    this.image.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+                    this.image.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+                    this.image.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+                }
                 
                 this.image.addEventListener('contextmenu', (e) => e.preventDefault());
                 
@@ -1451,13 +1868,17 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (!this.imageLoaded) return;
                 
                 if (e.touches.length === 1) {
+                    // Store initial touch for click detection
+                    this.hasMoved = false;
+                    this.lastTouch.x = e.touches[0].clientX;
+                    this.lastTouch.y = e.touches[0].clientY;
+                    this.lastTouch.startTime = Date.now();
+                    
                     if (this.scale > 1) {
                         this.isDragging = true;
                         this.dragStart.x = e.touches[0].clientX - this.translateX;
                         this.dragStart.y = e.touches[0].clientY - this.translateY;
                     }
-                    this.lastTouch.x = e.touches[0].clientX;
-                    this.lastTouch.y = e.touches[0].clientY;
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
                     
@@ -1478,12 +1899,20 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             handleTouchMove(e) {
                 if (!this.imageLoaded) return;
                 
-                if (e.touches.length === 1 && this.isDragging && this.scale > 1) {
-                    this.translateX = e.touches[0].clientX - this.dragStart.x;
-                    this.translateY = e.touches[0].clientY - this.dragStart.y;
-                    this.constrainTranslation();
-                    this.updateTransform();
+                if (e.touches.length === 1 && this.scale > 1) {
+                    // Single finger drag when zoomed
+                    const touchX = e.touches[0].clientX;
+                    const touchY = e.touches[0].clientY;
+                    
+                    if (this.isDragging) {
+                        this.translateX = touchX - this.dragStart.x;
+                        this.translateY = touchY - this.dragStart.y;
+                        this.constrainTranslation();
+                        this.updateTransform();
+                        this.hasMoved = true;
+                    }
                 } else if (e.touches.length === 2) {
+                    // Two finger pinch zoom
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
                     const scaleFactor = distance / this.lastTouch.distance;
                     const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * scaleFactor));
@@ -1491,6 +1920,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     if (newScale !== this.scale) {
                         // Use stored center point for consistent zoom
                         this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
+                        this.hasMoved = true;
                     }
                 }
                 e.preventDefault();
@@ -1500,22 +1930,33 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (!this.imageLoaded) return;
                 
                 if (e.touches.length === 0) {
+                    const now = Date.now();
+                    const touchDuration = now - (this.lastTouch.startTime || now);
+                    
                     this.isDragging = false;
                     
-                    const scaleRatio = currentDistance / this.lastTouch.initialDistance;
-                    const dampedRatio = 1 + (scaleRatio - 1) * 0.6;
-                    const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * dampedRatio));
-                    
-                    if (Math.abs(newScale - this.scale) > 0.01) {
-                        this.translateX = containerX - (baseImageX * newScale);
-                        this.translateY = containerY - (baseImageY * newScale);
-                        this.scale = newScale;
-                        
-                        this.constrainTranslation();
-                        this.updateTransform();
-                        this.updateUI();
+                    // Double tap to zoom (only if no movement and quick tap)
+                    if (!this.hasMoved && touchDuration < 300) {
+                        if (this.lastTap && (now - this.lastTap) < 300) {
+                            if (this.scale === 1) {
+                                const rect = this.image.getBoundingClientRect();
+                                const x = (this.lastTouch.x - rect.left) / rect.width;
+                                const y = (this.lastTouch.y - rect.top) / rect.height;
+                                this.zoomToPoint(1.8, x, y);
+                            } else {
+                                this.resetZoom();
+                            }
+                            this.lastTap = 0; // Reset to prevent triple-tap
+                        } else {
+                            this.lastTap = now;
+                        }
+                    } else {
+                        this.lastTap = 0;
                     }
+                    
+                    this.hasMoved = false;
                 }
+                
                 e.preventDefault();
             }
             
