@@ -39,6 +39,17 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_IMAGE_TYPES: list = ["image/jpeg", "image/png", "image/gif", "image/bmp"]
     
+    # Memory optimization settings
+    MAX_UPLOAD_SIZE_MB: int = 10  # Reduce from default if higher
+    MAX_CACHE_SIZE_MB: int = 50  # Limit cache size
+    CACHE_TTL_SECONDS: int = 300  # 5 minutes - shorter cache TTL
+    ENABLE_MEMORY_OPTIMIZATION: bool = True
+    GC_AFTER_REQUEST: bool = True
+    
+    # EasyOCR optimization
+    EASYOCR_GPU: bool = False  # Disable GPU to save memory
+    EASYOCR_QUANTIZE: bool = True  # Use quantized models
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

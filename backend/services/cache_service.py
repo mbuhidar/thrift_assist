@@ -22,6 +22,9 @@ class CacheService:
     
     def __init__(self):
         self._cache: OrderedDict = OrderedDict()
+        self._cache_order = []  # Track access order for LRU
+        self._max_cache_size_mb = 50  # Maximum cache size in MB
+        self._max_cache_entries = 10  # Maximum number of cached items
         self._max_size = settings.MAX_CACHE_SIZE
         self._expiry_seconds = settings.CACHE_EXPIRY_SECONDS
     
@@ -38,6 +41,27 @@ class CacheService:
         """
         combined_data = image_data + str(text_scale).encode('utf-8')
         return hashlib.md5(combined_data).hexdigest()
+    
+    def _get_cache_size_mb(self) -> float:
+        """Calculate approximate cache size in MB."""
+        total_size = sum(sys.getsizeof(v) for v in self._cache.values())
+        return total_size / (1024 * 1024)
+    
+    def _enforce_cache_limits(self):
+        """Remove oldest entries if cache exceeds limits."""
+        # Remove by size
+        while self._get_cache_size_mb() > self._max_cache_size_mb and self._cache_order:
+            oldest_key = self._cache_order.pop(0)
+            if oldest_key in self._cache:
+                del self._cache[oldest_key]
+                print(f"🗑️ Removed cached entry (size limit): {oldest_key[:8]}...")
+        
+        # Remove by count
+        while len(self._cache) > self._max_cache_entries and self._cache_order:
+            oldest_key = self._cache_order.pop(0)
+            if oldest_key in self._cache:
+                del self._cache[oldest_key]
+                print(f"🗑️ Removed cached entry (count limit): {oldest_key[:8]}...")
     
     def cache_result(self, image_hash: str, ocr_data: Dict[str, Any]) -> None:
         """
@@ -57,7 +81,15 @@ class CacheService:
             'ocr_data': ocr_data
         }
         
-        print(f"🔄 Cached OCR result for image hash: {image_hash[:8]}...")
+        # Update access order (move to end)
+        if image_hash in self._cache_order:
+            self._cache_order.remove(image_hash)
+        self._cache_order.append(image_hash)
+        
+        # Enforce limits
+        self._enforce_cache_limits()
+        
+        print(f"💾 Cache size: {self._get_cache_size_mb():.2f}MB ({len(self._cache)} items)")
     
     def get_cached_result(self, image_hash: str) -> Optional[Dict[str, Any]]:
         """
