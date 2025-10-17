@@ -1819,21 +1819,15 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 e.preventDefault();
                 e.stopPropagation();
                 
-                // Get mouse/touchpad position in container coordinates
-                const containerRect = this.container.getBoundingClientRect();
-                const containerX = e.clientX - containerRect.left;
-                const containerY = e.clientY - containerRect.top;
-                
-                // Find what point in the base image is under the cursor
-                const baseImageX = (containerX - this.translateX) / this.scale;
-                const baseImageY = (containerY - this.translateY) / this.scale;
+                const rect = this.image.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
                 
                 const now = Date.now();
                 const isPinchZoom = e.ctrlKey;
                 
                 if (isPinchZoom) {
                     // Touchpad pinch zoom
-                    // If this is the start of a new pinch gesture (>150ms since last event)
                     if (!this.pinchZoomActive || (now - this.lastPinchTime) > 150) {
                         this.pinchZoomActive = true;
                         this.pinchCenter.x = x;
@@ -1843,23 +1837,19 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     
                     this.lastPinchTime = now;
                     
-                    // Use smaller delta for smoother touchpad pinch zoom
                     const zoomDelta = Math.abs(e.deltaY) > 10 ? (e.deltaY > 0 ? 0.985 : 1.015) : (e.deltaY > 0 ? 0.995 : 1.005);
                     const newScale = Math.max(1, Math.min(5, this.scale * zoomDelta));
                     
                     if (newScale !== this.scale) {
-                        // Use the pinch center point, not the current cursor position
                         this.zoomToPoint(newScale, this.pinchCenter.x, this.pinchCenter.y);
                     }
                     
-                    // Reset pinch zoom active flag after a delay
                     clearTimeout(this.pinchZoomTimeout);
                     this.pinchZoomTimeout = setTimeout(() => {
                         this.pinchZoomActive = false;
                     }, 150);
                 } else {
                     // Regular scroll wheel zoom
-                    // If this is the start of a new wheel zoom (>300ms since last event)
                     if (!this.wheelZoomActive || (now - this.lastWheelTime) > 300) {
                         this.wheelZoomActive = true;
                         this.wheelCenter.x = x;
@@ -1872,11 +1862,9 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     const newScale = Math.max(1, Math.min(5, this.scale * delta));
                     
                     if (newScale !== this.scale) {
-                        // Use the wheel center point, not the current cursor position
                         this.zoomToPoint(newScale, this.wheelCenter.x, this.wheelCenter.y);
                     }
                     
-                    // Reset wheel zoom active flag after a delay
                     clearTimeout(this.wheelZoomTimeout);
                     this.wheelZoomTimeout = setTimeout(() => {
                         this.wheelZoomActive = false;
@@ -1888,7 +1876,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (!this.imageLoaded) return;
                 
                 if (e.touches.length === 1) {
-                    // Store initial touch for click detection
                     this.hasMoved = false;
                     this.lastTouch.x = e.touches[0].clientX;
                     this.lastTouch.y = e.touches[0].clientY;
@@ -1901,6 +1888,8 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     }
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
+                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                    this.lastTouch.distance = distance;
                     
                     const rect = this.image.getBoundingClientRect();
                     const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width;
@@ -1908,7 +1897,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.lastTouch.centerX = centerX;
                     this.lastTouch.centerY = centerY;
                     
-                    // Store initial translate values to prevent drift
                     this.lastTouch.initialTranslateX = this.translateX;
                     this.lastTouch.initialTranslateY = this.translateY;
                     this.lastTouch.initialScale = this.scale;
@@ -1989,31 +1977,17 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             zoomToPoint(newScale, pointX, pointY) {
                 if (!this.imageLoaded) return;
                 
-                // Get the image's natural dimensions
-                const imageWidth = this.image.naturalWidth || this.image.width;
-                const imageHeight = this.image.naturalHeight || this.image.height;
-                
-                // Calculate the display size of the image at current scale
                 const displayWidth = this.image.offsetWidth;
                 const displayHeight = this.image.offsetHeight;
                 
-                // Convert normalized point (0-1) to actual pixel position in the displayed image
                 const displayPointX = pointX * displayWidth;
                 const displayPointY = pointY * displayHeight;
                 
-                // Calculate where this point currently is on screen (in viewport coordinates)
                 const currentScreenX = this.translateX + (displayPointX * this.scale);
                 const currentScreenY = this.translateY + (displayPointY * this.scale);
                 
-                // After zoom, we want that same screen position to map to the same image point
-                // So: screenPos = newTranslate + (displayPoint * newScale)
-                // Therefore: newTranslate = screenPos - (displayPoint * newScale)
                 this.translateX = currentScreenX - (displayPointX * newScale);
                 this.translateY = currentScreenY - (displayPointY * newScale);
-                
-                // Calculate new translation to keep this point at the same container position
-                this.translateX = containerX - (baseImageX * newScale);
-                this.translateY = containerY - (baseImageY * newScale);
                 this.scale = newScale;
                 
                 this.constrainTranslation();
@@ -2064,24 +2038,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
-                if (!isFinite(this.translateX)) {
-                    console.warn('Invalid translateX, resetting');
-                    this.translateX = 0;
-                }
-                if (!isFinite(this.translateY)) {
-                    console.warn('Invalid translateY, resetting');
-                    this.translateY = 0;
-                }
-                if (!isFinite(this.scale) || this.scale < 1) {
-                    console.warn('Invalid scale, resetting');
-                    this.scale = 1;
-                }
+                if (!isFinite(this.translateX)) this.translateX = 0;
+                if (!isFinite(this.translateY)) this.translateY = 0;
+                if (!isFinite(this.scale) || this.scale < 1) this.scale = 1;
                 
-                // Force hardware acceleration on mobile
                 const transform = `translate3d(${this.translateX}px, ${this.translateY}px, 0) scale(${this.scale})`;
                 this.image.style.transform = transform;
                 this.image.style.transformOrigin = '0 0';
-                this.image.style.willChange = 'transform';  // Hint to browser for optimization
+                this.image.style.willChange = 'transform';
                 
                 if (this.scale > 1) {
                     this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
@@ -2103,57 +2067,32 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 
                 const containerWidth = this.container.clientWidth;
                 const containerHeight = this.container.clientHeight;
-                
                 const baseWidth = this.image.offsetWidth;
                 const baseHeight = this.image.offsetHeight;
                 
-                // Safeguard against zero or undefined dimensions
-                if (!baseWidth || !baseHeight) {
-                    console.warn('Image dimensions not available yet');
-                    return;
-                }
+                if (!baseWidth || !baseHeight) return;
                 
                 const scaledWidth = baseWidth * this.scale;
                 const scaledHeight = baseHeight * this.scale;
                 
-                // Horizontal constraints
+                // Horizontal constraints with buffer
                 if (scaledWidth <= containerWidth) {
                     this.translateX = (containerWidth - scaledWidth) / 2;
                 } else {
-                    const maxX = 0;
-                    const minX = containerWidth - scaledWidth;
-                    
-                    // Progressive buffer based on zoom level to prevent disappearing
-                    let buffer = 0;
-                    if (this.scale > 3.5) {
-                        buffer = 100; // 350%+ zoom needs larger buffer
-                    } else if (this.scale > 2.5) {
-                        buffer = 75;  // 250%+ zoom
-                    } else if (this.scale > 2) {
-                        buffer = 50;  // 200%+ zoom
-                    }
-                    
-                    this.translateX = Math.max(minX - buffer, Math.min(maxX + buffer, this.translateX));
+                    const buffer = this.scale > 3.5 ? 100 : this.scale > 2.5 ? 75 : this.scale > 2 ? 50 : 0;
+                    const minX = containerWidth - scaledWidth - buffer;
+                    const maxX = buffer;
+                    this.translateX = Math.max(minX, Math.min(maxX, this.translateX));
                 }
                 
-                // Vertical constraints
+                // Vertical constraints with buffer
                 if (scaledHeight <= containerHeight) {
                     this.translateY = (containerHeight - scaledHeight) / 2;
                 } else {
-                    const maxY = 0;
-                    const minY = containerHeight - scaledHeight;
-                    
-                    // Progressive buffer based on zoom level to prevent disappearing
-                    let buffer = 0;
-                    if (this.scale > 3.5) {
-                        buffer = 100; // 350%+ zoom needs larger buffer
-                    } else if (this.scale > 2.5) {
-                        buffer = 75;  // 250%+ zoom
-                    } else if (this.scale > 2) {
-                        buffer = 50;  // 200%+ zoom
-                    }
-                    
-                    this.translateY = Math.max(minY - buffer, Math.min(maxY + buffer, this.translateY));
+                    const buffer = this.scale > 3.5 ? 100 : this.scale > 2.5 ? 75 : this.scale >  2 ? 50 : 0;
+                    const minY = containerHeight - scaledHeight - buffer;
+                    const maxY = buffer;
+                    this.translateY = Math.max(minY, Math.min(maxY, this.translateY));
                 }
             }
             
