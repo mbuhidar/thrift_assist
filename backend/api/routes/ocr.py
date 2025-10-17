@@ -52,6 +52,9 @@ async def upload_and_detect(
         except (json.JSONDecodeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=f"Invalid search_phrases format: {str(e)}")
         
+        # Log received parameters
+        print(f"📥 Received request: max_image_width={max_image_width}, text_scale={text_scale}")
+        
         # Read and validate image data
         image_data = await file.read()
         
@@ -96,7 +99,7 @@ async def upload_and_detect(
             # Cache the image info
             cache_service.cache_result(image_hash, {
                 'image_path': temp_image_path,
-                'image_dimensions': None,  # Will be set from results
+                'image_dimensions': None,
                 'filename': file.filename,
                 'text_scale': text_scale
             })
@@ -134,6 +137,8 @@ async def upload_and_detect(
             # Get original dimensions before any processing
             original_height, original_width = results['annotated_image'].shape[:2]
             
+            print(f"🖼️ Original image: {original_width}×{original_height}, max_width={max_image_width}")
+            
             # MEMORY OPTIMIZATION: Resize BEFORE converting to PIL if image is large
             annotated_cv2 = results['annotated_image']
             
@@ -143,20 +148,24 @@ async def upload_and_detect(
                 new_width = max_image_width
                 new_height = int(original_height * scale_factor)
                 
-                # Resize with OpenCV (in-place operation, more memory efficient)
+                print(f"📐 Resizing from {original_width}×{original_height} to {new_width}×{new_height} (scale: {scale_factor:.3f})")
+                
+                # Resize with OpenCV
                 annotated_cv2 = cv2.resize(
                     annotated_cv2, 
                     (new_width, new_height), 
                     interpolation=cv2.INTER_LANCZOS4
                 )
                 
-                print(f"📐 Pre-resized with OpenCV: {original_width}×{original_height} → {new_width}×{new_height}")
+                print(f"✅ Resized successfully")
                 
                 # Clear original from memory immediately
                 del results['annotated_image']
                 gc.collect()
+            else:
+                print(f"⏭️ No resize needed (image already ≤ {max_image_width}px)")
             
-            # Now convert smaller image to PIL
+            # Now convert to PIL
             annotated_pil = Image.fromarray(cv2.cvtColor(annotated_cv2, cv2.COLOR_BGR2RGB))
             
             # Clear OpenCV image
@@ -165,6 +174,8 @@ async def upload_and_detect(
             
             # Calculate optimal JPEG quality
             jpeg_quality = calculate_optimal_jpeg_quality(annotated_pil.width)
+            
+            print(f"💾 Final size: {annotated_pil.width}×{annotated_pil.height}, quality={jpeg_quality}")
             
             # Encode to base64 with optimization
             buffered = io.BytesIO()
@@ -175,20 +186,17 @@ async def upload_and_detect(
             del annotated_pil
             del buffered
             gc.collect()
-            
-            print(f"📐 Final image size: quality={jpeg_quality}")
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
-        # Get image dimensions
+        # Get image dimensions (original, not resized)
         if cached_result and 'image_dimensions' in cached_result and cached_result['image_dimensions']:
             image_dims = cached_result['image_dimensions']
         else:
-            # Get from original results before cleanup
-            if 'annotated_image' in results:
-                image_dims = [results['annotated_image'].shape[1], results['annotated_image'].shape[0]]
-            else:
-                image_dims = [original_width, original_height]
+            image_dims = [original_width, original_height]
+        
+        # Calculate total matches correctly
+        total_matches = sum(len(matches) for matches in serializable_matches.values())
         
         # Clear results from memory
         del results
@@ -196,12 +204,12 @@ async def upload_and_detect(
         
         return JSONResponse({
             "success": True,
-            "total_matches": len(serializable_matches),
+            "total_matches": total_matches,
             "matches": serializable_matches,
             "processing_time_ms": processing_time,
             "image_dimensions": image_dims,
             "annotated_image_base64": annotated_image_base64,
-            "all_detected_text": "",  # Don't store full text to save memory
+            "all_detected_text": "",
             "filename": file.filename,
             "cached": cached_result is not None
         })
