@@ -1210,6 +1210,25 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
             }
             
+            // Calculate optimal image resolution based on device
+            // This is a maximum - backend will never upscale beyond original resolution
+            const maxImageWidth = (() => {
+                if (device.isMobile) {
+                    // Mobile: optimize for smaller screens, account for Retina/high DPI
+                    return Math.floor(Math.min(window.innerWidth * window.devicePixelRatio, 1080));
+                } else if (device.isTablet) {
+                    // Tablet: balance between quality and performance
+                    return Math.floor(Math.min(window.innerWidth * window.devicePixelRatio, 1920));
+                } else {
+                    // Desktop: higher quality but still reasonable
+                    return Math.floor(Math.min(window.innerWidth * 0.8 * window.devicePixelRatio, 2560));
+                }
+            })();
+            
+            console.log(`🖼️ Device: ${device.isMobile ? 'Mobile' : device.isTablet ? 'Tablet' : 'Desktop'}`);
+            console.log(`📱 Screen: ${window.innerWidth}×${window.innerHeight}, DPR: ${window.devicePixelRatio}`);
+            console.log(`🖼️ Requesting max image width: ${maxImageWidth}px (backend will only downscale, never upscale)`);
+            
             if (!imageFile) {
                 showError('Please select an image file');
                 return;
@@ -1239,6 +1258,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 formData.append('search_phrases', JSON.stringify(searchPhrases));
                 formData.append('threshold', threshold);
                 formData.append('text_scale', textScale);  // Add boosted text scale to form data
+                formData.append('max_image_width', maxImageWidth);  // ADD THIS - send device-optimized width
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',
