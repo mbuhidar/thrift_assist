@@ -1247,6 +1247,8 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 
                 const result = await response.json();
                 
+                console.log('API response:', result); // Debug log
+                
                 if (result.success) {
                     displayResults(result, searchPhrases);
                 } else {
@@ -1260,6 +1262,71 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 showLoading(false);
             }
         });
+        
+        async function analyzeImage() {
+            const fileInput = document.getElementById('imageInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select an image first');
+                return;
+            }
+
+            // Get text size value
+            const textSizeSlider = document.getElementById('textSize');
+            const textSize = parseInt(textSizeSlider.value);
+            
+            // Show alert on mobile to verify value is being read
+            if (window.innerWidth < 768) {
+                alert('Text size: ' + textSize + 'px');
+            }
+            
+            // Show loading state
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('text_size', textSize);
+
+            // Get search phrases
+            const searchPhrasesInput = document.getElementById('searchPhrases');
+            const searchPhrases = searchPhrasesInput.value
+                .split('\n')
+                .map(phrase => phrase.trim())
+                .filter(phrase => phrase.length > 0);
+
+            if (searchPhrases.length > 0) {
+                formData.append('search_phrases', JSON.stringify(searchPhrases));
+            }
+
+            console.log('Sending to API:', {
+                textSize: textSize,
+                searchPhrases: searchPhrases,
+                hasFile: !!file
+            }); // Debug log
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/ocr`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result, searchPhrases);
+                } else {
+                    showError(result.error_message || 'An error occurred while processing the image');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to connect to the API. Make sure the service is running on ' + API_BASE_URL);
+            } finally {
+                showLoading(false);
+            }
+        }
         
         function showLoading(show) {
             const loading = document.getElementById('loading');
@@ -1732,9 +1799,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 e.preventDefault();
                 e.stopPropagation();
                 
-                const rect = this.image.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
+                // Get mouse/touchpad position in container coordinates
+                const containerRect = this.container.getBoundingClientRect();
+                const containerX = e.clientX - containerRect.left;
+                const containerY = e.clientY - containerRect.top;
+                
+                // Find what point in the base image is under the cursor
+                const baseImageX = (containerX - this.translateX) / this.scale;
+                const baseImageY = (containerY - this.translateY) / this.scale;
                 
                 const now = Date.now();
                 const isPinchZoom = e.ctrlKey;
@@ -1809,8 +1881,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     }
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
-                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
-                    this.lastTouch.distance = distance;
                     
                     const rect = this.image.getBoundingClientRect();
                     const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width;
@@ -1921,7 +1991,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.translateX = currentScreenX - (displayPointX * newScale);
                 this.translateY = currentScreenY - (displayPointY * newScale);
                 
+                // Calculate new translation to keep this point at the same container position
+                this.translateX = containerX - (baseImageX * newScale);
+                this.translateY = containerY - (baseImageY * newScale);
                 this.scale = newScale;
+                
                 this.constrainTranslation();
                 this.updateTransform();
                 this.updateUI();
@@ -1970,11 +2044,24 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
-                const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
+                if (!isFinite(this.translateX)) {
+                    console.warn('Invalid translateX, resetting');
+                    this.translateX = 0;
+                }
+                if (!isFinite(this.translateY)) {
+                    console.warn('Invalid translateY, resetting');
+                    this.translateY = 0;
+                }
+                if (!isFinite(this.scale) || this.scale < 1) {
+                    console.warn('Invalid scale, resetting');
+                    this.scale = 1;
+                }
+                
+                // Force hardware acceleration on mobile
+                const transform = `translate3d(${this.translateX}px, ${this.translateY}px, 0) scale(${this.scale})`;
                 this.image.style.transform = transform;
                 this.image.style.transformOrigin = '0 0';
-                
-                // Remove debug logging now
+                this.image.style.willChange = 'transform';  // Hint to browser for optimization
                 
                 if (this.scale > 1) {
                     this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
@@ -1997,27 +2084,56 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 const containerWidth = this.container.clientWidth;
                 const containerHeight = this.container.clientHeight;
                 
-                // Use the actual displayed width/height, not natural dimensions
                 const baseWidth = this.image.offsetWidth;
                 const baseHeight = this.image.offsetHeight;
+                
+                // Safeguard against zero or undefined dimensions
+                if (!baseWidth || !baseHeight) {
+                    console.warn('Image dimensions not available yet');
+                    return;
+                }
                 
                 const scaledWidth = baseWidth * this.scale;
                 const scaledHeight = baseHeight * this.scale;
                 
+                // Horizontal constraints
                 if (scaledWidth <= containerWidth) {
                     this.translateX = (containerWidth - scaledWidth) / 2;
                 } else {
-                    const minX = containerWidth - scaledWidth;
                     const maxX = 0;
-                    this.translateX = Math.max(minX, Math.min(maxX, this.translateX));
+                    const minX = containerWidth - scaledWidth;
+                    
+                    // Progressive buffer based on zoom level to prevent disappearing
+                    let buffer = 0;
+                    if (this.scale > 3.5) {
+                        buffer = 100; // 350%+ zoom needs larger buffer
+                    } else if (this.scale > 2.5) {
+                        buffer = 75;  // 250%+ zoom
+                    } else if (this.scale > 2) {
+                        buffer = 50;  // 200%+ zoom
+                    }
+                    
+                    this.translateX = Math.max(minX - buffer, Math.min(maxX + buffer, this.translateX));
                 }
                 
+                // Vertical constraints
                 if (scaledHeight <= containerHeight) {
                     this.translateY = (containerHeight - scaledHeight) / 2;
                 } else {
-                    const minY = containerHeight - scaledHeight;
                     const maxY = 0;
-                    this.translateY = Math.max(minY, Math.min(maxY, this.translateY));
+                    const minY = containerHeight - scaledHeight;
+                    
+                    // Progressive buffer based on zoom level to prevent disappearing
+                    let buffer = 0;
+                    if (this.scale > 3.5) {
+                        buffer = 100; // 350%+ zoom needs larger buffer
+                    } else if (this.scale > 2.5) {
+                        buffer = 75;  // 250%+ zoom
+                    } else if (this.scale > 2) {
+                        buffer = 50;  // 200%+ zoom
+                    }
+                    
+                    this.translateY = Math.max(minY - buffer, Math.min(maxY + buffer, this.translateY));
                 }
             }
             
@@ -2053,7 +2169,8 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
 
         // Initialize zoom functionality
         let imageZoom = null;
-        // Test connection on page load
+
+        // Test connection on page load   
         window.addEventListener('load', async function() {
             const isConnected = await testConnection();
             if (!isConnected) {
