@@ -108,14 +108,55 @@ async def upload_and_detect(
         del image_data
         gc.collect()
         
-        # Run OCR detection
+        # IMPORTANT: Resize image BEFORE OCR detection if needed
+        # This ensures annotations are drawn at the correct scale
+        import cv2
+        original_image = cv2.imread(temp_image_path)
+        original_height, original_width = original_image.shape[:2]
+        
+        # Determine if we need to resize for processing
+        if original_width > max_image_width:
+            scale_factor = max_image_width / original_width
+            new_width = max_image_width
+            new_height = int(original_height * scale_factor)
+            
+            print(f"📐 Pre-processing resize: {original_width}×{original_height} → {new_width}×{new_height}")
+            
+            # Resize with OpenCV
+            resized_image = cv2.resize(
+                original_image,
+                (new_width, new_height),
+                interpolation=cv2.INTER_LANCZOS4
+            )
+            
+            # Save resized image temporarily
+            import tempfile
+            resized_path = temp_image_path.replace('.jpg', '_resized.jpg')
+            cv2.imwrite(resized_path, resized_image)
+            
+            # Use resized image for OCR
+            processing_image_path = resized_path
+            
+            # Clean up
+            del original_image
+            del resized_image
+            gc.collect()
+        else:
+            processing_image_path = temp_image_path
+            print(f"⏭️ No pre-processing resize needed (image ≤ {max_image_width}px)")
+        
+        # Run OCR detection on the appropriately-sized image
         results = ocr_service.detect_phrases(
-            image_path=temp_image_path,
+            image_path=processing_image_path,
             search_phrases=phrases_list,
             threshold=threshold,
             text_scale=text_scale,
             show_plot=False
         )
+        
+        # Clean up resized temp file if it was created
+        if processing_image_path != temp_image_path and os.path.exists(processing_image_path):
+            os.unlink(processing_image_path)
         
         if not results:
             return JSONResponse({
@@ -134,38 +175,13 @@ async def upload_and_detect(
             from PIL import Image
             import cv2
             
-            # Get original dimensions before any processing
-            original_height, original_width = results['annotated_image'].shape[:2]
-            
-            print(f"🖼️ Original image: {original_width}×{original_height}, max_width={max_image_width}")
-            
-            # MEMORY OPTIMIZATION: Resize BEFORE converting to PIL if image is large
+            # Image is already at the correct size with annotations
             annotated_cv2 = results['annotated_image']
+            current_height, current_width = annotated_cv2.shape[:2]
             
-            # Pre-resize with OpenCV if needed (more memory efficient than PIL for large images)
-            if original_width > max_image_width:
-                scale_factor = max_image_width / original_width
-                new_width = max_image_width
-                new_height = int(original_height * scale_factor)
-                
-                print(f"📐 Resizing from {original_width}×{original_height} to {new_width}×{new_height} (scale: {scale_factor:.3f})")
-                
-                # Resize with OpenCV
-                annotated_cv2 = cv2.resize(
-                    annotated_cv2, 
-                    (new_width, new_height), 
-                    interpolation=cv2.INTER_LANCZOS4
-                )
-                
-                print(f"✅ Resized successfully")
-                
-                # Clear original from memory immediately
-                del results['annotated_image']
-                gc.collect()
-            else:
-                print(f"⏭️ No resize needed (image already ≤ {max_image_width}px)")
+            print(f"📐 Annotated image size: {current_width}×{current_height}")
             
-            # Now convert to PIL
+            # Convert to PIL
             annotated_pil = Image.fromarray(cv2.cvtColor(annotated_cv2, cv2.COLOR_BGR2RGB))
             
             # Clear OpenCV image
@@ -175,12 +191,12 @@ async def upload_and_detect(
             # Calculate optimal JPEG quality
             jpeg_quality = calculate_optimal_jpeg_quality(annotated_pil.width)
             
-            print(f"💾 Final size: {annotated_pil.width}×{annotated_pil.height}, quality={jpeg_quality}")
-            
             # Encode to base64 with optimization
             buffered = io.BytesIO()
             annotated_pil.save(buffered, format="JPEG", quality=jpeg_quality, optimize=True)
             annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            
+            print(f"💾 Final encoded image: {annotated_pil.width}×{annotated_pil.height}, quality={jpeg_quality}")
             
             # Clean up everything immediately
             del annotated_pil
@@ -189,7 +205,7 @@ async def upload_and_detect(
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
-        # Get image dimensions (original, not resized)
+        # Get image dimensions (use original dimensions for reference)
         if cached_result and 'image_dimensions' in cached_result and cached_result['image_dimensions']:
             image_dims = cached_result['image_dimensions']
         else:

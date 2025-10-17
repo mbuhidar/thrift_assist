@@ -152,6 +152,7 @@
             cursor: pointer;
             font-size: 1em;
             font-weight: 600;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;  /* Explicitly set same font as body */
             transition: all 0.3s ease;
             width: 100%;
         }
@@ -368,7 +369,7 @@
             margin-top: 15px;
             background: #f8f9fa;
             display: inline-block;
-            width: auto;  /* Changed from 100% */
+            width: 100%;
             max-width: 100%;
         }
 
@@ -379,12 +380,10 @@
             display: block;
             transform-origin: 0 0;
             transition: none;
-            width: auto;  /* Changed to auto */
+            max-width: 100%;
             height: auto;
-            max-width: 100%;  /* Only prevent overflow, don't force size */
         }
 
-        /* Zoomed image styles */
         .image-preview.zoomed {
             cursor: grab;
         }
@@ -1195,7 +1194,74 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
         }
         
-        // Helper functions for UI state management
+        document.getElementById('ocrForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const imageFile = document.getElementById('imageFile').files[0];
+            const searchPhrasesText = document.getElementById('searchPhrases').value;
+            const threshold = document.getElementById('threshold').value;
+            let textScale = document.getElementById('textScale').value;  // Get text scale value
+            
+            // Boost annotation text size for mobile devices
+            if (device.isMobile || device.isTablet) {
+                const scaleInt = parseInt(textScale);
+                // Increase by 50% for mobile/tablet, capped at 300%
+                textScale = Math.min(300, Math.round(scaleInt * 1.5)).toString();
+                console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
+            }
+            
+            if (!imageFile) {
+                showError('Please select an image file');
+                return;
+            }
+            
+            if (!searchPhrasesText.trim()) {
+                showError('Please enter search phrases');
+                return;
+            }
+            
+            // Parse search phrases
+            const searchPhrases = searchPhrasesText.split(',').map(phrase => phrase.trim()).filter(phrase => phrase);
+            
+            if (searchPhrases.length === 0) {
+                showError('Please enter at least one search phrase');
+                return;
+            }
+            
+            // Show loading state
+            showLoading(true);
+            hideError();
+            hideResults();
+            
+            try {
+                // Prepare form data
+                formData.append('file', imageFile);
+                formData.append('search_phrases', JSON.stringify(searchPhrases));
+                formData.append('threshold', threshold);
+                formData.append('text_scale', textScale);  // Add boosted text scale to form data
+                
+                const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result, searchPhrases);
+                } else {
+                    showError(result.error_message || 'An error occurred while processing the image');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to connect to the API. Make sure the service is running on ' + API_BASE_URL);
+            } finally {
+                showLoading(false);
+            }
+        });
+        
         function showLoading(show) {
             const loading = document.getElementById('loading');
             const submitBtn = document.getElementById('submitBtn');
@@ -1213,17 +1279,12 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         
         function showError(message) {
             const errorDiv = document.getElementById('error');
-            errorDiv.innerHTML = `
-                <div style="background: #fee; border: 1px solid #fcc; border-radius: 8px; padding: 15px; color: #c33; margin-top: 15px;">
-                    <strong>❌ Error:</strong> ${message}
-                </div>
-            `;
+            errorDiv.textContent = message;
             errorDiv.style.display = 'block';
         }
         
         function hideError() {
-            const errorDiv = document.getElementById('error');
-            errorDiv.style.display = 'none';
+            document.getElementById('error').style.display = 'none';
         }
         
         function hideResults() {
@@ -1231,110 +1292,15 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             document.getElementById('noResults').style.display = 'block';
         }
         
-        document.getElementById('ocrForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData();
-            const imageFile = document.getElementById('imageFile').files[0];
-            const searchPhrasesText = document.getElementById('searchPhrases').value;
-            const threshold = document.getElementById('threshold').value;
-            let textScale = document.getElementById('textScale').value;
-            
-            // Boost annotation text size for mobile devices
-            if (device.isMobile || device.isTablet) {
-                const scaleInt = parseInt(textScale);
-                textScale = Math.min(300, Math.round(scaleInt * 1.5)).toString();
-                console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
-            }
-            
-            // Calculate optimal image resolution based on device
-            const maxImageWidth = (() => {
-                if (device.isMobile) {
-                    return Math.floor(Math.min(window.innerWidth * window.devicePixelRatio, 1080));
-                } else if (device.isTablet) {
-                    return Math.floor(Math.min(window.innerWidth * window.devicePixelRatio, 1920));
-                } else {
-                    return Math.floor(Math.min(window.innerWidth * 0.8 * window.devicePixelRatio, 2560));
-                }
-            })();
-            
-            console.log(`🖼️ Device: ${device.isMobile ? 'Mobile' : device.isTablet ? 'Tablet' : 'Desktop'}`);
-            console.log(`📱 Screen: ${window.innerWidth}×${window.innerHeight}, DPR: ${window.devicePixelRatio}`);
-            console.log(`🖼️ Requesting max image width: ${maxImageWidth}px`);
-            
-            if (!imageFile) {
-                showError('Please select an image file');
-                return;
-            }
-            
-            if (!searchPhrasesText.trim()) {
-                showError('Please enter search phrases');
-                return;
-            }
-            
-            const searchPhrases = searchPhrasesText.split(',').map(phrase => phrase.trim()).filter(phrase => phrase);
-            
-            if (searchPhrases.length === 0) {
-                showError('Please enter at least one search phrase');
-                return;
-            }
-            
-            showLoading(true);
-            hideError();
-            hideResults();
-            
-            try {
-                formData.append('file', imageFile);
-                formData.append('search_phrases', JSON.stringify(searchPhrases));
-                formData.append('threshold', threshold);
-                formData.append('text_scale', textScale);
-                formData.append('max_image_width', maxImageWidth);
-                
-                console.log('📤 Sending to backend:', {
-                    file: imageFile.name,
-                    fileSize: `${(imageFile.size / 1024 / 1024).toFixed(2)} MB`,
-                    phrases: searchPhrases.length,
-                    threshold: threshold,
-                    text_scale: textScale,
-                    max_image_width: maxImageWidth
-                });
-                
-                const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                console.log('📥 Received from backend:', {
-                    success: result.success,
-                    total_matches: result.total_matches,
-                    original_dimensions: result.image_dimensions,
-                    has_image: !!result.annotated_image_base64,
-                    image_size_kb: result.annotated_image_base64 ? Math.round(result.annotated_image_base64.length / 1024) : 0
-                });
-                
-                if (result.success) {
-                    displayResults(result, searchPhrases);
-                } else {
-                    showError(result.error_message || 'An error occurred while processing the image');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error:', error);
-                showError('Failed to connect to the API. Make sure the service is running on ' + API_BASE_URL);
-            } finally {
-                showLoading(false);
-            }
-        });
-        
         function displayResults(result, searchPhrases) {
             const resultsSummary = document.getElementById('resultsSummary');
             const matchesList = document.getElementById('matchesList');
             
+            // Show results section
             document.getElementById('results').style.display = 'block';
             document.getElementById('noResults').style.display = 'none';
             
+            // Update summary with explainability metrics
             const avgConfidence = calculateAverageConfidence(result.matches);
             
             resultsSummary.innerHTML = `
@@ -1342,7 +1308,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 <div>
                     <span class="stat">📊 Total: ${result.total_matches}</span>
                     <span class="stat">⏱️ ${Math.round(result.processing_time_ms)}ms</span>
-                    <span class="stat">📐 Original: ${result.image_dimensions[0]}×${result.image_dimensions[1]}</span>
+                    <span class="stat">📐 ${result.image_dimensions[0]}×${result.image_dimensions[1]}</span>
                     <span class="stat">🎯 Avg Confidence: ${avgConfidence}%</span>
                 </div>
             `;
@@ -1422,47 +1388,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             if (result.annotated_image_base64) {
                 const annotatedImage = document.getElementById('annotatedImage');
                 const imageContainer = document.getElementById('imageContainer');
-                
-                // Create temp image to detect actual dimensions
-                const tempImg = new Image();
-                tempImg.onload = function() {
-                    console.log(`🖼️ Received image actual size: ${tempImg.width}×${tempImg.height}`);
-                    
-                    // Force image to display at actual size
-                    annotatedImage.style.width = 'auto';
-                    annotatedImage.style.height = 'auto';
-                    annotatedImage.style.maxWidth = '100%';
-                    
-                    // Update container
-                    imageContainer.style.width = 'auto';
-                    imageContainer.style.maxWidth = '100%';
-                    
-                    // Add returned size to summary
-                    const summaryDiv = resultsSummary.querySelector('div');
-                    const existingStat = summaryDiv.querySelector('.stat-returned');
-                    if (existingStat) {
-                        existingStat.textContent = `📏 Returned: ${tempImg.width}×${tempImg.height}`;
-                    } else {
-                        const returnedStat = document.createElement('span');
-                        returnedStat.className = 'stat stat-returned';
-                        returnedStat.textContent = `📏 Returned: ${tempImg.width}×${tempImg.height}`;
-                        summaryDiv.appendChild(returnedStat);
-                    }
-                    
-                    // Log display dimensions
-                    setTimeout(() => {
-                        const displayedWidth = annotatedImage.offsetWidth;
-                        const displayedHeight = annotatedImage.offsetHeight;
-                        console.log(`📺 Image displayed at: ${displayedWidth}×${displayedHeight}`);
-                        
-                        if (Math.abs(displayedWidth - tempImg.width) > 5 || Math.abs(displayedHeight - tempImg.height) > 5) {
-                            console.warn(`⚠️ Image scaled by browser: actual ${tempImg.width}×${tempImg.height} → displayed ${displayedWidth}×${displayedHeight}`);
-                        } else {
-                            console.log(`✅ Image displayed at actual size`);
-                        }
-                    }, 100);
-                };
-                tempImg.src = `data:image/jpeg;base64,${result.annotated_image_base64}`;
                 
                 if (!imageZoom) {
                     imageZoom = new ImageZoom(annotatedImage, imageContainer);
@@ -1817,6 +1742,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 
                 if (isPinchZoom) {
                     // Touchpad pinch zoom
+                    // If this is the start of a new pinch gesture (>150ms since last event)
                     if (!this.pinchZoomActive || (now - this.lastPinchTime) > 150) {
                         this.pinchZoomActive = true;
                         this.pinchCenter.x = x;
@@ -1826,19 +1752,23 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     
                     this.lastPinchTime = now;
                     
+                    // Use smaller delta for smoother touchpad pinch zoom
                     const zoomDelta = Math.abs(e.deltaY) > 10 ? (e.deltaY > 0 ? 0.985 : 1.015) : (e.deltaY > 0 ? 0.995 : 1.005);
                     const newScale = Math.max(1, Math.min(5, this.scale * zoomDelta));
                     
                     if (newScale !== this.scale) {
+                        // Use the pinch center point, not the current cursor position
                         this.zoomToPoint(newScale, this.pinchCenter.x, this.pinchCenter.y);
                     }
                     
+                    // Reset pinch zoom active flag after a delay
                     clearTimeout(this.pinchZoomTimeout);
                     this.pinchZoomTimeout = setTimeout(() => {
                         this.pinchZoomActive = false;
                     }, 150);
                 } else {
                     // Regular scroll wheel zoom
+                    // If this is the start of a new wheel zoom (>300ms since last event)
                     if (!this.wheelZoomActive || (now - this.lastWheelTime) > 300) {
                         this.wheelZoomActive = true;
                         this.wheelCenter.x = x;
@@ -1851,9 +1781,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     const newScale = Math.max(1, Math.min(5, this.scale * delta));
                     
                     if (newScale !== this.scale) {
+                        // Use the wheel center point, not the current cursor position
                         this.zoomToPoint(newScale, this.wheelCenter.x, this.wheelCenter.y);
                     }
                     
+                    // Reset wheel zoom active flag after a delay
                     clearTimeout(this.wheelZoomTimeout);
                     this.wheelZoomTimeout = setTimeout(() => {
                         this.wheelZoomActive = false;
@@ -1865,6 +1797,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 if (!this.imageLoaded) return;
                 
                 if (e.touches.length === 1) {
+                    // Store initial touch for click detection
                     this.hasMoved = false;
                     this.lastTouch.x = e.touches[0].clientX;
                     this.lastTouch.y = e.touches[0].clientY;
@@ -1886,6 +1819,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.lastTouch.centerX = centerX;
                     this.lastTouch.centerY = centerY;
                     
+                    // Store initial translate values to prevent drift
                     this.lastTouch.initialTranslateX = this.translateX;
                     this.lastTouch.initialTranslateY = this.translateY;
                     this.lastTouch.initialScale = this.scale;
@@ -1966,19 +1900,29 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             zoomToPoint(newScale, pointX, pointY) {
                 if (!this.imageLoaded) return;
                 
+                // Get the image's natural dimensions
+                const imageWidth = this.image.naturalWidth || this.image.width;
+                const imageHeight = this.image.naturalHeight || this.image.height;
+                
+                // Calculate the display size of the image at current scale
                 const displayWidth = this.image.offsetWidth;
                 const displayHeight = this.image.offsetHeight;
                 
+                // Convert normalized point (0-1) to actual pixel position in the displayed image
                 const displayPointX = pointX * displayWidth;
                 const displayPointY = pointY * displayHeight;
                 
+                // Calculate where this point currently is on screen (in viewport coordinates)
                 const currentScreenX = this.translateX + (displayPointX * this.scale);
                 const currentScreenY = this.translateY + (displayPointY * this.scale);
                 
+                // After zoom, we want that same screen position to map to the same image point
+                // So: screenPos = newTranslate + (displayPoint * newScale)
+                // Therefore: newTranslate = screenPos - (displayPoint * newScale)
                 this.translateX = currentScreenX - (displayPointX * newScale);
                 this.translateY = currentScreenY - (displayPointY * newScale);
-                this.scale = newScale;
                 
+                this.scale = newScale;
                 this.constrainTranslation();
                 this.updateTransform();
                 this.updateUI();
@@ -2027,14 +1971,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
-                if (!isFinite(this.translateX)) this.translateX = 0;
-                if (!isFinite(this.translateY)) this.translateY = 0;
-                if (!isFinite(this.scale) || this.scale < 1) this.scale = 1;
-                
-                const transform = `translate3d(${this.translateX}px, ${this.translateY}px, 0) scale(${this.scale})`;
+                const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
                 this.image.style.transform = transform;
                 this.image.style.transformOrigin = '0 0';
-                this.image.style.willChange = 'transform';
+                
+                // Remove debug logging now
                 
                 if (this.scale > 1) {
                     this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
@@ -2056,31 +1997,27 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 
                 const containerWidth = this.container.clientWidth;
                 const containerHeight = this.container.clientHeight;
+                
+                // Use the actual displayed width/height, not natural dimensions
                 const baseWidth = this.image.offsetWidth;
                 const baseHeight = this.image.offsetHeight;
-                
-                if (!baseWidth || !baseHeight) return;
                 
                 const scaledWidth = baseWidth * this.scale;
                 const scaledHeight = baseHeight * this.scale;
                 
-                // Horizontal constraints with buffer
                 if (scaledWidth <= containerWidth) {
                     this.translateX = (containerWidth - scaledWidth) / 2;
                 } else {
-                    const buffer = this.scale > 3.5 ? 100 : this.scale > 2.5 ? 75 : this.scale > 2 ? 50 : 0;
-                    const minX = containerWidth - scaledWidth - buffer;
-                    const maxX = buffer;
+                    const minX = containerWidth - scaledWidth;
+                    const maxX = 0;
                     this.translateX = Math.max(minX, Math.min(maxX, this.translateX));
                 }
                 
-                // Vertical constraints with buffer
                 if (scaledHeight <= containerHeight) {
                     this.translateY = (containerHeight - scaledHeight) / 2;
                 } else {
-                    const buffer = this.scale > 3.5 ? 100 : this.scale > 2.5 ? 75 : this.scale >  2 ? 50 : 0;
-                    const minY = containerHeight - scaledHeight - buffer;
-                    const maxY = buffer;
+                    const minY = containerHeight - scaledHeight;
+                    const maxY = 0;
                     this.translateY = Math.max(minY, Math.min(maxY, this.translateY));
                 }
             }
@@ -2117,8 +2054,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
 
         // Initialize zoom functionality
         let imageZoom = null;
-
-        // Test connection on page load   
+        // Test connection on page load
         window.addEventListener('load', async function() {
             const isConnected = await testConnection();
             if (!isConnected) {
