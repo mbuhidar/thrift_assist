@@ -52,6 +52,9 @@ async def upload_and_detect(
         except (json.JSONDecodeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=f"Invalid search_phrases format: {str(e)}")
         
+        # Log received parameters
+        print(f"📥 Received request: max_image_width={max_image_width}, text_scale={text_scale}")
+        
         # Read and validate image data
         image_data = await file.read()
         
@@ -96,7 +99,7 @@ async def upload_and_detect(
             # Cache the image info
             cache_service.cache_result(image_hash, {
                 'image_path': temp_image_path,
-                'image_dimensions': None,  # Will be set from results
+                'image_dimensions': None,
                 'filename': file.filename,
                 'text_scale': text_scale
             })
@@ -105,14 +108,55 @@ async def upload_and_detect(
         del image_data
         gc.collect()
         
-        # Run OCR detection
+        # IMPORTANT: Resize image BEFORE OCR detection if needed
+        # This ensures annotations are drawn at the correct scale
+        import cv2
+        original_image = cv2.imread(temp_image_path)
+        original_height, original_width = original_image.shape[:2]
+        
+        # Determine if we need to resize for processing
+        if original_width > max_image_width:
+            scale_factor = max_image_width / original_width
+            new_width = max_image_width
+            new_height = int(original_height * scale_factor)
+            
+            print(f"📐 Pre-processing resize: {original_width}×{original_height} → {new_width}×{new_height}")
+            
+            # Resize with OpenCV
+            resized_image = cv2.resize(
+                original_image,
+                (new_width, new_height),
+                interpolation=cv2.INTER_LANCZOS4
+            )
+            
+            # Save resized image temporarily
+            import tempfile
+            resized_path = temp_image_path.replace('.jpg', '_resized.jpg')
+            cv2.imwrite(resized_path, resized_image)
+            
+            # Use resized image for OCR
+            processing_image_path = resized_path
+            
+            # Clean up
+            del original_image
+            del resized_image
+            gc.collect()
+        else:
+            processing_image_path = temp_image_path
+            print(f"⏭️ No pre-processing resize needed (image ≤ {max_image_width}px)")
+        
+        # Run OCR detection on the appropriately-sized image
         results = ocr_service.detect_phrases(
-            image_path=temp_image_path,
+            image_path=processing_image_path,
             search_phrases=phrases_list,
             threshold=threshold,
             text_scale=text_scale,
             show_plot=False
         )
+        
+        # Clean up resized temp file if it was created
+        if processing_image_path != temp_image_path and os.path.exists(processing_image_path):
+            os.unlink(processing_image_path)
         
         if not results:
             return JSONResponse({
@@ -131,32 +175,13 @@ async def upload_and_detect(
             from PIL import Image
             import cv2
             
-            # Get original dimensions before any processing
-            original_height, original_width = results['annotated_image'].shape[:2]
-            
-            # MEMORY OPTIMIZATION: Resize BEFORE converting to PIL if image is large
+            # Image is already at the correct size with annotations
             annotated_cv2 = results['annotated_image']
+            current_height, current_width = annotated_cv2.shape[:2]
             
-            # Pre-resize with OpenCV if needed (more memory efficient than PIL for large images)
-            if original_width > max_image_width:
-                scale_factor = max_image_width / original_width
-                new_width = max_image_width
-                new_height = int(original_height * scale_factor)
-                
-                # Resize with OpenCV (in-place operation, more memory efficient)
-                annotated_cv2 = cv2.resize(
-                    annotated_cv2, 
-                    (new_width, new_height), 
-                    interpolation=cv2.INTER_LANCZOS4
-                )
-                
-                print(f"📐 Pre-resized with OpenCV: {original_width}×{original_height} → {new_width}×{new_height}")
-                
-                # Clear original from memory immediately
-                del results['annotated_image']
-                gc.collect()
+            print(f"📐 Annotated image size: {current_width}×{current_height}")
             
-            # Now convert smaller image to PIL
+            # Convert to PIL
             annotated_pil = Image.fromarray(cv2.cvtColor(annotated_cv2, cv2.COLOR_BGR2RGB))
             
             # Clear OpenCV image
@@ -171,24 +196,23 @@ async def upload_and_detect(
             annotated_pil.save(buffered, format="JPEG", quality=jpeg_quality, optimize=True)
             annotated_image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
             
+            print(f"💾 Final encoded image: {annotated_pil.width}×{annotated_pil.height}, quality={jpeg_quality}")
+            
             # Clean up everything immediately
             del annotated_pil
             del buffered
             gc.collect()
-            
-            print(f"📐 Final image size: quality={jpeg_quality}")
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
-        # Get image dimensions
+        # Get image dimensions (use original dimensions for reference)
         if cached_result and 'image_dimensions' in cached_result and cached_result['image_dimensions']:
             image_dims = cached_result['image_dimensions']
         else:
-            # Get from original results before cleanup
-            if 'annotated_image' in results:
-                image_dims = [results['annotated_image'].shape[1], results['annotated_image'].shape[0]]
-            else:
-                image_dims = [original_width, original_height]
+            image_dims = [original_width, original_height]
+        
+        # Calculate total matches correctly
+        total_matches = sum(len(matches) for matches in serializable_matches.values())
         
         # Clear results from memory
         del results
@@ -196,12 +220,12 @@ async def upload_and_detect(
         
         return JSONResponse({
             "success": True,
-            "total_matches": len(serializable_matches),
+            "total_matches": total_matches,
             "matches": serializable_matches,
             "processing_time_ms": processing_time,
             "image_dimensions": image_dims,
             "annotated_image_base64": annotated_image_base64,
-            "all_detected_text": "",  # Don't store full text to save memory
+            "all_detected_text": "",
             "filename": file.filename,
             "cached": cached_result is not None
         })
