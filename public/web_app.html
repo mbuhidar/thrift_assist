@@ -369,7 +369,7 @@
             margin-top: 15px;
             background: #f8f9fa;
             display: inline-block;
-            width: 100%;
+            width: auto;  /* Let it size to content */
             max-width: 100%;
         }
 
@@ -380,8 +380,9 @@
             display: block;
             transform-origin: 0 0;
             transition: none;
-            max-width: 100%;
+            width: auto;  /* Actual size, not stretched */
             height: auto;
+            max-width: 100%;  /* Only prevent overflow */
         }
 
         .image-preview.zoomed {
@@ -716,6 +717,18 @@
             
             .slider-labels {
                 font-size: 0.8em;
+            }
+            
+            /* Force mobile images to display at actual size */
+            .image-container {
+                max-width: 100vw;  /* Never exceed viewport width */
+                overflow-x: auto;   /* Allow horizontal scroll if needed */
+            }
+            
+            .image-preview.zoomable {
+                max-width: none;    /* Remove max-width constraint on mobile */
+                width: auto;        /* Display at actual received size */
+                height: auto;
             }
         }
 
@@ -1388,6 +1401,53 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             if (result.annotated_image_base64) {
                 const annotatedImage = document.getElementById('annotatedImage');
                 const imageContainer = document.getElementById('imageContainer');
+                
+                // Create temp image to get actual dimensions
+                const tempImg = new Image();
+                tempImg.onload = function() {
+                    console.log(`🖼️ Received image actual size: ${tempImg.width}×${tempImg.height}`);
+                    console.log(`📱 Device: ${device.isMobile ? 'Mobile' : device.isTablet ? 'Tablet' : 'Desktop'}`);
+                    console.log(`📏 Expected mobile: ~1080px, desktop: up to 2560px`);
+                    
+                    // Force image to display at actual size (no browser scaling)
+                    annotatedImage.style.width = `${tempImg.width}px`;
+                    annotatedImage.style.height = `${tempImg.height}px`;
+                    annotatedImage.style.maxWidth = 'none';
+                    annotatedImage.style.maxHeight = 'none';
+                    
+                    // On mobile, ensure container doesn't force scaling
+                    if (device.isMobile) {
+                        imageContainer.style.maxWidth = '100vw';
+                        imageContainer.style.overflowX = 'auto';
+                        console.log(`📱 Mobile: Set image to actual ${tempImg.width}×${tempImg.height}px`);
+                    }
+                    
+                    // Add returned size to summary
+                    const summaryDiv = resultsSummary.querySelector('div');
+                    const existingStat = summaryDiv.querySelector('.stat-returned');
+                    if (existingStat) {
+                        existingStat.textContent = `📏 Returned: ${tempImg.width}×${tempImg.height}`;
+                    } else {
+                        const returnedStat = document.createElement('span');
+                        returnedStat.className = 'stat stat-returned';
+                        returnedStat.textContent = `📏 Returned: ${tempImg.width}×${tempImg.height}`;
+                        summaryDiv.appendChild(returnedStat);
+                    }
+                    
+                    // Log display dimensions after a moment
+                    setTimeout(() => {
+                        const displayedWidth = annotatedImage.offsetWidth;
+                        const displayedHeight = annotatedImage.offsetHeight;
+                        console.log(`📺 Image displayed at: ${displayedWidth}×${displayedHeight}`);
+                        
+                        if (Math.abs(displayedWidth - tempImg.width) > 5) {
+                            console.warn(`⚠️ Image scaled by browser: actual ${tempImg.width}px → displayed ${displayedWidth}px`);
+                        } else {
+                            console.log(`✅ Image displayed at actual size`);
+                        }
+                    }, 100);
+                };
+                tempImg.src = `data:image/jpeg;base64,${result.annotated_image_base64}`;
                 
                 if (!imageZoom) {
                     imageZoom = new ImageZoom(annotatedImage, imageContainer);
