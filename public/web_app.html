@@ -1606,13 +1606,18 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.lastTouch = { x: 0, y: 0, distance: 0 };
                 this.imageLoaded = false;
                 this.hasMoved = false;
-                this.isTouchDevice = device.isTouchDevice;  // Use detected touch capability
+                this.isTouchDevice = device.isTouchDevice;
                 this.pinchZoomActive = false;
                 this.pinchCenter = { x: 0.5, y: 0.5 };
                 this.lastPinchTime = 0;
                 this.wheelZoomActive = false;
                 this.wheelCenter = { x: 0.5, y: 0.5 };
                 this.lastWheelTime = 0;
+                
+                // Mobile zoom detection
+                this.nativeZoomActive = false;
+                this.lastViewportWidth = window.innerWidth;
+                this.lastViewportHeight = window.innerHeight;
                 
                 this.init();
             }
@@ -1643,6 +1648,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.image.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
                 }
                 
+                // Monitor viewport changes for native zoom detection on mobile
+                if (device.isMobile) {
+                    window.addEventListener('resize', () => this.detectNativeZoom());
+                    window.addEventListener('orientationchange', () => {
+                        setTimeout(() => this.detectNativeZoom(), 500);
+                    });
+                }
+                
                 this.image.addEventListener('contextmenu', (e) => e.preventDefault());
                 
                 document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
@@ -1650,6 +1663,30 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 document.getElementById('resetZoomBtn').addEventListener('click', () => this.resetZoom());
                 
                 this.image.addEventListener('dragstart', (e) => e.preventDefault());
+            }
+            
+            detectNativeZoom() {
+                // Detect if user is using native browser zoom
+                const currentWidth = window.innerWidth;
+                const currentHeight = window.innerHeight;
+                
+                // If viewport size changed significantly, assume native zoom
+                const widthChange = Math.abs(currentWidth - this.lastViewportWidth);
+                const heightChange = Math.abs(currentHeight - this.lastViewportHeight);
+                
+                this.nativeZoomActive = (widthChange > 50 || heightChange > 50) && 
+                                      (window.devicePixelRatio !== 1);
+                
+                console.log(`📱 Native zoom detection: ${this.nativeZoomActive ? 'ACTIVE' : 'inactive'} (${currentWidth}×${currentHeight})`);
+                
+                this.lastViewportWidth = currentWidth;
+                this.lastViewportHeight = currentHeight;
+                
+                // If native zoom is active, disable our custom zoom
+                if (this.nativeZoomActive && this.scale > 1) {
+                    console.log('🔄 Resetting custom zoom due to native zoom');
+                    this.resetZoom();
+                }
             }
             
             handleClick(e) {
@@ -1796,8 +1833,24 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             handleTouchStart(e) {
                 if (!this.imageLoaded) return;
                 
+                // If native zoom is detected, allow default behavior
+                if (this.nativeZoomActive) {
+                    console.log('📱 Native zoom active - allowing default touch behavior');
+                    return;
+                }
+                
+                // Detect potential native zoom gesture (pinch with specific characteristics)
+                if (e.touches.length === 2) {
+                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                    // If touches are very far apart, might be native zoom
+                    if (distance > window.innerWidth * 0.8) {
+                        console.log('📱 Large touch distance detected - allowing native zoom');
+                        this.nativeZoomActive = true;
+                        return;
+                    }
+                }
+                
                 if (e.touches.length === 1) {
-                    // Store initial touch for click detection
                     this.hasMoved = false;
                     this.lastTouch.x = e.touches[0].clientX;
                     this.lastTouch.y = e.touches[0].clientY;
@@ -1819,16 +1872,37 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.lastTouch.centerX = centerX;
                     this.lastTouch.centerY = centerY;
                     
-                    // Store initial translate values to prevent drift
                     this.lastTouch.initialTranslateX = this.translateX;
                     this.lastTouch.initialTranslateY = this.translateY;
                     this.lastTouch.initialScale = this.scale;
                 }
+                
+                // Only prevent default if we're handling the gesture
                 e.preventDefault();
+                e.stopPropagation();
             }
             
             handleTouchMove(e) {
                 if (!this.imageLoaded) return;
+                
+                // If native zoom is active, don't interfere
+                if (this.nativeZoomActive) {
+                    return;
+                }
+                
+                // Check if this might be a native zoom gesture
+                if (e.touches.length === 2) {
+                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                    const scaleChange = Math.abs(distance - this.lastTouch.distance) / this.lastTouch.distance;
+                    
+                    // If scale change is very rapid or large, might be native zoom
+                    if (scaleChange > 0.5) {
+                        console.log('📱 Rapid scale change detected - switching to native zoom');
+                        this.nativeZoomActive = true;
+                        this.resetZoom();
+                        return;
+                    }
+                }
                 
                 if (e.touches.length === 1 && this.scale > 1) {
                     // Single finger drag when zoomed
@@ -1849,16 +1923,27 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * scaleFactor));
                     
                     if (newScale !== this.scale) {
-                        // Use stored center point for consistent zoom
                         this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
                         this.hasMoved = true;
                     }
                 }
+                
+                // Only prevent default if we're handling the gesture
                 e.preventDefault();
+                e.stopPropagation();
             }
             
             handleTouchEnd(e) {
                 if (!this.imageLoaded) return;
+                
+                // If native zoom was active, reset detection after a delay
+                if (this.nativeZoomActive) {
+                    setTimeout(() => {
+                        this.nativeZoomActive = false;
+                        console.log('📱 Native zoom detection reset');
+                    }, 1000);
+                    return;
+                }
                 
                 if (e.touches.length === 0) {
                     const now = Date.now();
@@ -1877,7 +1962,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                             } else {
                                 this.resetZoom();
                             }
-                            this.lastTap = 0; // Reset to prevent triple-tap
+                            this.lastTap = 0;
                         } else {
                             this.lastTap = now;
                         }
@@ -1888,7 +1973,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.hasMoved = false;
                 }
                 
-                e.preventDefault();
+                // Only prevent default if we handled the gesture
+                if (!this.nativeZoomActive) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
             }
             
             getTouchDistance(touch1, touch2) {
@@ -1966,6 +2055,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.scale = 1;
                 this.translateX = 0;
                 this.translateY = 0;
+                this.nativeZoomActive = false; // Reset native zoom detection
                 this.updateTransform();
                 this.updateUI();
             }
