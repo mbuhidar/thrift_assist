@@ -1,7 +1,4 @@
-"""
-Vision OCR package for phrase detection and annotation.
-Provides Google Cloud Vision API integration with fuzzy matching.
-"""
+"""Vision package for OCR and text detection."""
 
 from .detector import VisionPhraseDetector
 from .annotator import ImageAnnotator
