@@ -102,23 +102,20 @@ def sample_image_file(sample_image, temp_dir):
 
 @pytest.fixture
 def mock_ocr_results():
-    """Mock OCR detection results."""
+    """Mock OCR detection results with correct tuple format."""
     return {
         'matches': {
             'test phrase': [
-                {
-                    'text': 'test phrase found here',
-                    'score': 95.5,
-                    'angle': 0,
-                    'annotations': [],
-                    'explanation': {
-                        'confidence_level': 'High',
-                        'reasoning': ['Exact text match found'],
-                        'confidence_factors': {'text_similarity': 95},
-                        'warnings': [],
-                        'recommendation': 'High confidence match'
-                    }
-                }
+                # Tuple format: (match_data, score, match_type)
+                (
+                    {
+                        'text': 'test phrase found here',
+                        'angle': 0,
+                        'annotations': [],
+                    },
+                    95.5,  # score
+                    'complete_phrase'  # match_type
+                )
             ]
         },
         'annotated_image': np.zeros((300, 400, 3), dtype=np.uint8),
