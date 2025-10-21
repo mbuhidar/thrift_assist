@@ -227,3 +227,21 @@ temp/
 tmp/
 uploads/
 
+# Test artifacts (but NOT test files themselves!)
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+__pycache__/
+.tox/
+*.egg-info/
+
+# Temporary test files
+/tmp/
+*.tmp
+*.log
+
+# IDE test runner config
+.idea/
+.vscode/
+
