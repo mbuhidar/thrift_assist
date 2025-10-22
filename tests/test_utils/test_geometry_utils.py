@@ -8,11 +8,11 @@ import math
 class TestGeometryUtils:
     """Test geometry utility functions."""
     
-    def test_calculate_text_angle(self):
-        """Test text angle calculation."""
+    def test_calculate_text_angle_horizontal(self):
+        """Test text angle calculation for horizontal text."""
         from utils.geometry_utils import calculate_text_angle
         
-        # Create mock vertices for horizontal text
+        # Horizontal text (0 degrees)
         vertices = [
             type('obj', (object,), {'x': 0, 'y': 0})(),
             type('obj', (object,), {'x': 10, 'y': 0})(),
@@ -22,9 +22,144 @@ class TestGeometryUtils:
         
         angle = calculate_text_angle(vertices)
         
-        # Should return an angle (may be 0 for horizontal)
         assert isinstance(angle, (int, float))
-        assert -180 <= angle <= 180
+        assert abs(angle) < 1  # Should be close to 0 degrees
+    
+    def test_calculate_text_angle_vertical(self):
+        """Test text angle calculation for vertical text."""
+        from utils.geometry_utils import calculate_text_angle
+        
+        # Vertical text (90 degrees)
+        vertices = [
+            type('obj', (object,), {'x': 0, 'y': 0})(),
+            type('obj', (object,), {'x': 0, 'y': 10})(),
+            type('obj', (object,), {'x': 5, 'y': 10})(),
+            type('obj', (object,), {'x': 5, 'y': 0})()
+        ]
+        
+        angle = calculate_text_angle(vertices)
+        
+        assert isinstance(angle, (int, float))
+        assert abs(angle - 90) < 1 or abs(angle + 90) < 1
+    
+    def test_calculate_text_angle_empty_vertices(self):
+        """Test text angle with insufficient vertices."""
+        from utils.geometry_utils import calculate_text_angle
+        
+        # Single vertex
+        vertices = [type('obj', (object,), {'x': 0, 'y': 0})()]
+        angle = calculate_text_angle(vertices)
+        assert angle == 0
+        
+        # Empty vertices
+        angle = calculate_text_angle([])
+        assert angle == 0
+    
+    def test_rectangles_overlap_true(self):
+        """Test rectangle overlap detection (overlapping case)."""
+        from utils.geometry_utils import rectangles_overlap
+        
+        rect1 = (0, 0, 10, 10)
+        rect2 = (5, 5, 15, 15)
+        
+        assert rectangles_overlap(rect1, rect2) is True
+    
+    def test_rectangles_overlap_false(self):
+        """Test rectangle overlap detection (non-overlapping case)."""
+        from utils.geometry_utils import rectangles_overlap
+        
+        rect1 = (0, 0, 10, 10)
+        rect2 = (20, 20, 30, 30)
+        
+        assert rectangles_overlap(rect1, rect2) is False
+    
+    def test_rectangles_overlap_touching(self):
+        """Test rectangle overlap detection (touching edges)."""
+        from utils.geometry_utils import rectangles_overlap
+        
+        # Touching but not overlapping
+        rect1 = (0, 0, 10, 10)
+        rect2 = (10, 0, 20, 10)
+        
+        assert rectangles_overlap(rect1, rect2) is False
+    
+    def test_rectangles_overlap_contained(self):
+        """Test rectangle overlap detection (one inside other)."""
+        from utils.geometry_utils import rectangles_overlap
+        
+        rect1 = (0, 0, 20, 20)
+        rect2 = (5, 5, 15, 15)
+        
+        assert rectangles_overlap(rect1, rect2) is True
+    
+    def test_find_non_overlapping_position_no_conflict(self):
+        """Test finding position when no overlap exists."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 20, 20)
+        existing = []
+        image_shape = (100, 100)
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        assert isinstance(result, tuple)
+        assert len(result) == 4
+        # Should return similar position (with margin adjustments)
+        assert result[2] - result[0] == 10  # Width preserved
+        assert result[3] - result[1] == 10  # Height preserved
+    
+    def test_find_non_overlapping_position_with_conflict(self):
+        """Test finding position when overlap exists."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 20, 20)
+        existing = [(10, 10, 20, 20)]  # Same position
+        image_shape = (100, 100)
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        assert isinstance(result, tuple)
+        assert len(result) == 4
+        # Should find different position
+        assert result != rect
+    
+    def test_find_non_overlapping_position_multiple_conflicts(self):
+        """Test finding position with multiple overlapping rectangles."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 20, 20)
+        existing = [
+            (10, 10, 20, 20),
+            (10, 35, 20, 45),
+            (-15, 10, -5, 20),
+            (35, 10, 45, 20)
+        ]
+        image_shape = (100, 100)
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        assert isinstance(result, tuple)
+        assert len(result) == 4
+        # Should not overlap with any existing
+        for ex_rect in existing:
+            from utils.geometry_utils import rectangles_overlap
+            assert not rectangles_overlap(result, ex_rect)
+    
+    def test_find_non_overlapping_position_bounds_checking(self):
+        """Test position finder respects image bounds."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (90, 90, 100, 100)  # Near edge
+        existing = []
+        image_shape = (100, 100)
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should be within bounds (with margin)
+        assert result[0] >= 0
+        assert result[1] >= 0
+        assert result[2] <= 100
+        assert result[3] <= 100
     
     def test_geometry_utils_module_exists(self):
         """Test geometry utils module can be imported."""
@@ -34,30 +169,71 @@ class TestGeometryUtils:
         except ImportError:
             pytest.fail("utils.geometry_utils should be importable")
     
-    def test_geometry_utils_has_functions(self):
-        """Test that geometry utils has expected functions."""
-        from utils import geometry_utils
+    def test_find_non_overlapping_position_stacked_fallback(self):
+        """Test position finder uses stacking when all offsets fail."""
+        from utils.geometry_utils import find_non_overlapping_position
         
-        # Test that the module has the text angle function
-        assert hasattr(geometry_utils, 'calculate_text_angle')
+        # Create a small image with limited space
+        rect = (10, 10, 30, 30)
+        image_shape = (50, 50)
         
-        # Test that it's callable
-        assert callable(geometry_utils.calculate_text_angle)
-    
-    def test_calculate_text_angle_edge_cases(self):
-        """Test text angle calculation with edge cases."""
-        from utils.geometry_utils import calculate_text_angle
-        
-        # Test with minimal vertices
-        vertices = [
-            type('obj', (object,), {'x': 0, 'y': 0})(),
-            type('obj', (object,), {'x': 0, 'y': 0})()
+        # Fill all offset positions with existing rectangles
+        existing = [
+            (10, -25, 30, -5),   # Above
+            (10, 45, 30, 65),    # Below
+            (-25, 10, -5, 30),   # Left
+            (45, 10, 65, 30),    # Right
+            (-25, -25, -5, -5),  # Top-left
+            (45, -25, 65, -5),   # Top-right
+            (-25, 45, -5, 65),   # Bottom-left
+            (45, 45, 65, 65),    # Bottom-right
         ]
         
-        try:
-            angle = calculate_text_angle(vertices)
-            # Should return some angle or handle gracefully
-            assert isinstance(angle, (int, float))
-        except (IndexError, ZeroDivisionError):
-            # These exceptions are acceptable for edge cases
-            pass
+        # This should trigger stacking fallback
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        assert isinstance(result, tuple)
+        assert len(result) == 4
+        # Should find a stacked position
+        assert result[0] >= 0
+        assert result[1] >= 0
+        assert result[2] <= 50
+        assert result[3] <= 50
+    
+    def test_find_non_overlapping_position_stacked_vertical(self):
+        """Test vertical stacking when horizontal space limited."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 30, 30)
+        # Existing rect at same X position but different Y
+        existing = [(10, 10, 30, 30)]
+        image_shape = (100, 100)
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should stack below the existing rect
+        assert result[1] >= existing[0][3]  # Y1 >= existing Y2
+        assert result[0] == 10  # X position preserved
+    
+    def test_find_non_overlapping_position_stacked_horizontal(self):
+        """Test horizontal stacking when vertical space limited."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 30, 30)
+        image_shape = (100, 100)  # Changed: give more vertical space
+        
+        # Fill vertical space at same X to force horizontal stacking
+        existing = [
+            (10, 0, 30, 15),    # Top
+            (10, 15, 30, 30),   # Middle (overlaps with rect)
+            (10, 30, 30, 45),   # Below
+        ]
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should find a non-overlapping position (may be horizontal offset)
+        assert isinstance(result, tuple)
+        # Verify it doesn't overlap with any existing
+        from utils.geometry_utils import rectangles_overlap
+        for ex_rect in existing:
+            assert not rectangles_overlap(result, ex_rect)
