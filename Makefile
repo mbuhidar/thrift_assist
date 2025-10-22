@@ -20,7 +20,7 @@ test-api:
 
 # Run tests with coverage report
 test-coverage:
-	pytest --cov=backend --cov=vision --cov=config --cov=main --cov-report=html --cov-report=term
+	pytest --cov=backend --cov=vision --cov=config --cov=utils --cov=main --cov-report=html --cov-report=term --cov-report=term-missing
 
 # Run fast tests only
 test-fast:
@@ -106,7 +106,7 @@ test-setup-full:
 		echo "numpy>=1.24.0" >> requirements-test.txt; \
 	fi
 	pip install -r requirements-test.txt
-	pip install opencv-python Pillow "fastapi[test]"
+	pip install opencv-python Pillow fastapi httpx
 	mkdir -p tests/test_data
 	mkdir -p logs/test
 	@echo "✅ Full test environment setup complete"
@@ -145,9 +145,9 @@ test-all-utils:
 test-parallel:
 	pytest -n auto
 
-# Comprehensive test suite
+# Comprehensive test suite with coverage
 test-full:
-	pytest --cov=backend --cov=vision --cov=config --cov=main --cov-report=html --cov-report=term --durations=10
+	pytest --cov=backend --cov=vision --cov=config --cov=utils --cov=main --cov-report=html --cov-report=term-missing --durations=10 --cov-fail-under=50
 
 # Quick development test
 test-dev:
@@ -160,5 +160,15 @@ install-test-deps:
 	@pip install numpy || echo "Failed to install numpy"
 	@pip install opencv-python || echo "Failed to install opencv-python"
 	@pip install Pillow || echo "Failed to install Pillow"
-	@pip install "fastapi[test]" || echo "Failed to install fastapi[test]"
+	@pip install fastapi httpx || echo "Failed to install fastapi/httpx"
 	@echo "✅ Installed available dependencies"
+
+# Coverage report only (no tests)
+coverage-report:
+	coverage report -m
+	coverage html
+	@echo "📊 Coverage report generated in htmlcov/index.html"
+
+# Find untested files
+coverage-missing:
+	pytest --cov=backend --cov=vision --cov=config --cov=utils --cov=main --cov-report=term-missing | grep "TOTAL"

@@ -45,6 +45,24 @@ class TestMainApp:
         
         # App should have routes defined
         assert len(main.app.routes) > 0
+    
+    def test_main_app_metadata(self):
+        """Test app has proper metadata."""
+        import main
+        
+        assert hasattr(main.app, 'title')
+        assert hasattr(main.app, 'version')
+        assert main.app.title is not None
+    
+    def test_main_app_routes_registered(self):
+        """Test that routes are properly registered."""
+        import main
+        
+        # Get all route paths
+        routes = [route.path for route in main.app.routes]
+        
+        # Should have OCR routes
+        assert any('/ocr' in route for route in routes)
 
 
 @pytest.mark.integration
