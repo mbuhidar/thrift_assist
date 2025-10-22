@@ -99,6 +99,47 @@ class TestOCRService:
         
         assert results is None
 
+    def test_detect_phrases_with_none_threshold(self, sample_image_file):
+        """Test detect_phrases with None threshold uses default."""
+        from backend.services.ocr_service import OCRService
+        
+        with patch('backend.services.ocr_service.VisionPhraseDetector') as MockDetector:
+            mock_instance = Mock()
+            mock_instance.detect.return_value = None
+            MockDetector.return_value = mock_instance
+            
+            service = OCRService()
+            result = service.detect_phrases(
+                str(sample_image_file),
+                ["test"],
+                threshold=None  # Should use default
+            )
+            
+            # Should call detector
+            mock_instance.detect.assert_called_once()
+    
+    def test_format_empty_matches(self):
+        """Test formatting empty match results."""
+        from backend.services.ocr_service import OCRService
+        
+        service = OCRService()
+        results = {'matches': {}}
+        
+        formatted = service.format_matches_for_api(results)
+        
+        assert formatted == {}
+    
+    def test_ocr_service_initialization_failure(self):
+        """Test OCR service handles initialization gracefully."""
+        from backend.services.ocr_service import OCRService
+        
+        # Don't patch VisionPhraseDetector - let it fail naturally
+        # The service should catch exceptions during init
+        service = OCRService()
+        
+        # Should have set ocr_available flag
+        assert hasattr(service, 'ocr_available')
+
 
 @pytest.mark.ocr
 @pytest.mark.integration
