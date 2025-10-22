@@ -237,3 +237,139 @@ class TestGeometryUtils:
         from utils.geometry_utils import rectangles_overlap
         for ex_rect in existing:
             assert not rectangles_overlap(result, ex_rect)
+    
+    def test_find_non_overlapping_position_all_directions_blocked(self):
+        """Test stacking when all cardinal directions are blocked."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (40, 40, 60, 60)
+        image_shape = (100, 100)
+        
+        # Block all 8 offset directions around the rect
+        existing = [
+            (40, 0, 60, 15),     # Top
+            (40, 85, 60, 100),   # Bottom
+            (0, 40, 15, 60),     # Left
+            (85, 40, 100, 60),   # Right
+            (0, 0, 15, 15),      # Top-left
+            (85, 0, 100, 15),    # Top-right
+            (0, 85, 15, 100),    # Bottom-left
+            (85, 85, 100, 100),  # Bottom-right
+        ]
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should use stacking fallback
+        assert isinstance(result, tuple)
+        assert len(result) == 4
+        
+        # Should not overlap with any existing (original rect may be returned if no space)
+        from utils.geometry_utils import rectangles_overlap
+        for ex_rect in existing:
+            assert not rectangles_overlap(result, ex_rect)
+    
+    def test_find_non_overlapping_position_vertical_stack_preferred(self):
+        """Test that vertical stacking is preferred when available."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 30, 30)
+        image_shape = (100, 100)
+        
+        # Block only horizontal directions, leave vertical open
+        existing = [
+            (-15, 10, -5, 30),   # Left
+            (45, 10, 55, 30),    # Right
+        ]
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should stack vertically (below or above)
+        assert isinstance(result, tuple)
+        # X position should be similar to original
+        assert abs(result[0] - rect[0]) < 30
+    
+    def test_find_non_overlapping_position_horizontal_stack_preferred(self):
+        """Test horizontal stacking when vertical blocked."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 30, 30)
+        image_shape = (100, 100)
+        
+        # Block only vertical directions, leave horizontal open
+        existing = [
+            (10, -25, 30, -5),   # Above
+            (10, 45, 30, 65),    # Below
+        ]
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should stack horizontally (left or right)
+        assert isinstance(result, tuple)
+        # Y position should be similar to original
+        assert abs(result[1] - rect[1]) < 30
+    
+    def test_find_non_overlapping_position_narrow_vertical_space(self):
+        """Test stacking in narrow vertical space."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 30, 30)
+        image_shape = (100, 50)  # Narrow height
+        
+        # Fill top and bottom at same X
+        existing = [
+            (10, 0, 30, 8),
+            (10, 32, 30, 50),
+        ]
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should find position (likely horizontal offset)
+        assert isinstance(result, tuple)
+        assert result[1] >= 0
+        assert result[3] <= 50
+    
+    def test_find_non_overlapping_position_narrow_horizontal_space(self):
+        """Test stacking in narrow horizontal space."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (10, 10, 30, 30)
+        image_shape = (50, 100)  # Narrow width
+        
+        # Fill left and right at same Y
+        existing = [
+            (0, 10, 8, 30),
+            (32, 10, 50, 30),
+        ]
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should find position (likely vertical offset)
+        assert isinstance(result, tuple)
+        assert result[0] >= 0
+        assert result[2] <= 50
+    
+    def test_find_non_overlapping_position_dense_grid(self):
+        """Test stacking in densely populated grid."""
+        from utils.geometry_utils import find_non_overlapping_position
+        
+        rect = (25, 25, 35, 35)
+        image_shape = (100, 100)
+        
+        # Create a dense grid of existing rectangles with gaps
+        existing = []
+        for x in range(0, 90, 15):
+            for y in range(0, 90, 15):
+                if not (20 <= x <= 40 and 20 <= y <= 40):  # Leave gap around rect
+                    existing.append((x, y, x+10, y+10))
+        
+        result = find_non_overlapping_position(rect, existing, image_shape)
+        
+        # Should find a position
+        assert isinstance(result, tuple)
+        assert len(result) == 4
+        
+        # Should be within bounds
+        assert result[0] >= 0
+        assert result[1] >= 0
+        assert result[2] <= 100
+        assert result[3] <= 100
