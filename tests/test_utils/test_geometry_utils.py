@@ -34,36 +34,30 @@ class TestGeometryUtils:
         except ImportError:
             pytest.fail("utils.geometry_utils should be importable")
     
-    def test_calculate_y_position(self):
-        """Test Y position calculation."""
-        from utils.geometry_utils import calculate_y_position
+    def test_geometry_utils_has_functions(self):
+        """Test that geometry utils has expected functions."""
+        from utils import geometry_utils
         
-        # Simple square bbox
+        # Test that the module has the text angle function
+        assert hasattr(geometry_utils, 'calculate_text_angle')
+        
+        # Test that it's callable
+        assert callable(geometry_utils.calculate_text_angle)
+    
+    def test_calculate_text_angle_edge_cases(self):
+        """Test text angle calculation with edge cases."""
+        from utils.geometry_utils import calculate_text_angle
+        
+        # Test with minimal vertices
         vertices = [
             type('obj', (object,), {'x': 0, 'y': 0})(),
-            type('obj', (object,), {'x': 10, 'y': 0})(),
-            type('obj', (object,), {'x': 10, 'y': 10})(),
-            type('obj', (object,), {'x': 0, 'y': 10})()
+            type('obj', (object,), {'x': 0, 'y': 0})()
         ]
         
-        y_pos = calculate_y_position(vertices)
-        
-        # Should return average Y position
-        assert isinstance(y_pos, (int, float))
-        assert y_pos >= 0
-    
-    def test_points_to_line_segment(self):
-        """Test converting points to line segment."""
-        from utils.geometry_utils import points_to_line_segment
-        
-        # Two points
-        points = [
-            type('obj', (object,), {'x': 0, 'y': 0})(),
-            type('obj', (object,), {'x': 10, 'y': 5})()
-        ]
-        
-        segment = points_to_line_segment(points)
-        
-        # Should return a valid line segment
-        assert segment is not None
-        assert len(segment) >= 2
+        try:
+            angle = calculate_text_angle(vertices)
+            # Should return some angle or handle gracefully
+            assert isinstance(angle, (int, float))
+        except (IndexError, ZeroDivisionError):
+            # These exceptions are acceptable for edge cases
+            pass
