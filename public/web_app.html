@@ -1420,13 +1420,18 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         imageContainer.style.removeProperty('width');
                         imageContainer.style.removeProperty('margin');
                         
-                        // Force 98vw width
-                        imageContainer.style.width = '98vw';
-                        imageContainer.style.maxWidth = '98vw';
-                        imageContainer.style.marginLeft = 'calc((100vw - 98vw) / 2)';
-                        imageContainer.style.marginRight = 'calc((100vw - 98vw) / 2)';
+                        // Break out of card padding by using negative margins
+                        const cardPadding = parseFloat(getComputedStyle(imageContainer.closest('.card')).paddingLeft);
+                        console.log(`📦 Card padding: ${cardPadding}px`);
+                        
+                        // Force full viewport width
+                        imageContainer.style.width = '100vw';
+                        imageContainer.style.maxWidth = '100vw';
+                        imageContainer.style.marginLeft = `-${cardPadding}px`;
+                        imageContainer.style.marginRight = `-${cardPadding}px`;
                         imageContainer.style.marginTop = '15px';
                         imageContainer.style.marginBottom = '0';
+                        imageContainer.style.position = 'relative';
                         
                         // Ensure image fills container
                         annotatedImage.style.width = '100%';
@@ -1434,7 +1439,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         annotatedImage.style.maxWidth = '100%';
                         annotatedImage.style.display = 'block';
                         
-                        console.log(`📱 Mobile: Image container forced to 98vw`);
+                        console.log(`📱 Mobile: Image container set to 100vw, breaking out of card`);
                     } else if (device.isTablet) {
                         imageContainer.style.maxWidth = '90vw';
                         imageContainer.style.width = '90vw';
