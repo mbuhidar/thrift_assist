@@ -1101,17 +1101,17 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             document.getElementById('thresholdValue').textContent = this.value + '%';
         });
         
-        // UI Text Scale Control - Percentage-based with extended range
-        const uiTextScalePercentToClass = {
-            50: 'text-scale-small',
-            75: 'text-scale-small',
-            100: 'text-scale-medium',
-            125: 'text-scale-large',
-            150: 'text-scale-xlarge',
-            175: 'text-scale-xlarge',
-            200: 'text-scale-xlarge',
-            250: 'text-scale-xlarge',
-            300: 'text-scale-xlarge'
+        // UI Text Scale Control - Direct percentage-based scaling
+        const uiTextScalePercentToSize = {
+            50: '8px',
+            75: '12px',
+            100: '16px',
+            125: '20px',
+            150: '24px',
+            175: '28px',
+            200: '32px',
+            250: '40px',
+            300: '48px'
         };
         
         // Track sync state
@@ -1176,16 +1176,13 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         });
         
         function applyUiTextScale(scaleValue) {
-            // Remove all text scale classes
-            Object.values(uiTextScalePercentToClass).forEach(className => {
-                document.body.classList.remove(className);
-            });
+            // Apply font size directly to body based on percentage
+            const fontSize = uiTextScalePercentToSize[scaleValue] || '16px';
+            document.body.style.fontSize = fontSize;
             
-            // Add the selected scale class
-            const className = uiTextScalePercentToClass[scaleValue] || 'text-scale-medium';
-            document.body.classList.add(className);
+            console.log(`📏 UI text scale set to ${scaleValue}% (${fontSize})`);
             
-            // Force immediate layout recalculation to apply new font sizes
+            // Force immediate layout recalculation
             document.body.offsetHeight;
         }
         
@@ -1330,7 +1327,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 <div>
                     <span class="stat">📊 Total: ${result.total_matches}</span>
                     <span class="stat">⏱️ ${Math.round(result.processing_time_ms)}ms</span>
-                    <span class="stat">📐 ${result.image_dimensions[0]}×${result.image_dimensions[1]}</span>
                     <span class="stat">🎯 Avg Confidence: ${avgConfidence}%</span>
                 </div>
             `;
@@ -1419,13 +1415,26 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     
                     // Mobile: Force 98vw display with minimal borders
                     if (device.isMobile) {
-                        imageContainer.style.maxWidth = '98vw';
+                        // Remove any constraining styles
+                        imageContainer.style.removeProperty('max-width');
+                        imageContainer.style.removeProperty('width');
+                        imageContainer.style.removeProperty('margin');
+                        
+                        // Force 98vw width
                         imageContainer.style.width = '98vw';
-                        imageContainer.style.margin = '15px auto 0 auto';
+                        imageContainer.style.maxWidth = '98vw';
+                        imageContainer.style.marginLeft = 'calc((100vw - 98vw) / 2)';
+                        imageContainer.style.marginRight = 'calc((100vw - 98vw) / 2)';
+                        imageContainer.style.marginTop = '15px';
+                        imageContainer.style.marginBottom = '0';
+                        
+                        // Ensure image fills container
                         annotatedImage.style.width = '100%';
                         annotatedImage.style.height = 'auto';
                         annotatedImage.style.maxWidth = '100%';
-                        console.log(`📱 Mobile: Image forced to 98vw width`);
+                        annotatedImage.style.display = 'block';
+                        
+                        console.log(`📱 Mobile: Image container forced to 98vw`);
                     } else if (device.isTablet) {
                         imageContainer.style.maxWidth = '90vw';
                         imageContainer.style.width = '90vw';
@@ -1443,14 +1452,33 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         console.log(`🖥️ Desktop: Image sized to card width`);
                     }
                     
-                    // Log final display size
+                    // Add returned image size to summary
+                    const summaryDiv = resultsSummary.querySelector('div');
+                    const existingStat = summaryDiv.querySelector('.stat-returned');
+                    if (existingStat) {
+                        existingStat.textContent = `📐 ${tempImg.width}×${tempImg.height}`;
+                    } else {
+                        const returnedStat = document.createElement('span');
+                        returnedStat.className = 'stat stat-returned';
+                        returnedStat.textContent = `📐 ${tempImg.width}×${tempImg.height}`;
+                        // Insert after Total and Time, before Avg Confidence
+                        const stats = summaryDiv.querySelectorAll('.stat');
+                        if (stats.length >= 2) {
+                            stats[1].insertAdjacentElement('afterend', returnedStat);
+                        } else {
+                            summaryDiv.appendChild(returnedStat);
+                        }
+                    }
+                    
+                    // Log final display size after DOM update
                     setTimeout(() => {
                         const displayedWidth = annotatedImage.offsetWidth;
                         const displayedHeight = annotatedImage.offsetHeight;
                         const containerWidth = imageContainer.offsetWidth;
                         const viewportWidth = window.innerWidth;
-                        console.log(`📺 Viewport: ${viewportWidth}px, Container: ${containerWidth}px, Image: ${displayedWidth}×${displayedHeight}`);
-                        console.log(`📊 Image uses ${(containerWidth / viewportWidth * 100).toFixed(1)}% of viewport width`);
+                        console.log(`📺 Viewport: ${viewportWidth}px`);
+                        console.log(`📦 Container: ${containerWidth}px (${(containerWidth / viewportWidth * 100).toFixed(1)}% of viewport)`);
+                        console.log(`🖼️ Image displayed: ${displayedWidth}×${displayedHeight}`);
                     }, 100);
                 };
                 tempImg.src = `data:image/jpeg;base64,${result.annotated_image_base64}`;
