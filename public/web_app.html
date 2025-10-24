@@ -638,24 +638,24 @@
             }
             
             body {
-                font-size: 15px;
+                font-size: 17px;  /* Increased from 15px for better mobile readability */
             }
             
             /* Proportional scaling for mobile text-scale classes */
             body.text-scale-small {
-                font-size: 13px;
+                font-size: 15px;  /* Increased from 13px */
             }
             
             body.text-scale-medium {
-                font-size: 15px;
+                font-size: 17px;  /* Increased from 15px */
             }
             
             body.text-scale-large {
-                font-size: 17px;
+                font-size: 19px;  /* Increased from 17px */
             }
             
             body.text-scale-xlarge {
-                font-size: 19px;
+                font-size: 21px;  /* Increased from 19px */
             }
             
             /* All elements scale proportionally with em units */
@@ -719,9 +719,9 @@
                 font-size: 0.8em;
             }
             
-            /* Force mobile images to display at actual size */
+            /* Force mobile images to display with minimal borders */
             .image-container {
-                max-width: 95vw;  /* Slightly smaller than viewport for padding */
+                max-width: 98vw;  /* Increased from 95vw - only 1% border on each side */
                 margin: 15px auto 0 auto;  /* Center the container */
             }
             
@@ -750,24 +750,24 @@
             }
             
             body {
-                font-size: 14px;
+                font-size: 16px;  /* Increased from 14px */
             }
             
             /* Proportional scaling for small mobile text-scale classes */
             body.text-scale-small {
-                font-size: 12px;
+                font-size: 14px;  /* Increased from 12px */
             }
             
             body.text-scale-medium {
-                font-size: 14px;
+                font-size: 16px;  /* Increased from 14px */
             }
             
             body.text-scale-large {
-                font-size: 16px;
+                font-size: 18px;  /* Increased from 16px */
             }
             
             body.text-scale-xlarge {
-                font-size: 18px;
+                font-size: 20px;  /* Increased from 18px */
             }
 
             .slider-labels {
@@ -1216,11 +1216,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const threshold = document.getElementById('threshold').value;
             let textScale = document.getElementById('textScale').value;  // Get text scale value
             
-            // Boost annotation text size for mobile devices
+            // Boost annotation text size for mobile devices with increased multiplier
             if (device.isMobile || device.isTablet) {
                 const scaleInt = parseInt(textScale);
-                // Increase by 50% for mobile/tablet, capped at 300%
-                textScale = Math.min(300, Math.round(scaleInt * 1.5)).toString();
+                // Increase by 75% for mobile/tablet (increased from 50%), capped at 300%
+                textScale = Math.min(300, Math.round(scaleInt * 1.75)).toString();
                 console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
             }
             
