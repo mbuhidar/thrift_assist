@@ -719,16 +719,25 @@
                 font-size: 0.8em;
             }
             
-            /* Force mobile images to display with minimal borders */
+            /* Force mobile images to display at 98vw width */
             .image-container {
-                max-width: 98vw;  /* Increased from 95vw - only 1% border on each side */
-                margin: 15px auto 0 auto;  /* Center the container */
+                max-width: 98vw !important;  /* Override any other max-width */
+                width: 98vw !important;      /* Force container to 98vw */
+                margin: 15px auto 0 auto;    /* Center horizontally */
+                margin-left: calc((100vw - 98vw) / 2);  /* Precise centering */
+                margin-right: calc((100vw - 98vw) / 2);
             }
             
             .image-preview.zoomable {
-                width: 100%;
+                width: 100% !important;      /* Fill container width */
+                max-width: 100% !important;  /* No artificial limits */
                 height: auto;
-                max-width: 100%;
+            }
+            
+            /* Override any card padding constraints */
+            .card {
+                padding: 1.25em;
+                overflow: visible;  /* Allow image to extend if needed */
             }
         }
 
@@ -1405,53 +1414,43 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 // Create temp image to get actual dimensions for logging
                 const tempImg = new Image();
                 tempImg.onload = function() {
-                    console.log(`🖼️ Received image actual size: ${tempImg.width}×${tempImg.height}`);
+                    console.log(`🖼️ Received image: ${tempImg.width}×${tempImg.height}`);
                     console.log(`📱 Device: ${device.isMobile ? 'Mobile' : device.isTablet ? 'Tablet' : 'Desktop'}`);
-                    console.log(`📏 Expected mobile: ~1080px, desktop: up to 2560px`);
                     
-                    // Size container appropriately for device instead of forcing exact pixels
+                    // Mobile: Force 98vw display with minimal borders
                     if (device.isMobile) {
-                        // Mobile: Use most of viewport width
-                        imageContainer.style.maxWidth = '95vw';
+                        imageContainer.style.maxWidth = '98vw';
+                        imageContainer.style.width = '98vw';
                         imageContainer.style.margin = '15px auto 0 auto';
-                        console.log(`📱 Mobile: Container sized to 95vw for ${tempImg.width}×${tempImg.height}px image`);
+                        annotatedImage.style.width = '100%';
+                        annotatedImage.style.height = 'auto';
+                        annotatedImage.style.maxWidth = '100%';
+                        console.log(`📱 Mobile: Image forced to 98vw width`);
                     } else if (device.isTablet) {
-                        // Tablet: Use reasonable portion of screen
-                        imageContainer.style.maxWidth = '80vw';
+                        imageContainer.style.maxWidth = '90vw';
+                        imageContainer.style.width = '90vw';
                         imageContainer.style.margin = '15px auto 0 auto';
-                        console.log(`📱 Tablet: Container sized to 80vw for ${tempImg.width}×${tempImg.height}px image`);
+                        annotatedImage.style.width = '100%';
+                        annotatedImage.style.height = 'auto';
+                        console.log(`📱 Tablet: Image sized to 90vw`);
                     } else {
-                        // Desktop: Use card width but allow larger if needed
+                        // Desktop: Use card width
                         imageContainer.style.maxWidth = '100%';
+                        imageContainer.style.width = '100%';
                         imageContainer.style.margin = '15px 0 0 0';
-                        console.log(`🖥️ Desktop: Container sized to 100% of card for ${tempImg.width}×${tempImg.height}px image`);
+                        annotatedImage.style.width = '100%';
+                        annotatedImage.style.height = 'auto';
+                        console.log(`🖥️ Desktop: Image sized to card width`);
                     }
                     
-                    // Let image scale to fit container naturally
-                    annotatedImage.style.width = '100%';
-                    annotatedImage.style.height = 'auto';
-                    annotatedImage.style.maxWidth = '100%';
-                    annotatedImage.style.maxHeight = 'none';
-                    
-                    // Add returned size to summary
-                    const summaryDiv = resultsSummary.querySelector('div');
-                    const existingStat = summaryDiv.querySelector('.stat-returned');
-                    if (existingStat) {
-                        existingStat.textContent = `📏 Returned: ${tempImg.width}×${tempImg.height}`;
-                    } else {
-                        const returnedStat = document.createElement('span');
-                        returnedStat.className = 'stat stat-returned';
-                        returnedStat.textContent = `📏 Returned: ${tempImg.width}×${tempImg.height}`;
-                        summaryDiv.appendChild(returnedStat);
-                    }
-                    
-                    // Log final display dimensions
+                    // Log final display size
                     setTimeout(() => {
                         const displayedWidth = annotatedImage.offsetWidth;
                         const displayedHeight = annotatedImage.offsetHeight;
                         const containerWidth = imageContainer.offsetWidth;
-                        console.log(`📺 Container: ${containerWidth}px, Image displayed: ${displayedWidth}×${displayedHeight}`);
-                        console.log(`📊 Scale factor: ${(displayedWidth / tempImg.width * 100).toFixed(1)}%`);
+                        const viewportWidth = window.innerWidth;
+                        console.log(`📺 Viewport: ${viewportWidth}px, Container: ${containerWidth}px, Image: ${displayedWidth}×${displayedHeight}`);
+                        console.log(`📊 Image uses ${(containerWidth / viewportWidth * 100).toFixed(1)}% of viewport width`);
                     }, 100);
                 };
                 tempImg.src = `data:image/jpeg;base64,${result.annotated_image_base64}`;
