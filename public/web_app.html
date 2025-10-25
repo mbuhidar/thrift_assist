@@ -712,18 +712,13 @@
                 font-size: 21px;  /* Increased from 19px */
             }
             
-            /* Force mobile images to break out of card and fill viewport */
+            /* Remove the CSS full-width override - let JavaScript handle it */
             .image-container {
                 position: relative;
-                left: 50%;
-                right: 50%;
-                margin-left: -50vw !important;
-                margin-right: -50vw !important;
-                width: 100vw !important;
-                max-width: 100vw !important;
                 margin-top: 15px !important;
                 margin-bottom: 0 !important;
                 border-radius: 0 !important;
+                /* Remove fixed width rules - JavaScript will set them */
             }
             
             .image-preview.zoomable {
@@ -732,12 +727,6 @@
                 height: auto !important;
                 display: block !important;
                 border-radius: 0 !important;
-            }
-            
-            /* Override any card padding constraints */
-            .card {
-                padding: 1.25em;
-                overflow: visible !important;
             }
         }
 
@@ -1184,10 +1173,10 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const fontSize = uiTextScalePercentToSize[scaleValue] || '16px';
             document.body.style.fontSize = fontSize;
             
-            // On desktop, stack panels if text size > 125%
+            // On desktop, stack panels if text size > 100%
             if (device.isDesktop) {
                 const scaleInt = parseInt(scaleValue);
-                if (scaleInt > 125) {
+                if (scaleInt > 100) {
                     document.body.classList.add('desktop-text-large');
                 } else {
                     document.body.classList.remove('desktop-text-large');
