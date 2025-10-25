@@ -1427,7 +1427,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     console.log(`🖼️ Received image: ${tempImg.width}×${tempImg.height}`);
                     console.log(`📱 Device: ${device.isMobile ? 'Mobile' : device.isTablet ? 'Tablet' : 'Desktop'}`);
                     
-                    // Mobile: Force 98vw display with minimal borders
+                    // Mobile: Force 96% viewport width
                     if (device.isMobile) {
                         // Remove any constraining styles
                         imageContainer.style.removeProperty('max-width');
@@ -1438,11 +1438,15 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         const cardPadding = parseFloat(getComputedStyle(imageContainer.closest('.card')).paddingLeft);
                         console.log(`📦 Card padding: ${cardPadding}px`);
                         
-                        // Force full viewport width
-                        imageContainer.style.width = '100vw';
-                        imageContainer.style.maxWidth = '100vw';
-                        imageContainer.style.marginLeft = `-${cardPadding}px`;
-                        imageContainer.style.marginRight = `-${cardPadding}px`;
+                        // Force 96% of viewport width
+                        const viewportWidth = window.innerWidth;
+                        const imageWidth = viewportWidth * 0.96;
+                        const leftMargin = (viewportWidth - imageWidth) / 2;
+                        
+                        imageContainer.style.width = `${imageWidth}px`;
+                        imageContainer.style.maxWidth = `${imageWidth}px`;
+                        imageContainer.style.marginLeft = `${leftMargin - cardPadding}px`;
+                        imageContainer.style.marginRight = `${leftMargin - cardPadding}px`;
                         imageContainer.style.marginTop = '15px';
                         imageContainer.style.marginBottom = '0';
                         imageContainer.style.position = 'relative';
@@ -1452,7 +1456,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         annotatedImage.style.height = 'auto';
                         annotatedImage.style.display = 'block';
                         
-                        console.log(`📱 Mobile: Image using CSS full-width layout`);
+                        console.log(`📱 Mobile: Image using 96% viewport width (${imageWidth}px of ${viewportWidth}px)`);
                     } else if (device.isTablet) {
                         imageContainer.style.maxWidth = '90vw';
                         imageContainer.style.width = '90vw';
