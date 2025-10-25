@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ThriftAssist - AI Media Finder</title>
     <style>
         * {
@@ -17,18 +17,27 @@
             color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            /* Prevent font boosting/inflation on mobile */
+            -webkit-text-size-adjust: 100%;
+            -moz-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+            text-size-adjust: 100%;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            width: 100%;
         }
 
         .header {
             text-align: center;
             margin-bottom: 30px;
             color: white;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .header h1 {
@@ -46,6 +55,51 @@
             grid-template-columns: 1fr 1fr;
             gap: 30px;
             align-items: start;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Stack panels when text size is large on desktop (not mobile) */
+        body.desktop-text-large .main-content {
+            grid-template-columns: 1fr;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Center header in single column layout */
+        body.desktop-text-large .header {
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Ensure container keeps padding at high zoom */
+        body.desktop-text-large .container {
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+        
+        /* Ensure cards center properly in single column layout */
+        body.desktop-text-large .card {
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Fix image container centering in single column layout */
+        body.desktop-text-large .image-container {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        
+        /* Ensure image itself is centered */
+        body.desktop-text-large .image-preview {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
         }
 
         .card {
@@ -667,21 +721,23 @@
                 margin-right: -50vw !important;
                 width: 100vw !important;
                 max-width: 100vw !important;
-                margin-top: 15px;
-                margin-bottom: 0;
+                margin-top: 15px !important;
+                margin-bottom: 0 !important;
+                border-radius: 0 !important;
             }
             
             .image-preview.zoomable {
                 width: 100% !important;
                 max-width: 100% !important;
-                height: auto;
-                display: block;
+                height: auto !important;
+                display: block !important;
+                border-radius: 0 !important;
             }
             
             /* Override any card padding constraints */
             .card {
                 padding: 1.25em;
-                overflow: visible;
+                overflow: visible !important;
             }
         }
 
@@ -1000,6 +1056,10 @@
         // Test connection on page load with better error handling
         window.addEventListener('load', async function() {
             const textarea = document.getElementById('searchPhrases');
+            
+            // Pre-populate with test data
+            textarea.value = 'Lee Child, Homegoing, homecoming, tom clancy';
+            
             textarea.placeholder = `Enter phrases separated by commas
 Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             
@@ -1123,6 +1183,16 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             // Apply font size directly to body based on percentage
             const fontSize = uiTextScalePercentToSize[scaleValue] || '16px';
             document.body.style.fontSize = fontSize;
+            
+            // On desktop, stack panels if text size > 125%
+            if (device.isDesktop) {
+                const scaleInt = parseInt(scaleValue);
+                if (scaleInt > 125) {
+                    document.body.classList.add('desktop-text-large');
+                } else {
+                    document.body.classList.remove('desktop-text-large');
+                }
+            }
             
             console.log(`📏 UI text scale set to ${scaleValue}% (${fontSize})`);
             
@@ -1380,10 +1450,9 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         // Ensure image fills container
                         annotatedImage.style.width = '100%';
                         annotatedImage.style.height = 'auto';
-                        annotatedImage.style.maxWidth = '100%';
                         annotatedImage.style.display = 'block';
                         
-                        console.log(`📱 Mobile: Image container forced to 100vw using CSS trick`);
+                        console.log(`📱 Mobile: Image using CSS full-width layout`);
                     } else if (device.isTablet) {
                         imageContainer.style.maxWidth = '90vw';
                         imageContainer.style.width = '90vw';
@@ -1396,8 +1465,12 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         imageContainer.style.maxWidth = '100%';
                         imageContainer.style.width = '100%';
                         imageContainer.style.margin = '15px 0 0 0';
+                        imageContainer.style.marginLeft = '0';
+                        imageContainer.style.marginRight = '0';
                         annotatedImage.style.width = '100%';
                         annotatedImage.style.height = 'auto';
+                        annotatedImage.style.marginLeft = '0';
+                        annotatedImage.style.marginRight = '0';
                         console.log(`🖥️ Desktop: Image sized to card width`);
                     }
                     
@@ -1988,6 +2061,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     return;
                 }
                 
+                
                 if (e.touches.length === 0) {
                     const now = Date.now();
                     const touchDuration = now - (this.lastTouch.startTime || now);
@@ -2048,7 +2122,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 const currentScreenX = this.translateX + (displayPointX * this.scale);
                 const currentScreenY = this.translateY + (displayPointY * this.scale);
                 
-                               
                 // After zoom, we want that same screen position to map to the same image point
                 // So: screenPos = newTranslate + (displayPoint * newScale)
                 // Therefore: newTranslate = screenPos - (displayPoint * newScale)
