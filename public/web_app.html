@@ -54,6 +54,7 @@
             width: 100%;
             margin-left: auto;
             margin-right: auto;
+            max-width: 800px;  /* Match main-content width */
         }
 
         .header h1 {
@@ -68,44 +69,47 @@
 
         .main-content {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;  /* Always single column - stacked */
             gap: 30px;
             align-items: start;
             width: 100%;
             margin-left: auto;
             margin-right: auto;
+            max-width: 800px;  /* Consistent max width for stacked layout */
         }
         
-        /* Stack panels when text size is large on desktop (not mobile) */
-        body.desktop-text-large .main-content {
-            grid-template-columns: 1fr;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-        }
+        /* Remove desktop two-column layout - always stack */
+        /* Deleted: body.desktop-text-large .main-content rules */
         
         /* Center header in single column layout */
-        body.desktop-text-large .header {
-            max-width: 800px;
+        /* .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+            width: 100%;
             margin-left: auto;
             margin-right: auto;
-        }
+            max-width: 800px;  /* Match main-content width */
+        } */
         
-        /* Ensure container keeps padding at high zoom */
-        body.desktop-text-large .container {
-            padding-left: 20px;
-            padding-right: 20px;
+        /* Ensure container keeps padding at all zoom levels */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            width: 100%;
+            font-size: 16px;  /* Default size */
         }
         
         /* Ensure cards center properly in single column layout */
-        body.desktop-text-large .card {
+        .card {
             width: 100%;
             margin-left: auto;
             margin-right: auto;
         }
         
         /* Fix image container centering in single column layout */
-        body.desktop-text-large .image-container {
+        .image-container {
             margin-left: 0 !important;
             margin-right: 0 !important;
             width: 100% !important;
@@ -113,7 +117,7 @@
         }
         
         /* Ensure image itself is centered */
-        body.desktop-text-large .image-preview {
+        .image-preview {
             margin-left: 0 !important;
             margin-right: 0 !important;
         }
@@ -686,33 +690,20 @@
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
-            /* Increase base container font size for mobile - using absolute px */
+            .main-content {
+                grid-template-columns: 1fr;  /* Already single column */
+                gap: 1.25em;
+                max-width: 100%;  /* Use full width on mobile */
+            }
+            
+            .header {
+                max-width: 100%;  /* Use full width on mobile */
+            }
+            
             .container {
                 font-size: 18px;  /* 12.5% larger than desktop */
-            }
-            
-            /* Mobile text scales use absolute px values */
-            body.text-scale-50 .container { font-size: 9px; }
-            body.text-scale-75 .container { font-size: 13.5px; }
-            body.text-scale-100 .container { font-size: 18px; }
-            body.text-scale-125 .container { font-size: 22.5px; }
-            body.text-scale-150 .container { font-size: 27px; }
-            body.text-scale-175 .container { font-size: 31.5px; }
-            body.text-scale-200 .container { font-size: 36px; }
-            body.text-scale-250 .container { font-size: 45px; }
-            body.text-scale-300 .container { font-size: 54px; }
-
-            .main-content {
-                grid-template-columns: 1fr;
-                gap: 1.25em;  /* Proportional gap */
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-
-            .header p {
-                font-size: 1em;
+                padding: 20px;
+                max-width: 100%;  /* Ensure full width usage */
             }
 
             .card {
@@ -1207,23 +1198,13 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 'text-scale-200', 'text-scale-250', 'text-scale-300'
             );
             
-            // Add new scale class - this only affects .container font-size
+            // Add new scale class - only affects .container
             document.body.classList.add(`text-scale-${scaleValue}`);
             
-            // CRITICAL: Never touch body font-size - always stays 16px
-            // This prevents any viewport zoom changes
+            // NEVER change viewport - always keep at 100%
+            // Desktop text-large class is no longer needed since we always stack
             
-            // On desktop, stack panels if text size > 125%
-            if (device.isDesktop) {
-                const scaleInt = parseInt(scaleValue);
-                if (scaleInt > 125) {
-                    document.body.classList.add('desktop-text-large');
-                } else {
-                    document.body.classList.remove('desktop-text-large');
-                }
-            }
-            
-            console.log(`📏 UI text scale: ${scaleValue}% (viewport locked at 100%)`);
+            console.log(`📏 UI text scale: ${scaleValue}% (viewport locked at 100%, always stacked)`);
             
             // Force layout recalculation without triggering zoom
             void document.body.offsetHeight;
@@ -1486,6 +1467,25 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         imageContainer.style.maxWidth = '100%';
                         imageContainer.style.width = '100%';
                         imageContainer.style.margin = '15px 0 0 0';
+                        imageContainer.style.marginLeft = '0';
+                        imageContainer.style.marginRight = '0';
+                        annotatedImage.style.width = '100%';
+                        annotatedImage.style.height = 'auto';
+                        annotatedImage.style.marginLeft = '0';
+                        annotatedImage.style.marginRight = '0';
+                        console.log(`🖥️ Desktop: Image sized to card width`);
+                    }
+                    
+                    // Add returned image size to summary
+                    const summaryDiv = resultsSummary.querySelector('div');
+                    const existingStat = summaryDiv.querySelector('.stat-returned');
+                    if (existingStat) {
+                        existingStat.textContent = `📐 ${tempImg.width}×${tempImg.height}`;
+                    } else {
+                        const returnedStat = document.createElement('span');
+                        returnedStat.className = 'stat stat-returned';
+                        returnedStat.textContent = `📐 ${tempImg.width}×${tempImg.height}`;
+                        // Insert after Total and Time, before Avg Confidence
                         imageContainer.style.marginLeft = '0';
                         imageContainer.style.marginRight = '0';
                         annotatedImage.style.width = '100%';
