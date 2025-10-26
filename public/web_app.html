@@ -994,6 +994,41 @@
             userAgent: '',
             
             init() {
+                this.updateDeviceInfo();
+                
+                // Add device class to body for CSS targeting
+                this.updateBodyClasses();
+                
+                // Listen for orientation changes and window resizes
+                window.addEventListener('orientationchange', () => {
+                    setTimeout(() => {
+                        console.log('🔄 Orientation changed - re-evaluating device type');
+                        this.updateDeviceInfo();
+                        this.updateBodyClasses();
+                        this.logDeviceInfo();
+                    }, 300);
+                });
+                
+                window.addEventListener('resize', () => {
+                    // Debounce resize events
+                    clearTimeout(this.resizeTimeout);
+                    this.resizeTimeout = setTimeout(() => {
+                        const oldIsMobile = this.isMobile;
+                        this.updateDeviceInfo();
+                        
+                        // Only update if device type changed
+                        if (oldIsMobile !== this.isMobile) {
+                            console.log('📐 Viewport width changed significantly - updating device type');
+                            this.updateBodyClasses();
+                            this.logDeviceInfo();
+                        }
+                    }, 250);
+                });
+                
+                return this;
+            },
+            
+            updateDeviceInfo() {
                 this.userAgent = navigator.userAgent.toLowerCase();
                 
                 // Check for touch capability
@@ -1003,6 +1038,11 @@
                 
                 // Check screen size
                 const width = window.innerWidth;
+                
+                // Reset flags
+                this.isMobile = false;
+                this.isTablet = false;
+                this.isDesktop = false;
                 
                 // Check for mobile devices
                 const mobileRegex = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i;
@@ -1015,22 +1055,29 @@
                 } else {
                     this.isDesktop = true;
                 }
+            },
+            
+            updateBodyClasses() {
+                // Remove all device classes
+                document.body.classList.remove('device-mobile', 'device-tablet', 'device-desktop', 'touch-device');
                 
+                // Add current device classes
+                if (this.isMobile) document.body.classList.add('device-mobile');
+                if (this.isTablet) document.body.classList.add('device-tablet');
+                if (this.isDesktop) document.body.classList.add('device-desktop');
+                if (this.isTouchDevice) document.body.classList.add('touch-device');
+            },
+            
+            logDeviceInfo() {
                 console.log('📱 Device Detection:', {
                     isMobile: this.isMobile,
                     isTablet: this.isTablet,
                     isDesktop: this.isDesktop,
                     isTouchDevice: this.isTouchDevice,
-                    screenWidth: width
+                    screenWidth: window.innerWidth,
+                    screenHeight: window.innerHeight,
+                    orientation: window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
                 });
-                
-                // Add device class to body for CSS targeting
-                if (this.isMobile) document.body.classList.add('device-mobile');
-                if (this.isTablet) document.body.classList.add('device-tablet');
-                if (this.isDesktop) document.body.classList.add('device-desktop');
-                if (this.isTouchDevice) document.body.classList.add('touch-device');
-                
-                return this;
             },
             
             // Helper methods
