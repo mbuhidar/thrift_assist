@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>ThriftAssist - AI Media Finder</title>
     <style>
         * {
@@ -11,37 +11,41 @@
             box-sizing: border-box;
         }
 
+        html {
+            font-size: 16px;  /* Root font size - never changes */
+            -webkit-text-size-adjust: 100%;
+            -moz-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            font-size: 16px !important;  /* Locked at 16px - never changes */
-            /* Prevent automatic text size adjustments */
-            -webkit-text-size-adjust: 100% !important;
-            -moz-text-size-adjust: 100% !important;
-            -ms-text-size-adjust: 100% !important;
-            text-size-adjust: 100% !important;
+            font-size: inherit;  /* Inherit from html - stays 16px */
         }
         
-        /* Text scaling wrapper - scales content without affecting viewport */
-        body.text-scale-50 .container { font-size: 0.5rem; }
-        body.text-scale-75 .container { font-size: 0.75rem; }
-        body.text-scale-100 .container { font-size: 1rem; }
-        body.text-scale-125 .container { font-size: 1.25rem; }
-        body.text-scale-150 .container { font-size: 1.5rem; }
-        body.text-scale-175 .container { font-size: 1.75rem; }
-        body.text-scale-200 .container { font-size: 2rem; }
-        body.text-scale-250 .container { font-size: 2.5rem; }
-        body.text-scale-300 .container { font-size: 3rem; }
-
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             width: 100%;
+            font-size: 16px;  /* Default size */
         }
+        
+        /* Text scaling via container only - doesn't affect viewport */
+        body.text-scale-50 .container { font-size: 8px; }
+        body.text-scale-75 .container { font-size: 12px; }
+        body.text-scale-100 .container { font-size: 16px; }
+        body.text-scale-125 .container { font-size: 20px; }
+        body.text-scale-150 .container { font-size: 24px; }
+        body.text-scale-175 .container { font-size: 28px; }
+        body.text-scale-200 .container { font-size: 32px; }
+        body.text-scale-250 .container { font-size: 40px; }
+        body.text-scale-300 .container { font-size: 48px; }
 
         .header {
             text-align: center;
@@ -682,21 +686,21 @@
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
-            /* Increase base container font size for mobile */
+            /* Increase base container font size for mobile - using absolute px */
             .container {
-                font-size: 1.0625rem;  /* 17px / 16px = 1.0625rem, 6.25% larger */
+                font-size: 18px;  /* 12.5% larger than desktop */
             }
             
-            /* Scale mobile text sizes proportionally */
-            body.text-scale-50 .container { font-size: 0.53125rem; }  /* 0.5 * 1.0625 */
-            body.text-scale-75 .container { font-size: 0.796875rem; }  /* 0.75 * 1.0625 */
-            body.text-scale-100 .container { font-size: 1.0625rem; }
-            body.text-scale-125 .container { font-size: 1.328125rem; }
-            body.text-scale-150 .container { font-size: 1.59375rem; }
-            body.text-scale-175 .container { font-size: 1.859375rem; }
-            body.text-scale-200 .container { font-size: 2.125rem; }
-            body.text-scale-250 .container { font-size: 2.65625rem; }
-            body.text-scale-300 .container { font-size: 3.1875rem; }
+            /* Mobile text scales use absolute px values */
+            body.text-scale-50 .container { font-size: 9px; }
+            body.text-scale-75 .container { font-size: 13.5px; }
+            body.text-scale-100 .container { font-size: 18px; }
+            body.text-scale-125 .container { font-size: 22.5px; }
+            body.text-scale-150 .container { font-size: 27px; }
+            body.text-scale-175 .container { font-size: 31.5px; }
+            body.text-scale-200 .container { font-size: 36px; }
+            body.text-scale-250 .container { font-size: 45px; }
+            body.text-scale-300 .container { font-size: 54px; }
 
             .main-content {
                 grid-template-columns: 1fr;
@@ -2029,7 +2033,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     const scaleChange = Math.abs(distance - this.lastTouch.distance) / this.lastTouch.distance;
                     
                     // If scale change is very rapid or large, might be native zoom
-                    if (scaleChange > 0.5) {
+                    if ( scaleChange > 0.5) {
                         console.log('📱 Rapid scale change detected - switching to native zoom');
                         this.nativeZoomActive = true;
                         this.resetZoom();
