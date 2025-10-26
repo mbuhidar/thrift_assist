@@ -27,6 +27,7 @@
             min-height: 100vh;
             font-size: inherit;  /* Inherit from html - stays 16px */
             width: 100%;
+            max-width: 100vw;  /* Prevent body from exceeding viewport */
             overflow-x: hidden;  /* Prevent horizontal scroll */
         }
         
@@ -42,6 +43,8 @@
         /* Text scaling wrapper - only scales text content, not layout */
         .text-content {
             font-size: 1em;  /* Inherits from text-scale class */
+            max-width: 100%;
+            overflow-x: hidden;
         }
         
         /* Text scaling via text-content wrapper only - doesn't affect layout */
@@ -101,8 +104,8 @@
         /* Ensure cards center properly */
         .card {
             width: 100%;
-            margin-left: auto;
-            margin-right: auto;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         
         /* Fix image container centering */
@@ -690,10 +693,10 @@
             body {
                 font-size: 16px;  /* Fixed - never changes */
                 width: 100vw;  /* Full viewport width */
+                max-width: 100vw;
                 overflow-x: hidden;
             }
             
-            /* Increase base container font size for mobile - using absolute px */
             .container {
                 font-size: 16px;  /* Fixed - layout stays same */
                 padding-left: 15px;
@@ -703,11 +706,13 @@
                 overflow-x: hidden;  /* Prevent horizontal scroll */
                 margin-left: 0;
                 margin-right: 0;
+                box-sizing: border-box;
             }
             
-            /* Mobile text content scales */
             .text-content {
                 font-size: 1.125em;  /* 12.5% larger on mobile */
+                max-width: 100%;
+                overflow-x: hidden;
             }
             
             body.text-scale-50 .text-content { font-size: 0.5625em; }
@@ -2034,6 +2039,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     
                     if (newScale !== this.scale) {
                         // Use the pinch center point, not the current cursor position
+                       
                         this.zoomToPoint(newScale, this.pinchCenter.x, this.pinchCenter.y);
                     }
                     
