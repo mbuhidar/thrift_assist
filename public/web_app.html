@@ -54,7 +54,6 @@
             width: 100%;
             margin-left: auto;
             margin-right: auto;
-            max-width: 800px;  /* Match main-content width */
         }
 
         .header h1 {
@@ -69,46 +68,36 @@
 
         .main-content {
             display: grid;
-            grid-template-columns: 1fr;  /* Always single column - stacked */
+            grid-template-columns: 1fr;  /* Always single column */
             gap: 30px;
             align-items: start;
             width: 100%;
+            max-width: 800px;  /* Limit width for better readability */
             margin-left: auto;
             margin-right: auto;
-            max-width: 800px;  /* Consistent max width for stacked layout */
         }
         
-        /* Remove desktop two-column layout - always stack */
-        /* Deleted: body.desktop-text-large .main-content rules */
-        
-        /* Center header in single column layout */
-        /* .header {
-            text-align: center;
-            margin-bottom: 30px;
-            color: white;
-            width: 100%;
+        /* Remove desktop-text-large responsive layout - always stacked */
+        .header {
+            max-width: 800px;
             margin-left: auto;
             margin-right: auto;
-            max-width: 800px;  /* Match main-content width */
-        } */
+        }
         
-        /* Ensure container keeps padding at all zoom levels */
+        /* Ensure container keeps padding */
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            width: 100%;
-            font-size: 16px;  /* Default size */
+            padding-left: 20px;
+            padding-right: 20px;
         }
         
-        /* Ensure cards center properly in single column layout */
+        /* Ensure cards center properly */
         .card {
             width: 100%;
             margin-left: auto;
             margin-right: auto;
         }
         
-        /* Fix image container centering in single column layout */
+        /* Fix image container centering */
         .image-container {
             margin-left: 0 !important;
             margin-right: 0 !important;
@@ -690,20 +679,35 @@
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr;  /* Already single column */
-                gap: 1.25em;
-                max-width: 100%;  /* Use full width on mobile */
-            }
-            
-            .header {
-                max-width: 100%;  /* Use full width on mobile */
-            }
-            
+            /* Increase base container font size for mobile - using absolute px */
             .container {
                 font-size: 18px;  /* 12.5% larger than desktop */
-                padding: 20px;
-                max-width: 100%;  /* Ensure full width usage */
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+            
+            /* Mobile text scales use absolute px values */
+            body.text-scale-50 .container { font-size: 9px; }
+            body.text-scale-75 .container { font-size: 13.5px; }
+            body.text-scale-100 .container { font-size: 18px; }
+            body.text-scale-125 .container { font-size: 22.5px; }
+            body.text-scale-150 .container { font-size: 27px; }
+            body.text-scale-175 .container { font-size: 31.5px; }
+            body.text-scale-200 .container { font-size: 36px; }
+            body.text-scale-250 .container { font-size: 45px; }
+            body.text-scale-300 .container { font-size: 54px; }
+
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 1.25em;  /* Proportional gap */
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .header p {
+                font-size: 1em;
             }
 
             .card {
@@ -1198,13 +1202,15 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 'text-scale-200', 'text-scale-250', 'text-scale-300'
             );
             
-            // Add new scale class - only affects .container
+            // Add new scale class - this only affects .container font-size
             document.body.classList.add(`text-scale-${scaleValue}`);
             
-            // NEVER change viewport - always keep at 100%
-            // Desktop text-large class is no longer needed since we always stack
+            // CRITICAL: Never touch html or body font-size - always stays 16px
+            // This prevents any viewport zoom changes
             
-            console.log(`📏 UI text scale: ${scaleValue}% (viewport locked at 100%, always stacked)`);
+            // No more desktop panel switching - always single column
+            
+            console.log(`📏 UI text scale: ${scaleValue}% (viewport locked at 100%)`);
             
             // Force layout recalculation without triggering zoom
             void document.body.offsetHeight;
@@ -1467,25 +1473,6 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         imageContainer.style.maxWidth = '100%';
                         imageContainer.style.width = '100%';
                         imageContainer.style.margin = '15px 0 0 0';
-                        imageContainer.style.marginLeft = '0';
-                        imageContainer.style.marginRight = '0';
-                        annotatedImage.style.width = '100%';
-                        annotatedImage.style.height = 'auto';
-                        annotatedImage.style.marginLeft = '0';
-                        annotatedImage.style.marginRight = '0';
-                        console.log(`🖥️ Desktop: Image sized to card width`);
-                    }
-                    
-                    // Add returned image size to summary
-                    const summaryDiv = resultsSummary.querySelector('div');
-                    const existingStat = summaryDiv.querySelector('.stat-returned');
-                    if (existingStat) {
-                        existingStat.textContent = `📐 ${tempImg.width}×${tempImg.height}`;
-                    } else {
-                        const returnedStat = document.createElement('span');
-                        returnedStat.className = 'stat stat-returned';
-                        returnedStat.textContent = `📐 ${tempImg.width}×${tempImg.height}`;
-                        // Insert after Total and Time, before Avg Confidence
                         imageContainer.style.marginLeft = '0';
                         imageContainer.style.marginRight = '0';
                         annotatedImage.style.width = '100%';
