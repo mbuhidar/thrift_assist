@@ -712,21 +712,10 @@
                 font-size: 21px;  /* Increased from 19px */
             }
             
-            /* Remove the CSS full-width override - let JavaScript handle it */
-            .image-container {
-                position: relative;
-                margin-top: 15px !important;
-                margin-bottom: 0 !important;
-                border-radius: 0 !important;
-                /* Remove fixed width rules - JavaScript will set them */
-            }
-            
-            .image-preview.zoomable {
-                width: 100% !important;
-                max-width: 100% !important;
-                height: auto !important;
-                display: block !important;
-                border-radius: 0 !important;
+            /* Remove all image container overrides - let JavaScript handle sizing */
+            .card {
+                padding: 1.25em;
+                overflow: visible !important;
             }
         }
 
@@ -1416,36 +1405,43 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     console.log(`🖼️ Received image: ${tempImg.width}×${tempImg.height}`);
                     console.log(`📱 Device: ${device.isMobile ? 'Mobile' : device.isTablet ? 'Tablet' : 'Desktop'}`);
                     
-                    // Mobile: Force 96% viewport width
+                    // Mobile: Force 96vw display
                     if (device.isMobile) {
-                        // Remove any constraining styles
-                        imageContainer.style.removeProperty('max-width');
-                        imageContainer.style.removeProperty('width');
-                        imageContainer.style.removeProperty('margin');
-                        
-                        // Break out of card padding by using negative margins
-                        const cardPadding = parseFloat(getComputedStyle(imageContainer.closest('.card')).paddingLeft);
-                        console.log(`📦 Card padding: ${cardPadding}px`);
-                        
-                        // Force 96% of viewport width
+                        // Calculate 96% of viewport width
                         const viewportWidth = window.innerWidth;
-                        const imageWidth = viewportWidth * 0.96;
-                        const leftMargin = (viewportWidth - imageWidth) / 2;
+                        const imageWidth = Math.round(viewportWidth * 0.96);
+                        const sideMargin = Math.round((viewportWidth - imageWidth) / 2);
                         
+                        // Get card for positioning context
+                        const card = imageContainer.closest('.card');
+                        const cardRect = card.getBoundingClientRect();
+                        const cardLeftEdge = cardRect.left;
+                        
+                        // Calculate offset needed to center image in viewport
+                        const offsetFromCardLeft = sideMargin - cardLeftEdge;
+                        
+                        console.log(`📦 Viewport: ${viewportWidth}px`);
+                        console.log(`📐 Image width: ${imageWidth}px (96%)`);
+                        console.log(`📍 Side margin: ${sideMargin}px (2% each)`);
+                        console.log(`📦 Card left edge: ${cardLeftEdge}px`);
+                        console.log(`↔️  Offset needed: ${offsetFromCardLeft}px`);
+                        
+                        // Apply styles
+                        imageContainer.style.position = 'relative';
                         imageContainer.style.width = `${imageWidth}px`;
                         imageContainer.style.maxWidth = `${imageWidth}px`;
-                        imageContainer.style.marginLeft = `${leftMargin - cardPadding}px`;
-                        imageContainer.style.marginRight = `${leftMargin - cardPadding}px`;
+                        imageContainer.style.marginLeft = `${offsetFromCardLeft}px`;
+                        imageContainer.style.marginRight = `${offsetFromCardLeft}px`;
                         imageContainer.style.marginTop = '15px';
                         imageContainer.style.marginBottom = '0';
-                        imageContainer.style.position = 'relative';
+                        imageContainer.style.borderRadius = '0';
                         
                         // Ensure image fills container
                         annotatedImage.style.width = '100%';
                         annotatedImage.style.height = 'auto';
                         annotatedImage.style.display = 'block';
                         
-                        console.log(`📱 Mobile: Image using 96% viewport width (${imageWidth}px of ${viewportWidth}px)`);
+                        console.log(`📱 Mobile: Image set to ${imageWidth}px (96% of ${viewportWidth}px)`);
                     } else if (device.isTablet) {
                         imageContainer.style.maxWidth = '90vw';
                         imageContainer.style.width = '90vw';
