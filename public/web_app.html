@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ThriftAssist - AI Media Finder</title>
     <style>
         * {
@@ -718,9 +718,15 @@
                 overflow: visible !important;
             }
             
-            /* Image breaks out of card to viewport edges */
+            /* Image breaks out to 96vw using viewport units */
             .image-container {
                 position: relative;
+                left: 50%;
+                right: 50%;
+                margin-left: -48vw !important;  /* -48vw = half of 96vw */
+                margin-right: -48vw !important;
+                width: 96vw !important;
+                max-width: 96vw !important;
                 margin-top: 15px !important;
                 margin-bottom: 0 !important;
                 border-radius: 0 !important;
@@ -1423,42 +1429,19 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     
                     // Mobile: Force 96vw display
                     if (device.isMobile) {
-                        // Calculate 96% of viewport width
-                        const viewportWidth = window.innerWidth;
-                        const targetWidth = Math.round(viewportWidth * 0.96);
-                        const leftMargin = Math.round((viewportWidth - targetWidth) / 2);
+                        console.log(`📱 Mobile: Image using CSS 96vw width`);
                         
-                        // Get the card element to calculate how far we need to move left
-                        const card = imageContainer.closest('.card');
-                        const cardRect = card.getBoundingClientRect();
-                        
-                        // Calculate how far left we need to move to reach the target left margin
-                        const moveLeft = -(cardRect.left - leftMargin);
-                        
-                        console.log(`📱 Mobile Image Sizing:`);
-                        console.log(`  Viewport: ${viewportWidth}px`);
-                        console.log(`  Target width: ${targetWidth}px (96%)`);
-                        console.log(`  Left margin: ${leftMargin}px (2%)`);
-                        console.log(`  Card left: ${cardRect.left}px`);
-                        console.log(`  Move left by: ${moveLeft}px`);
-                        
-                        // Apply styles to break image out of card
-                        imageContainer.style.position = 'relative';
-                        imageContainer.style.left = `${moveLeft}px`;
-                        imageContainer.style.width = `${targetWidth}px`;
-                        imageContainer.style.maxWidth = `${targetWidth}px`;
-                        imageContainer.style.marginTop = '15px';
-                        imageContainer.style.marginBottom = '0';
-                        imageContainer.style.marginLeft = '0';
-                        imageContainer.style.marginRight = '0';
-                        imageContainer.style.borderRadius = '0';
+                        // Don't set any inline styles - let CSS handle it
+                        imageContainer.style.removeProperty('width');
+                        imageContainer.style.removeProperty('max-width');
+                        imageContainer.style.removeProperty('left');
+                        imageContainer.style.removeProperty('margin-left');
+                        imageContainer.style.removeProperty('margin-right');
                         
                         // Ensure image fills container
                         annotatedImage.style.width = '100%';
                         annotatedImage.style.height = 'auto';
                         annotatedImage.style.display = 'block';
-                        
-                        console.log(`✅ Image positioned at ${leftMargin}px from left, ${targetWidth}px wide`);
                     } else if (device.isTablet) {
                         imageContainer.style.maxWidth = '90vw';
                         imageContainer.style.width = '90vw';
