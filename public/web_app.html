@@ -17,7 +17,7 @@
             color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            font-size: 16px;  /* Fixed base size */
+            font-size: 16px;  /* Fixed base size - never changes */
             /* Prevent font boosting/inflation on mobile */
             -webkit-text-size-adjust: 100%;
             -moz-text-size-adjust: 100%;
@@ -682,6 +682,22 @@
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
+            /* Increase base container font size for mobile */
+            .container {
+                font-size: 1.0625rem;  /* 17px / 16px = 1.0625rem, 6.25% larger */
+            }
+            
+            /* Scale mobile text sizes proportionally */
+            body.text-scale-50 .container { font-size: 0.53125rem; }  /* 0.5 * 1.0625 */
+            body.text-scale-75 .container { font-size: 0.796875rem; }  /* 0.75 * 1.0625 */
+            body.text-scale-100 .container { font-size: 1.0625rem; }
+            body.text-scale-125 .container { font-size: 1.328125rem; }
+            body.text-scale-150 .container { font-size: 1.59375rem; }
+            body.text-scale-175 .container { font-size: 1.859375rem; }
+            body.text-scale-200 .container { font-size: 2.125rem; }
+            body.text-scale-250 .container { font-size: 2.65625rem; }
+            body.text-scale-300 .container { font-size: 3.1875rem; }
+
             .main-content {
                 grid-template-columns: 1fr;
                 gap: 1.25em;  /* Proportional gap */
@@ -1190,7 +1206,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             // Add new scale class
             document.body.classList.add(`text-scale-${scaleValue}`);
             
-            // Don't change body font-size - keep viewport stable
+            // Never change body font-size - keep viewport at 16px always
             
             // On desktop, stack panels if text size > 125%
             if (device.isDesktop) {
@@ -1244,14 +1260,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const threshold = document.getElementById('threshold').value;
             let textScale = document.getElementById('textScale').value;  // Get text scale value
             
-            // Boost annotation text size for mobile devices with increased multiplier
+            // Boost annotation text size for mobile devices - increased multiplier
             if (device.isMobile || device.isTablet) {
                 const scaleInt = parseInt(textScale);
-                // Increase by 75% for mobile/tablet (increased from 50%), capped at 300%
-                textScale = Math.min(300, Math.round(scaleInt * 1.75)).toString();
+                // Increase by 100% for mobile/tablet (doubled from 75%)
+                textScale = Math.min(300, Math.round(scaleInt * 2.0)).toString();
                 console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
             }
-            
+
             if (!imageFile) {
                 showError('Please select an image file');
                 return;
