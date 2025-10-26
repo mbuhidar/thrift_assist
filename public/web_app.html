@@ -26,6 +26,8 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             font-size: inherit;  /* Inherit from html - stays 16px */
+            width: 100%;
+            overflow-x: hidden;  /* Prevent horizontal scroll */
         }
         
         .container {
@@ -680,59 +682,61 @@
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
+            body {
+                font-size: 17px;
+                width: 100vw;  /* Full viewport width */
+                overflow-x: hidden;
+            }
+            
             /* Increase base container font size for mobile - using absolute px */
             .container {
                 font-size: 18px;  /* 12.5% larger than desktop */
                 padding-left: 15px;
                 padding-right: 15px;
-                max-width: 100%;  /* Force container to screen width on mobile */
-                width: 100%;
+                max-width: 100vw;  /* Force container to viewport width on mobile */
+                width: 100vw;
                 overflow-x: hidden;  /* Prevent horizontal scroll */
+                margin-left: 0;
+                margin-right: 0;
             }
             
-            /* Mobile text scales use absolute px values */
-            body.text-scale-50 .container { font-size: 9px; }
-            body.text-scale-75 .container { font-size: 13.5px; }
-            body.text-scale-100 .container { font-size: 18px; }
-            body.text-scale-125 .container { font-size: 22.5px; }
-            body.text-scale-150 .container { font-size: 27px; }
-            body.text-scale-175 .container { font-size: 31.5px; }
-            body.text-scale-200 .container { font-size: 36px; }
-            body.text-scale-250 .container { font-size: 45px; }
-            body.text-scale-300 .container { font-size: 54px; }
-
             .main-content {
-                grid-template-columns: 1fr;
-                gap: 1.25em;  /* Proportional gap */
+                max-width: 100%;
+                width: 100%;
             }
             
-            .header h1 {
-                font-size: 2em;
+            .header {
+                max-width: 100%;
+                width: 100%;
             }
-
-            .header p {
-                font-size: 1em;
-            }
-
+            
             .card {
-                padding: 1.25em;  /* Proportional padding */
+                width: 100%;
+                max-width: 100%;
             }
-            
-            .card h2 {
-                font-size: 1.4em;
-            }
-            
-            body {
-                font-size: 17px;  /* Increased from 15px for better mobile readability */
+
+            .image-preview {
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
             }
         }
 
         @media (max-width: 480px) {
+            body {
+                font-size: 16px;
+                width: 100vw;
+                overflow-x: hidden;
+            }
+            
             .container {
                 padding: 10px;  /* Absolute px */
                 font-size: 18px;  /* Keep same as 768px breakpoint */
-                max-width: 100%;
-                width: 100%;
+                max-width: 100vw;
+                width: 100vw;
+                margin-left: 0;
+                margin-right: 0;
             }
 
             .card {
