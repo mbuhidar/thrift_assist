@@ -17,6 +17,8 @@
             -moz-text-size-adjust: 100%;
             -ms-text-size-adjust: 100%;
             text-size-adjust: 100%;
+            height: 100%;
+            overflow-x: hidden;  /* Prevent horizontal scroll at root */
         }
 
         body {
@@ -24,11 +26,14 @@
             line-height: 1.6;
             color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;  /* Keep background fixed on scroll */
             min-height: 100vh;
             font-size: inherit;  /* Inherit from html - stays 16px */
             width: 100%;
             max-width: 100vw;  /* Prevent body from exceeding viewport */
             overflow-x: hidden;  /* Prevent horizontal scroll */
+            margin: 0;
+            padding: 0;
         }
         
         .container {
@@ -45,6 +50,7 @@
             font-size: 1em;  /* Inherits from text-scale class */
             max-width: 100%;
             overflow-x: hidden;
+            word-wrap: break-word;  /* Prevent long words from overflowing */
         }
         
         /* Text scaling via text-content wrapper only - doesn't affect layout */
@@ -83,14 +89,14 @@
             gap: 30px;
             align-items: start;
             width: 100%;
-            max-width: 800px;  /* Limit width for better readability */
+            max-width: 100%;  /* Let the container control max-width */
             margin-left: auto;
             margin-right: auto;
         }
         
         /* Remove desktop-text-large responsive layout - always stacked */
         .header {
-            max-width: 800px;
+            max-width: 100%;  /* Match main-content width */
             margin-left: auto;
             margin-right: auto;
         }
@@ -128,6 +134,10 @@
             padding: 1.5625em;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             transition: transform 0.3s ease;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;  /* Prevent horizontal overflow */
         }
 
         .card:hover {
@@ -160,11 +170,13 @@
         .form-group textarea,
         .form-group select {
             width: 100%;
+            max-width: 100%;
             padding: 0.75em;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 1em;
             transition: border-color 0.3s ease;
+            box-sizing: border-box;
         }
 
         .form-group input[type="range"] {
@@ -173,24 +185,52 @@
             background: #e2e8f0;
             outline: none;
             cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            width: 100%;
         }
 
         .form-group input[type="range"]::-webkit-slider-thumb {
             appearance: none;
-            width: 20px;
-            height: 20px;
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
             background: #5a67d8;
             border-radius: 50%;
             cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         .form-group input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             background: #5a67d8;
             border-radius: 50%;
             cursor: pointer;
             border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Touch device optimizations */
+        @media (hover: none) and (pointer: coarse) {
+            .form-group input[type="range"]::-webkit-slider-thumb {
+                width: 28px;
+                height: 28px;
+            }
+            
+            .form-group input[type="range"]::-moz-range-thumb {
+                width: 28px;
+                height: 28px;
+            }
+            
+            .btn {
+                padding: 14px 24px;
+                min-height: 48px;  /* Better touch target */
+            }
+            
+            .collapsible-header {
+                min-height: 44px;  /* Better touch target */
+            }
         }
 
         .slider-container {
@@ -215,6 +255,9 @@
         .form-group textarea {
             resize: vertical;
             min-height: 100px;
+            max-width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .btn {
@@ -229,6 +272,8 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;  /* Explicitly set same font as body */
             transition: all 0.3s ease;
             width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .btn:hover {
@@ -346,6 +391,11 @@
             padding: 0.75em;
             margin-bottom: 0.625em;
             border-left: 3px solid #5a67d8;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         .match-phrase {
@@ -365,6 +415,11 @@
             border-radius: 6px;
             padding: 0.75em;
             margin-bottom: 0.625em;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
         
         .match-header {
@@ -428,11 +483,15 @@
 
         .image-preview {
             max-width: 100%;
+            width: 100%;
+            height: auto;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             margin-top: 15px;
             cursor: zoom-in;
             transition: transform 0.3s ease;
+            display: block;
+            object-fit: contain;  /* Maintain aspect ratio */
         }
 
         /* Zoom functionality styles */
@@ -445,12 +504,15 @@
             display: block;
             width: 100%;
             max-width: 100%;
+            box-sizing: border-box;
         }
 
         .image-preview.zoomable {
             cursor: zoom-in;
             user-select: none;
             -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
             display: block;
             transform-origin: 0 0;
             transition: none;
@@ -688,29 +750,61 @@
             margin-top: 0.625em;
         }
 
-        /* Mobile optimizations */
+        /* ===== RESPONSIVE MEDIA QUERIES ===== */
+        
+        /* Tablet devices (768px - 1024px) */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .container {
+                max-width: 100%;
+                padding: 20px;
+            }
+            
+            .main-content {
+                max-width: 100%;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+        
+        /* Tablet landscape mode */
+        @media (min-width: 769px) and (max-width: 1024px) and (orientation: landscape) {
+            .container {
+                padding: 15px 30px;
+            }
+            
+            .main-content {
+                gap: 25px;
+            }
+            
+            .header h1 {
+                font-size: 2.2em;
+            }
+        }
+        
+        /* Mobile devices (up to 768px) */
         @media (max-width: 768px) {
             body {
-                font-size: 16px;  /* Fixed - never changes */
-                width: 100vw;  /* Full viewport width */
+                font-size: 16px;
+                width: 100vw;
                 max-width: 100vw;
                 overflow-x: hidden;
             }
             
             .container {
-                font-size: 16px;  /* Fixed - layout stays same */
-                padding-left: 15px;
-                padding-right: 15px;
-                max-width: 100vw;  /* Force container to viewport width on mobile */
-                width: 100vw;
-                overflow-x: hidden;  /* Prevent horizontal scroll */
+                font-size: 16px;
+                padding: 15px;
+                max-width: 100vw;
+                width: 100%;
+                overflow-x: hidden;
                 margin-left: 0;
                 margin-right: 0;
                 box-sizing: border-box;
             }
             
             .text-content {
-                font-size: 1.125em;  /* 12.5% larger on mobile */
+                font-size: 1.125em;
                 max-width: 100%;
                 overflow-x: hidden;
             }
@@ -728,16 +822,19 @@
             .main-content {
                 max-width: 100%;
                 width: 100%;
+                gap: 20px;
             }
             
             .header {
                 max-width: 100%;
                 width: 100%;
+                margin-bottom: 20px;
             }
             
             .card {
                 width: 100%;
                 max-width: 100%;
+                padding: 20px;
             }
 
             .image-preview {
@@ -746,26 +843,77 @@
                 width: 100% !important;
                 max-width: 100% !important;
             }
+            
+            .image-container {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            
+            /* Stack form controls vertically on mobile */
+            .form-group input,
+            .form-group select,
+            .form-group textarea {
+                font-size: 16px;  /* Prevent zoom on iOS */
+            }
+            
+            .btn {
+                padding: 12px 20px;
+                font-size: 16px;
+            }
+        }
+        
+        /* Mobile landscape mode */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .container {
+                padding: 10px 20px;
+            }
+            
+            .main-content {
+                gap: 15px;
+            }
+            
+            .card {
+                padding: 15px;
+            }
+            
+            .header {
+                margin-bottom: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+                margin-bottom: 0.3em;
+            }
+            
+            .header p {
+                font-size: 1em;
+            }
+            
+            /* Reduce collapsible content height in landscape */
+            .collapsible.open .collapsible-content {
+                max-height: 20em;
+            }
         }
 
+        /* Small mobile devices (up to 480px) */
         @media (max-width: 480px) {
             body {
-                font-size: 16px;  /* Fixed */
+                font-size: 16px;
                 width: 100vw;
                 overflow-x: hidden;
             }
             
             .container {
-                padding: 10px;  /* Absolute px */
-                font-size: 16px;  /* Fixed - layout stays same */
+                padding: 10px;
+                font-size: 16px;
                 max-width: 100vw;
-                width: 100vw;
+                width: 100%;
                 margin-left: 0;
                 margin-right: 0;
             }
 
             .card {
-                padding: 15px;  /* Absolute px */
+                padding: 15px;
                 width: 100%;
             }
 
@@ -777,29 +925,59 @@
                 font-size: 0.95em;
             }
             
-            body {
-                font-size: 16px;  /* Increased from 14px */
-            }
-            
-            /* Proportional scaling for small mobile text-scale classes */
-            body.text-scale-small {
-                font-size: 14px;  /* Increased from 12px */
-            }
-            
-            body.text-scale-medium {
-                font-size: 16px;  /* Increased from 14px */
-            }
-            
-            body.text-scale-large {
-                font-size: 18px;  /* Increased from 16px */
-            }
-            
-            body.text-scale-xlarge {
-                font-size: 20px;  /* Increased from 18px */
-            }
-
             .slider-labels {
                 font-size: 0.75em;
+            }
+            
+            /* Adjust match item layout for small screens */
+            .match-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .match-scores {
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
+        
+        /* Small mobile landscape */
+        @media (max-width: 480px) and (orientation: landscape) {
+            .container {
+                padding: 8px 15px;
+            }
+            
+            .card {
+                padding: 12px;
+            }
+            
+            .header h1 {
+                font-size: 1.5em;
+                margin-bottom: 0.2em;
+            }
+            
+            .header p {
+                font-size: 0.9em;
+            }
+            
+            .main-content {
+                gap: 12px;
+            }
+            
+            .form-group {
+                margin-bottom: 15px;
+            }
+            
+            .btn {
+                padding: 10px 16px;
+            }
+        }
+        
+        /* Large desktop screens */
+        @media (min-width: 1400px) {
+            .container {
+                max-width: 1400px;
             }
         }
     </style>
