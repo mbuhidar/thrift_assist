@@ -34,6 +34,7 @@
             padding: 20px;
             width: 100%;
             font-size: 16px;  /* Default size */
+            box-sizing: border-box;  /* Include padding in width calculation */
         }
         
         /* Text scaling via container only - doesn't affect viewport */
@@ -684,6 +685,9 @@
                 font-size: 18px;  /* 12.5% larger than desktop */
                 padding-left: 15px;
                 padding-right: 15px;
+                max-width: 100%;  /* Force container to screen width on mobile */
+                width: 100%;
+                overflow-x: hidden;  /* Prevent horizontal scroll */
             }
             
             /* Mobile text scales use absolute px values */
@@ -721,48 +725,19 @@
             body {
                 font-size: 17px;  /* Increased from 15px for better mobile readability */
             }
-            
-            /* Proportional scaling for mobile text-scale classes */
-            body.text-scale-small {
-                font-size: 15px;  /* Increased from 13px */
-            }
-            
-            body.text-scale-medium {
-                font-size: 17px;  /* Increased from 15px */
-            }
-            
-            body.text-scale-large {
-                font-size: 19px;  /* Increased from 17px */
-            }
-            
-            body.text-scale-xlarge {
-                font-size: 21px;  /* Increased from 19px */
-            }
-            
-            /* Image stays within card on mobile - no breakout */
-            .image-container {
-                position: relative;
-                margin-top: 15px !important;
-                margin-bottom: 0 !important;
-                width: 100% !important;
-                max-width: 100% !important;
-            }
-            
-            .image-preview.zoomable {
-                width: 100% !important;
-                max-width: 100% !important;
-                height: auto !important;
-                display: block !important;
-            }
         }
 
         @media (max-width: 480px) {
             .container {
-                padding: 0.625em;  /* Proportional padding */
+                padding: 10px;  /* Absolute px */
+                font-size: 18px;  /* Keep same as 768px breakpoint */
+                max-width: 100%;
+                width: 100%;
             }
 
             .card {
-                padding: 0.9375em;  /* Proportional padding */
+                padding: 15px;  /* Absolute px */
+                width: 100%;
             }
 
             .header h1 {
