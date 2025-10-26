@@ -995,37 +995,65 @@
             
             init() {
                 this.updateDeviceInfo();
-                
-                // Add device class to body for CSS targeting
                 this.updateBodyClasses();
+                this.logDeviceInfo();
                 
-                // Listen for orientation changes and window resizes
+                // Listen for orientation changes
                 window.addEventListener('orientationchange', () => {
+                    console.log('🔄 Orientation change event fired');
+                    // Small delay to let viewport settle
                     setTimeout(() => {
-                        console.log('🔄 Orientation changed - re-evaluating device type');
-                        this.updateDeviceInfo();
-                        this.updateBodyClasses();
-                        this.logDeviceInfo();
-                    }, 300);
+                        this.handleOrientationChange();
+                    }, 100);
+                    // Also check after a longer delay in case of slow viewport update
+                    setTimeout(() => {
+                        this.handleOrientationChange();
+                    }, 500);
                 });
                 
+                // Listen for resize events (catches orientation changes too)
+                let resizeTimer;
                 window.addEventListener('resize', () => {
-                    // Debounce resize events
-                    clearTimeout(this.resizeTimeout);
-                    this.resizeTimeout = setTimeout(() => {
-                        const oldIsMobile = this.isMobile;
+                    clearTimeout(resizeTimer);
+                    resizeTimer = setTimeout(() => {
+                        const oldType = this.getDeviceType();
                         this.updateDeviceInfo();
+                        const newType = this.getDeviceType();
                         
-                        // Only update if device type changed
-                        if (oldIsMobile !== this.isMobile) {
-                            console.log('📐 Viewport width changed significantly - updating device type');
+                        if (oldType !== newType) {
+                            console.log(`📐 Device type changed: ${oldType} → ${newType}`);
                             this.updateBodyClasses();
                             this.logDeviceInfo();
+                            this.reapplyLayout();
                         }
-                    }, 250);
+                    }, 100);
                 });
                 
                 return this;
+            },
+            
+            getDeviceType() {
+                if (this.isMobile) return 'mobile';
+                if (this.isTablet) return 'tablet';
+                return 'desktop';
+            },
+            
+            handleOrientationChange() {
+                const oldType = this.getDeviceType();
+                const oldWidth = window.innerWidth;
+                const oldHeight = window.innerHeight;
+                
+                this.updateDeviceInfo();
+                const newType = this.getDeviceType();
+                
+                console.log(`🔄 Orientation change complete:`);
+                console.log(`   ${oldWidth}×${oldHeight} → ${window.innerWidth}×${window.innerHeight}`);
+                console.log(`   ${oldType} → ${newType}`);
+                
+                // Always update classes and layout on orientation change
+                this.updateBodyClasses();
+                this.logDeviceInfo();
+                this.reapplyLayout();
             },
             
             updateDeviceInfo() {
@@ -1036,18 +1064,20 @@
                                      (navigator.maxTouchPoints > 0) || 
                                      (navigator.msMaxTouchPoints > 0);
                 
-                // Check screen size
+                // Get current viewport dimensions
                 const width = window.innerWidth;
+                const height = window.innerHeight;
                 
                 // Reset flags
                 this.isMobile = false;
                 this.isTablet = false;
                 this.isDesktop = false;
                 
-                // Check for mobile devices
+                // Device type detection
                 const mobileRegex = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i;
                 const tabletRegex = /ipad|android(?!.*mobile)|tablet/i;
                 
+                // Detect based on user agent AND viewport width
                 if (mobileRegex.test(this.userAgent) || (this.isTouchDevice && width < 768)) {
                     this.isMobile = true;
                 } else if (tabletRegex.test(this.userAgent) || (this.isTouchDevice && width >= 768 && width < 1024)) {
@@ -1068,16 +1098,53 @@
                 if (this.isTouchDevice) document.body.classList.add('touch-device');
             },
             
+            reapplyLayout() {
+                // Force container to recalculate width
+                const container = document.querySelector('.container');
+                if (container) {
+                    // Trigger reflow
+                    container.style.display = 'none';
+                    void container.offsetHeight; // Force reflow
+                    container.style.display = '';
+                }
+                
+                // If there's an image displayed, re-apply its sizing
+                const annotatedImage = document.getElementById('annotatedImage');
+                if (annotatedImage && annotatedImage.src && annotatedImage.src.startsWith('data:')) {
+                    const imageContainer = document.getElementById('imageContainer');
+                    
+                    // Re-apply device-specific image sizing
+                    if (this.isMobile) {
+                        imageContainer.style.width = '100%';
+                        imageContainer.style.maxWidth = '100%';
+                        annotatedImage.style.width = '100%';
+                        console.log('📱 Re-applied mobile image sizing');
+                    } else if (this.isTablet) {
+                        imageContainer.style.maxWidth = '90vw';
+                        imageContainer.style.width = '90vw';
+                        annotatedImage.style.width = '100%';
+                        console.log('📱 Re-applied tablet image sizing');
+                    } else {
+                        imageContainer.style.maxWidth = '100%';
+                        imageContainer.style.width = '100%';
+                        annotatedImage.style.width = '100%';
+                        console.log('🖥️ Re-applied desktop image sizing');
+                    }
+                }
+                
+                console.log('✅ Layout reapplied');
+            },
+            
             logDeviceInfo() {
-                console.log('📱 Device Detection:', {
-                    isMobile: this.isMobile,
-                    isTablet: this.isTablet,
-                    isDesktop: this.isDesktop,
-                    isTouchDevice: this.isTouchDevice,
-                    screenWidth: window.innerWidth,
-                    screenHeight: window.innerHeight,
-                    orientation: window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
-                });
+                const orientation = window.innerWidth > window.innerHeight ? 'landscape 🌄' : 'portrait 📱';
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('📱 Device Detection:');
+                console.log(`   Type: ${this.getDeviceType().toUpperCase()}`);
+                console.log(`   Touch: ${this.isTouchDevice ? 'Yes' : 'No'}`);
+                console.log(`   Viewport: ${window.innerWidth}×${window.innerHeight}`);
+                console.log(`   Orientation: ${orientation}`);
+                console.log(`   User Agent: ${this.userAgent.substring(0, 50)}...`);
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             },
             
             // Helper methods
