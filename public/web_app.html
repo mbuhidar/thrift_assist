@@ -17,31 +17,32 @@
             color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            font-size: 16px;  /* Fixed base size - never changes */
+            font-size: 16px !important;  /* Fixed forever - prevents viewport zoom */
             /* Prevent font boosting/inflation on mobile */
-            -webkit-text-size-adjust: 100%;
-            -moz-text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
-            text-size-adjust: 100%;
+            -webkit-text-size-adjust: none !important;
+            -moz-text-size-adjust: none !important;
+            -ms-text-size-adjust: none !important;
+            text-size-adjust: none !important;
         }
         
-        /* Text scaling wrapper - scales content without affecting viewport */
-        body.text-scale-50 .container { font-size: 0.5rem; }
-        body.text-scale-75 .container { font-size: 0.75rem; }
-        body.text-scale-100 .container { font-size: 1rem; }
-        body.text-scale-125 .container { font-size: 1.25rem; }
-        body.text-scale-150 .container { font-size: 1.5rem; }
-        body.text-scale-175 .container { font-size: 1.75rem; }
-        body.text-scale-200 .container { font-size: 2rem; }
-        body.text-scale-250 .container { font-size: 2.5rem; }
-        body.text-scale-300 .container { font-size: 3rem; }
-
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             width: 100%;
+            font-size: 1em;  /* Inherits from body: 16px */
         }
+        
+        /* Text scaling via container only - doesn't affect viewport */
+        body.text-scale-50 .container { font-size: 8px; }
+        body.text-scale-75 .container { font-size: 12px; }
+        body.text-scale-100 .container { font-size: 16px; }
+        body.text-scale-125 .container { font-size: 20px; }
+        body.text-scale-150 .container { font-size: 24px; }
+        body.text-scale-175 .container { font-size: 28px; }
+        body.text-scale-200 .container { font-size: 32px; }
+        body.text-scale-250 .container { font-size: 40px; }
+        body.text-scale-300 .container { font-size: 48px; }
 
         .header {
             text-align: center;
@@ -682,21 +683,21 @@
 
         /* Mobile optimizations */
         @media (max-width: 768px) {
-            /* Increase base container font size for mobile */
+            /* Increase base container font size for mobile - using absolute px */
             .container {
-                font-size: 1.0625rem;  /* 17px / 16px = 1.0625rem, 6.25% larger */
+                font-size: 18px;  /* 12.5% larger than desktop (16px * 1.125) */
             }
             
-            /* Scale mobile text sizes proportionally */
-            body.text-scale-50 .container { font-size: 0.53125rem; }  /* 0.5 * 1.0625 */
-            body.text-scale-75 .container { font-size: 0.796875rem; }  /* 0.75 * 1.0625 */
-            body.text-scale-100 .container { font-size: 1.0625rem; }
-            body.text-scale-125 .container { font-size: 1.328125rem; }
-            body.text-scale-150 .container { font-size: 1.59375rem; }
-            body.text-scale-175 .container { font-size: 1.859375rem; }
-            body.text-scale-200 .container { font-size: 2.125rem; }
-            body.text-scale-250 .container { font-size: 2.65625rem; }
-            body.text-scale-300 .container { font-size: 3.1875rem; }
+            /* Mobile text scales use absolute px values */
+            body.text-scale-50 .container { font-size: 9px; }
+            body.text-scale-75 .container { font-size: 13.5px; }
+            body.text-scale-100 .container { font-size: 18px; }
+            body.text-scale-125 .container { font-size: 22.5px; }
+            body.text-scale-150 .container { font-size: 27px; }
+            body.text-scale-175 .container { font-size: 31.5px; }
+            body.text-scale-200 .container { font-size: 36px; }
+            body.text-scale-250 .container { font-size: 45px; }
+            body.text-scale-300 .container { font-size: 54px; }
 
             .main-content {
                 grid-template-columns: 1fr;
@@ -759,40 +760,12 @@
 
         @media (max-width: 480px) {
             .container {
-                padding: 0.625em;  /* Proportional padding */
+                padding: 10px;  /* Absolute px */
+                font-size: 18px;  /* Keep same as 768px breakpoint */
             }
 
             .card {
-                padding: 0.9375em;  /* Proportional padding */
-            }
-
-            .header h1 {
-                font-size: 1.8em;
-            }
-            
-            .header p {
-                font-size: 0.95em;
-            }
-            
-            body {
-                font-size: 16px;  /* Increased from 14px */
-            }
-            
-            /* Proportional scaling for small mobile text-scale classes */
-            body.text-scale-small {
-                font-size: 14px;  /* Increased from 12px */
-            }
-            
-            body.text-scale-medium {
-                font-size: 16px;  /* Increased from 14px */
-            }
-            
-            body.text-scale-large {
-                font-size: 18px;  /* Increased from 16px */
-            }
-            
-            body.text-scale-xlarge {
-                font-size: 20px;  /* Increased from 18px */
+                padding: 15px;  /* Absolute px */
             }
 
             .slider-labels {
@@ -1206,7 +1179,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             // Add new scale class
             document.body.classList.add(`text-scale-${scaleValue}`);
             
-            // Never change body font-size - keep viewport at 16px always
+            // NEVER touch body font-size - it must stay 16px to prevent viewport zoom
             
             // On desktop, stack panels if text size > 125%
             if (device.isDesktop) {
@@ -1218,7 +1191,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 }
             }
             
-            console.log(`📏 UI text scale set to ${scaleValue}%`);
+            console.log(`📏 UI text scale set to ${scaleValue}% (viewport stays at 100%)`);
             
             // Force immediate layout recalculation
             document.body.offsetHeight;
