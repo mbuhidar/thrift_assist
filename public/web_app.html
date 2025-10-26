@@ -17,12 +17,24 @@
             color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            font-size: 16px;  /* Fixed base size */
             /* Prevent font boosting/inflation on mobile */
             -webkit-text-size-adjust: 100%;
             -moz-text-size-adjust: 100%;
             -ms-text-size-adjust: 100%;
             text-size-adjust: 100%;
         }
+        
+        /* Text scaling wrapper - scales content without affecting viewport */
+        body.text-scale-50 .container { font-size: 0.5rem; }
+        body.text-scale-75 .container { font-size: 0.75rem; }
+        body.text-scale-100 .container { font-size: 1rem; }
+        body.text-scale-125 .container { font-size: 1.25rem; }
+        body.text-scale-150 .container { font-size: 1.5rem; }
+        body.text-scale-175 .container { font-size: 1.75rem; }
+        body.text-scale-200 .container { font-size: 2rem; }
+        body.text-scale-250 .container { font-size: 2.5rem; }
+        body.text-scale-300 .container { font-size: 3rem; }
 
         .container {
             max-width: 1200px;
@@ -1168,21 +1180,29 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         });
         
         function applyUiTextScale(scaleValue) {
-            // Apply font size directly to body based on percentage
-            const fontSize = uiTextScalePercentToSize[scaleValue] || '16px';
-            document.body.style.fontSize = fontSize;
+            // Remove all scale classes
+            document.body.classList.remove(
+                'text-scale-50', 'text-scale-75', 'text-scale-100',
+                'text-scale-125', 'text-scale-150', 'text-scale-175',
+                'text-scale-200', 'text-scale-250', 'text-scale-300'
+            );
             
-            // On desktop, stack panels if text size > 100%
+            // Add new scale class
+            document.body.classList.add(`text-scale-${scaleValue}`);
+            
+            // Don't change body font-size - keep viewport stable
+            
+            // On desktop, stack panels if text size > 125%
             if (device.isDesktop) {
                 const scaleInt = parseInt(scaleValue);
-                if (scaleInt > 100) {
+                if (scaleInt > 125) {
                     document.body.classList.add('desktop-text-large');
                 } else {
                     document.body.classList.remove('desktop-text-large');
                 }
             }
             
-            console.log(`📏 UI text scale set to ${scaleValue}% (${fontSize})`);
+            console.log(`📏 UI text scale set to ${scaleValue}%`);
             
             // Force immediate layout recalculation
             document.body.offsetHeight;
