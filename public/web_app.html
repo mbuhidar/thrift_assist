@@ -1553,11 +1553,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const threshold = document.getElementById('threshold').value;
             let textScale = document.getElementById('textScale').value;  // Get text scale value
             
-            // Boost annotation text size for mobile devices - 2.0x multiplier
+            // Boost annotation text size for mobile devices - 4.0x multiplier
             if (device.isMobile || device.isTablet) {
                 const scaleInt = parseInt(textScale);
-                // Multiply by 2.0 for mobile/tablet so 100% becomes 200%
-                textScale = Math.round(scaleInt * 2.0).toString();
+                // Multiply by 4.0 for mobile/tablet so 100% becomes 400%
+                textScale = Math.round(scaleInt * 4.0).toString();
                 console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
             }
 
