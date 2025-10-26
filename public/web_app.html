@@ -1434,14 +1434,14 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         // Track sync state
         let textScalesLinked = false;
         
-        // Set default annotation text scale based on device type
-        const defaultAnnotationScale = device.isMobile ? '150' : '100';
+        // Set default annotation text scale - same for all devices (boost applied on submit)
+        const defaultAnnotationScale = '100';
         
-        // Force reset annotation scale based on device (remove these lines after first load if you want persistence)
+        // Force reset to defaults (remove these lines after first load if you want persistence)
         localStorage.setItem('uiTextScale', '100');
         localStorage.setItem('textScale', defaultAnnotationScale);
         
-        // Load saved preferences or use device-appropriate defaults
+        // Load saved preferences or use defaults
         const savedUiTextScale = localStorage.getItem('uiTextScale') || '100';
         const savedTextScale = localStorage.getItem('textScale') || defaultAnnotationScale;
         const savedSyncState = localStorage.getItem('textScalesLinked') === 'true';
@@ -1553,11 +1553,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             const threshold = document.getElementById('threshold').value;
             let textScale = document.getElementById('textScale').value;  // Get text scale value
             
-            // Boost annotation text size for mobile devices - increased multiplier
+            // Boost annotation text size for mobile devices - 1.5x multiplier
             if (device.isMobile || device.isTablet) {
                 const scaleInt = parseInt(textScale);
-                // Increase by 100% for mobile/tablet (doubled from 75%)
-                textScale = Math.min(300, Math.round(scaleInt * 2.0)).toString();
+                // Multiply by 1.5 for mobile/tablet so 100% becomes 150%
+                textScale = Math.min(300, Math.round(scaleInt * 1.5)).toString();
                 console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
             }
 
