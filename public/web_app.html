@@ -712,24 +712,13 @@
                 font-size: 21px;  /* Increased from 19px */
             }
             
-            /* Make card overflow visible so image can break out */
-            .card {
-                padding: 1.25em;
-                overflow: visible !important;
-            }
-            
-            /* Image breaks out to 96vw using viewport units */
+            /* Image stays within card on mobile - no breakout */
             .image-container {
                 position: relative;
-                left: 50%;
-                right: 50%;
-                margin-left: -48vw !important;  /* -48vw = half of 96vw */
-                margin-right: -48vw !important;
-                width: 96vw !important;
-                max-width: 96vw !important;
                 margin-top: 15px !important;
                 margin-bottom: 0 !important;
-                border-radius: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
             }
             
             .image-preview.zoomable {
@@ -737,7 +726,6 @@
                 max-width: 100% !important;
                 height: auto !important;
                 display: block !important;
-                border-radius: 0 !important;
             }
         }
 
@@ -1429,14 +1417,17 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     
                     // Mobile: Force 96vw display
                     if (device.isMobile) {
-                        console.log(`📱 Mobile: Image using CSS 96vw width`);
+                        console.log(`📱 Mobile: Image stays within card bounds`);
                         
-                        // Don't set any inline styles - let CSS handle it
-                        imageContainer.style.removeProperty('width');
-                        imageContainer.style.removeProperty('max-width');
-                        imageContainer.style.removeProperty('left');
-                        imageContainer.style.removeProperty('margin-left');
-                        imageContainer.style.removeProperty('margin-right');
+                        // Clear any positioning that would break out of card
+                        imageContainer.style.position = 'relative';
+                        imageContainer.style.width = '100%';
+                        imageContainer.style.maxWidth = '100%';
+                        imageContainer.style.marginTop = '15px';
+                        imageContainer.style.marginBottom = '0';
+                        imageContainer.style.marginLeft = '0';
+                        imageContainer.style.marginRight = '0';
+                        imageContainer.style.left = '0';
                         
                         // Ensure image fills container
                         annotatedImage.style.width = '100%';
