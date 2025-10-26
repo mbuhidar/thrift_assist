@@ -712,10 +712,26 @@
                 font-size: 21px;  /* Increased from 19px */
             }
             
-            /* Remove all image container overrides - let JavaScript handle sizing */
+            /* Make card overflow visible so image can break out */
             .card {
                 padding: 1.25em;
                 overflow: visible !important;
+            }
+            
+            /* Image breaks out of card to viewport edges */
+            .image-container {
+                position: relative;
+                margin-top: 15px !important;
+                margin-bottom: 0 !important;
+                border-radius: 0 !important;
+            }
+            
+            .image-preview.zoomable {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                display: block !important;
+                border-radius: 0 !important;
             }
         }
 
@@ -1409,31 +1425,32 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     if (device.isMobile) {
                         // Calculate 96% of viewport width
                         const viewportWidth = window.innerWidth;
-                        const imageWidth = Math.round(viewportWidth * 0.96);
-                        const sideMargin = Math.round((viewportWidth - imageWidth) / 2);
+                        const targetWidth = Math.round(viewportWidth * 0.96);
+                        const leftMargin = Math.round((viewportWidth - targetWidth) / 2);
                         
-                        // Get card for positioning context
+                        // Get the card element to calculate how far we need to move left
                         const card = imageContainer.closest('.card');
                         const cardRect = card.getBoundingClientRect();
-                        const cardLeftEdge = cardRect.left;
                         
-                        // Calculate offset needed to center image in viewport
-                        const offsetFromCardLeft = sideMargin - cardLeftEdge;
+                        // Calculate how far left we need to move to reach the target left margin
+                        const moveLeft = -(cardRect.left - leftMargin);
                         
-                        console.log(`📦 Viewport: ${viewportWidth}px`);
-                        console.log(`📐 Image width: ${imageWidth}px (96%)`);
-                        console.log(`📍 Side margin: ${sideMargin}px (2% each)`);
-                        console.log(`📦 Card left edge: ${cardLeftEdge}px`);
-                        console.log(`↔️  Offset needed: ${offsetFromCardLeft}px`);
+                        console.log(`📱 Mobile Image Sizing:`);
+                        console.log(`  Viewport: ${viewportWidth}px`);
+                        console.log(`  Target width: ${targetWidth}px (96%)`);
+                        console.log(`  Left margin: ${leftMargin}px (2%)`);
+                        console.log(`  Card left: ${cardRect.left}px`);
+                        console.log(`  Move left by: ${moveLeft}px`);
                         
-                        // Apply styles
+                        // Apply styles to break image out of card
                         imageContainer.style.position = 'relative';
-                        imageContainer.style.width = `${imageWidth}px`;
-                        imageContainer.style.maxWidth = `${imageWidth}px`;
-                        imageContainer.style.marginLeft = `${offsetFromCardLeft}px`;
-                        imageContainer.style.marginRight = `${offsetFromCardLeft}px`;
+                        imageContainer.style.left = `${moveLeft}px`;
+                        imageContainer.style.width = `${targetWidth}px`;
+                        imageContainer.style.maxWidth = `${targetWidth}px`;
                         imageContainer.style.marginTop = '15px';
                         imageContainer.style.marginBottom = '0';
+                        imageContainer.style.marginLeft = '0';
+                        imageContainer.style.marginRight = '0';
                         imageContainer.style.borderRadius = '0';
                         
                         // Ensure image fills container
@@ -1441,7 +1458,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         annotatedImage.style.height = 'auto';
                         annotatedImage.style.display = 'block';
                         
-                        console.log(`📱 Mobile: Image set to ${imageWidth}px (96% of ${viewportWidth}px)`);
+                        console.log(`✅ Image positioned at ${leftMargin}px from left, ${targetWidth}px wide`);
                     } else if (device.isTablet) {
                         imageContainer.style.maxWidth = '90vw';
                         imageContainer.style.width = '90vw';
