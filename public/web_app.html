@@ -1434,13 +1434,16 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
         // Track sync state
         let textScalesLinked = false;
         
-        // Force reset to 100% (remove these lines after first load if you want persistence)
-        localStorage.setItem('uiTextScale', '100');
-        localStorage.setItem('textScale', '100');
+        // Set default annotation text scale based on device type
+        const defaultAnnotationScale = device.isMobile ? '150' : '100';
         
-        // Load saved preferences or default to 100%
+        // Force reset annotation scale based on device (remove these lines after first load if you want persistence)
+        localStorage.setItem('uiTextScale', '100');
+        localStorage.setItem('textScale', defaultAnnotationScale);
+        
+        // Load saved preferences or use device-appropriate defaults
         const savedUiTextScale = localStorage.getItem('uiTextScale') || '100';
-        const savedTextScale = localStorage.getItem('textScale') || '100';
+        const savedTextScale = localStorage.getItem('textScale') || defaultAnnotationScale;
         const savedSyncState = localStorage.getItem('textScalesLinked') === 'true';
         
         document.getElementById('uiTextScale').value = savedUiTextScale;
