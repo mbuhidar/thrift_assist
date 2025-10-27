@@ -505,6 +505,11 @@
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
+            touch-action: none;  /* Disable browser touch gestures */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
 
         .image-preview.zoomable {
@@ -519,10 +524,16 @@
             width: 100%;
             height: auto;
             max-width: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            -webkit-font-smoothing: subpixel-antialiased;
         }
 
         .image-preview.zoomed {
             cursor: grab;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            -webkit-font-smoothing: subpixel-antialiased;
         }
 
         .image-preview.zoomed:active {
@@ -531,53 +542,83 @@
 
         .zoom-controls {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            bottom: 20px;
+            right: 20px;
             background: rgba(0, 0, 0, 0.7);
-            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
             padding: 8px;
             display: none;
             z-index: 1000;
+            flex-direction: row;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         .zoom-controls.visible {
             display: flex;
-            gap: 5px;
         }
 
         .zoom-btn {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             border: none;
-            border-radius: 4px;
-            width: 35px;
-            height: 35px;
+            border-radius: 8px;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background-color 0.2s ease;
+            transition: all 0.2s ease;
+            color: #333;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .zoom-btn svg {
+            display: block;
         }
 
         .zoom-btn:hover {
             background: white;
+            transform: scale(1.05);
         }
 
         .zoom-btn:active {
             transform: scale(0.95);
+            background: #f0f0f0;
+        }
+        
+        /* Touch device zoom controls */
+        @media (hover: none) and (pointer: coarse) {
+            .zoom-controls {
+                bottom: 80px;
+                right: 15px;
+                padding: 6px;
+                gap: 6px;
+            }
+            
+            .zoom-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 22px;
+            }
         }
 
         .zoom-info {
             position: absolute;
-            bottom: 10px;
-            left: 10px;
+            bottom: 20px;
+            left: 20px;
             background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
             color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 12px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
             display: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
         .zoom-info.visible {
@@ -1150,9 +1191,29 @@
                             <div class="image-container" id="imageContainer">
                                 <img id="annotatedImage" class="image-preview zoomable" alt="Annotated result">
                                 <div class="zoom-controls" id="zoomControls">
-                                    <button class="zoom-btn" id="zoomInBtn" title="Zoom In">+</button>
-                                    <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">−</button>
-                                    <button class="zoom-btn" id="resetZoomBtn" title="Reset Zoom">⌂</button>
+                                    <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="7" y1="11" x2="15" y2="11"></line>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                    </button>
+                                    <button class="zoom-btn" id="resetZoomBtn" title="Fit to Screen">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="15 3 21 3 21 9"></polyline>
+                                            <polyline points="9 21 3 21 3 15"></polyline>
+                                            <line x1="21" y1="3" x2="14" y2="10"></line>
+                                            <line x1="3" y1="21" x2="10" y2="14"></line>
+                                        </svg>
+                                    </button>
+                                    <button class="zoom-btn" id="zoomInBtn" title="Zoom In">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="11" y1="7" x2="11" y2="15"></line>
+                                            <line x1="7" y1="11" x2="15" y2="11"></line>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                                 <div class="zoom-info" id="zoomInfo">100%</div>
                             </div>
@@ -2286,6 +2347,10 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         this.isDragging = true;
                         this.dragStart.x = e.touches[0].clientX - this.translateX;
                         this.dragStart.y = e.touches[0].clientY - this.translateY;
+                        
+                        // Disable default scrolling when zoomed in
+                        e.preventDefault();
+                        e.stopPropagation();
                     }
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
@@ -2301,11 +2366,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.lastTouch.initialTranslateX = this.translateX;
                     this.lastTouch.initialTranslateY = this.translateY;
                     this.lastTouch.initialScale = this.scale;
+                    
+                    // Always prevent default for pinch zoom
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
-                
-                // Only prevent default if we're handling the gesture
-                e.preventDefault();
-                e.stopPropagation();
             }
             
             handleTouchMove(e) {
@@ -2316,35 +2381,44 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     return;
                 }
                 
-                // Check if this might be a native zoom gesture
-                if (e.touches.length === 2) {
-                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
-                    const scaleChange = Math.abs(distance - this.lastTouch.distance) / this.lastTouch.distance;
-                    
-                    // If scale change is very rapid or large, might be native zoom
-                    if ( scaleChange > 0.5) {
-                        console.log('📱 Rapid scale change detected - switching to native zoom');
-                        this.nativeZoomActive = true;
-                        this.resetZoom();
-                        return;
-                    }
-                }
-                
                 if (e.touches.length === 1 && this.scale > 1) {
                     // Single finger drag when zoomed
                     const touchX = e.touches[0].clientX;
                     const touchY = e.touches[0].clientY;
                     
                     if (this.isDragging) {
-                        this.translateX = touchX - this.dragStart.x;
-                        this.translateY = touchY - this.dragStart.y;
-                                               this.constrainTranslation();
+                        const newTranslateX = touchX - this.dragStart.x;
+                        const newTranslateY = touchY - this.dragStart.y;
+                        
+                        // Smooth panning - update immediately without whiteout
+                        this.translateX = newTranslateX;
+                        this.translateY = newTranslateY;
+                        this.constrainTranslation();
                         this.updateTransform();
                         this.hasMoved = true;
+                        
+                        // Prevent default scrolling
+                        e.preventDefault();
+                        e.stopPropagation();
                     }
                 } else if (e.touches.length === 2) {
                     // Two finger pinch zoom
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                    
+                    // Check for rapid scale changes that might indicate native zoom
+                    if (this.lastTouch.distance) {
+                        const scaleDiff = Math.abs(distance - this.lastTouch.distance);
+                        const scaleChange = scaleDiff / this.lastTouch.distance;
+                        
+                        // If scale change is very rapid, might be native zoom
+                        if (scaleChange > 0.3) {
+                            console.log('📱 Rapid scale change detected - switching to native zoom');
+                            this.nativeZoomActive = true;
+                            this.resetZoom();
+                            return;
+                        }
+                    }
+                    
                     const scaleFactor = distance / this.lastTouch.distance;
                     const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * scaleFactor));
                     
@@ -2352,11 +2426,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                         this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
                         this.hasMoved = true;
                     }
+                    
+                    // Always prevent default for pinch zoom
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
-                
-                // Only prevent default if we're handling the gesture
-                e.preventDefault();
-                e.stopPropagation();
             }
             
             handleTouchEnd(e) {
@@ -2491,8 +2565,9 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
                 this.image.style.transform = transform;
                 this.image.style.transformOrigin = '0 0';
-                
-                // Remove debug logging now
+                this.image.style.willChange = this.isDragging ? 'transform' : 'auto';
+                this.image.style.backfaceVisibility = 'hidden';
+                this.image.style.webkitBackfaceVisibility = 'hidden';
                 
                 if (this.scale > 1) {
                     this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
