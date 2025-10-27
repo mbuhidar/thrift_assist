@@ -68,19 +68,19 @@ class ImageAnnotator:
                         stats['skipped'] += 1
                         continue
                     
-                    x1, y1, x2, y2 = bbox
-                    
                     # Determine line style based on validation status
                     is_validated = match_data.get('validated', True)
                     thickness = 3 if is_validated else 2
                     line_type = cv2.LINE_AA
                     
-                    # Draw bounding box
-                    cv2.rectangle(annotated, (x1, y1), (x2, y2), color, thickness, line_type)
-                    
-                    # Add corner markers for high-confidence exact matches
-                    if score >= 95 and match_type in ['complete_phrase', 'exact_spanning']:
-                        self._draw_corner_markers(annotated, bbox, color)
+                    # Try to draw rotated bounding box if vertices available
+                    if self._draw_rotated_bbox(annotated, match_data, phrase, color, thickness, line_type):
+                        # Successfully drew rotated box
+                        pass
+                    else:
+                        # Fallback to axis-aligned rectangle
+                        x1, y1, x2, y2 = bbox
+                        cv2.rectangle(annotated, (x1, y1), (x2, y2), color, thickness, line_type)
                     
                     # Draw label with metadata
                     self._draw_label(annotated, phrase, score, bbox, color, 
@@ -202,27 +202,74 @@ class ImageAnnotator:
         
         return None
     
-    def _draw_corner_markers(self, image: np.ndarray, bbox: Tuple, color: Tuple):
-        """Draw corner markers for high-confidence matches."""
-        x1, y1, x2, y2 = bbox
-        marker_len = 10
-        thickness = 2
+    def _draw_rotated_bbox(self, image: np.ndarray, match_data: Dict,
+                          phrase: str, color: Tuple, thickness: int,
+                          line_type) -> bool:
+        """
+        Draw a rotated bounding box using only the matched text vertices.
+        Returns True if successful, False if vertices unavailable.
+        """
+        if 'annotations' not in match_data or not match_data['annotations']:
+            return False
         
-        # Top-left
-        cv2.line(image, (x1, y1), (x1 + marker_len, y1), color, thickness, cv2.LINE_AA)
-        cv2.line(image, (x1, y1), (x1, y1 + marker_len), color, thickness, cv2.LINE_AA)
+        # Filter annotations to only include words from the matched phrase
+        phrase_words = normalize_text_for_search(phrase).split()
+        matched_annotations = []
         
-        # Top-right
-        cv2.line(image, (x2, y1), (x2 - marker_len, y1), color, thickness, cv2.LINE_AA)
-        cv2.line(image, (x2, y1), (x2, y1 + marker_len), color, thickness, cv2.LINE_AA)
+        for ann in match_data['annotations']:
+            try:
+                ann_text = normalize_text_for_search(ann.description)
+                # Only include annotations that are part of the phrase
+                if any(word in ann_text or ann_text in word 
+                       for word in phrase_words):
+                    matched_annotations.append(ann)
+            except (AttributeError, TypeError):
+                continue
         
-        # Bottom-left
-        cv2.line(image, (x1, y2), (x1 + marker_len, y2), color, thickness, cv2.LINE_AA)
-        cv2.line(image, (x1, y2), (x1, y2 - marker_len), color, thickness, cv2.LINE_AA)
+        # Use matched annotations if found, otherwise fall back to all
+        target_annotations = (matched_annotations if matched_annotations 
+                            else match_data['annotations'])
         
-        # Bottom-right
-        cv2.line(image, (x2, y2), (x2 - marker_len, y2), color, thickness, cv2.LINE_AA)
-        cv2.line(image, (x2, y2), (x2, y2 - marker_len), color, thickness, cv2.LINE_AA)
+        # Collect vertices only from matched text
+        all_vertices = []
+        for ann in target_annotations:
+            try:
+                if (hasattr(ann, 'bounding_poly') and 
+                    ann.bounding_poly.vertices):
+                    vertices = ann.bounding_poly.vertices
+                    if len(vertices) >= 4:
+                        # Convert vertices to numpy array
+                        points = np.array([
+                            [int(v.x), int(v.y)] for v in vertices[:4]
+                        ], dtype=np.int32)
+                        all_vertices.append(points)
+            except (AttributeError, TypeError, ValueError):
+                continue
+        
+        if not all_vertices:
+            return False
+        
+        # If single word, draw its rotated box
+        if len(all_vertices) == 1:
+            cv2.polylines(image, [all_vertices[0]], True, color,
+                         thickness, line_type)
+            return True
+        
+        # For multiple words, create minimal rotated bounding rectangle
+        try:
+            all_points = np.vstack(all_vertices)
+            # Get minimum area rotated rectangle
+            rect = cv2.minAreaRect(all_points)
+            box = cv2.boxPoints(rect)
+            box = np.int32(box)
+            cv2.polylines(image, [box], True, color, thickness, line_type)
+            return True
+        except Exception:
+            # If minAreaRect fails, draw individual boxes for each word
+            for vertices in all_vertices:
+                cv2.polylines(image, [vertices], True, color,
+                             thickness, line_type)
+            return True
     
     def _draw_label(self, image, phrase: str, score: float, bbox: Tuple,
                    color: Tuple, label_positions: List, match_data: Dict = None,
