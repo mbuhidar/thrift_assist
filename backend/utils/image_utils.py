@@ -49,9 +49,16 @@ def resize_image_for_display(image: Image.Image, max_width: int) -> Image.Image:
     
     # Use high-quality downsampling filter
     try:
+        # Try new PIL API first (Pillow >= 10.0.0)
+        try:
+            resampling_filter = Image.Resampling.LANCZOS
+        except AttributeError:
+            # Fall back to old API for older Pillow versions
+            resampling_filter = Image.LANCZOS
+        
         resized_image = image.resize(
             (new_width, new_height),
-            Image.Resampling.LANCZOS  # High-quality downsampling filter
+            resampling_filter  # High-quality downsampling filter
         )
         logger.info("Image resized successfully using LANCZOS filter")
         
