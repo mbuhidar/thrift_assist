@@ -505,11 +505,15 @@
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
-            touch-action: none;  /* Disable browser touch gestures */
+            touch-action: pan-y;  /* Allow vertical scrolling when not zoomed */
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
+        }
+        
+        .image-container.zoomed {
+            touch-action: none;  /* Disable all browser gestures when zoomed */
         }
 
         .image-preview.zoomable {
@@ -527,6 +531,8 @@
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
             -webkit-font-smoothing: subpixel-antialiased;
+            transform: translateZ(0);  /* Force GPU acceleration */
+            -webkit-transform: translateZ(0);
         }
 
         .image-preview.zoomed {
@@ -534,6 +540,10 @@
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
             -webkit-font-smoothing: subpixel-antialiased;
+            transform: translateZ(0);  /* Force GPU acceleration */
+            -webkit-transform: translateZ(0);
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
 
         .image-preview.zoomed:active {
@@ -2099,6 +2109,7 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 this.wheelZoomActive = false;
                 this.wheelCenter = { x: 0.5, y: 0.5 };
                 this.lastWheelTime = 0;
+                this.rafPending = false;  // Flag for requestAnimationFrame
                 
                 // Mobile zoom detection
                 this.nativeZoomActive = false;
@@ -2339,18 +2350,27 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                 
                 if (e.touches.length === 1) {
                     this.hasMoved = false;
-                    this.lastTouch.x = e.touches[0].clientX;
-                    this.lastTouch.y = e.touches[0].clientY;
+                    const touch = e.touches[0];
+                    this.lastTouch.x = touch.clientX;
+                    this.lastTouch.y = touch.clientY;
                     this.lastTouch.startTime = Date.now();
                     
                     if (this.scale > 1) {
+                        // When zoomed, enable dragging
                         this.isDragging = true;
-                        this.dragStart.x = e.touches[0].clientX - this.translateX;
-                        this.dragStart.y = e.touches[0].clientY - this.translateY;
+                        this.dragStart.x = touch.clientX - this.translateX;
+                        this.dragStart.y = touch.clientY - this.translateY;
                         
-                        // Disable default scrolling when zoomed in
+                        // Mark container as zoomed for touch-action
+                        this.container.classList.add('zoomed');
+                        
+                        // Prevent default only when zoomed to allow custom panning
                         e.preventDefault();
                         e.stopPropagation();
+                    } else {
+                        // When not zoomed, allow normal scrolling
+                        this.isDragging = false;
+                        // Don't prevent default - allow page scroll
                     }
                 } else if (e.touches.length === 2) {
                     this.isDragging = false;
@@ -2381,26 +2401,37 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     return;
                 }
                 
-                if (e.touches.length === 1 && this.scale > 1) {
-                    // Single finger drag when zoomed
-                    const touchX = e.touches[0].clientX;
-                    const touchY = e.touches[0].clientY;
+                if (e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const touchX = touch.clientX;
+                    const touchY = touch.clientY;
                     
-                    if (this.isDragging) {
+                    if (this.scale > 1 && this.isDragging) {
+                        // Single finger drag when zoomed - use requestAnimationFrame for smooth rendering
                         const newTranslateX = touchX - this.dragStart.x;
                         const newTranslateY = touchY - this.dragStart.y;
                         
-                        // Smooth panning - update immediately without whiteout
+                        // Update position immediately for responsiveness
                         this.translateX = newTranslateX;
                         this.translateY = newTranslateY;
                         this.constrainTranslation();
-                        this.updateTransform();
+                        
+                        // Use requestAnimationFrame for smooth rendering
+                        if (!this.rafPending) {
+                            this.rafPending = true;
+                            requestAnimationFrame(() => {
+                                this.updateTransform();
+                                this.rafPending = false;
+                            });
+                        }
+                        
                         this.hasMoved = true;
                         
-                        // Prevent default scrolling
+                        // Prevent default scrolling when zoomed in and dragging
                         e.preventDefault();
                         e.stopPropagation();
                     }
+                    // When not zoomed or not dragging, allow normal scrolling
                 } else if (e.touches.length === 2) {
                     // Two finger pinch zoom
                     const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
@@ -2445,12 +2476,16 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     return;
                 }
                 
-                
                 if (e.touches.length === 0) {
                     const now = Date.now();
                     const touchDuration = now - (this.lastTouch.startTime || now);
                     
                     this.isDragging = false;
+                    
+                    // Remove zoomed class from container when scale is 1
+                    if (this.scale === 1) {
+                        this.container.classList.remove('zoomed');
+                    }
                     
                     // Double tap to zoom (only if no movement and quick tap)
                     if (!this.hasMoved && touchDuration < 300) {
@@ -2460,8 +2495,10 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                                 const x = (this.lastTouch.x - rect.left) / rect.width;
                                 const y = (this.lastTouch.y - rect.top) / rect.height;
                                 this.zoomToPoint(1.8, x, y);
+                                this.container.classList.add('zoomed');
                             } else {
                                 this.resetZoom();
+                                this.container.classList.remove('zoomed');
                             }
                             this.lastTap = 0;
                         } else {
@@ -2474,11 +2511,8 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
                     this.hasMoved = false;
                 }
                 
-                // Only prevent default if we handled the gesture
-                if (!this.nativeZoomActive) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
+                // Clean up RAF flag
+                this.rafPending = false;
             }
             
             getTouchDistance(touch1, touch2) {
@@ -2562,10 +2596,11 @@ Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
             }
             
             updateTransform() {
-                const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
+                // Use translate3d for better GPU acceleration and prevent white-out
+                const transform = `translate3d(${this.translateX}px, ${this.translateY}px, 0) scale(${this.scale})`;
                 this.image.style.transform = transform;
                 this.image.style.transformOrigin = '0 0';
-                this.image.style.willChange = this.isDragging ? 'transform' : 'auto';
+                this.image.style.willChange = this.isDragging || this.scale > 1 ? 'transform' : 'auto';
                 this.image.style.backfaceVisibility = 'hidden';
                 this.image.style.webkitBackfaceVisibility = 'hidden';
                 
