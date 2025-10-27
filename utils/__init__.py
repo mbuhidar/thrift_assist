@@ -1,4 +1,4 @@
-"""Utility functions package."""
+"""Utilities package."""
 
 from .text_utils import normalize_text_for_search, is_meaningful_phrase
 from .geometry_utils import (

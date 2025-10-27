@@ -1,4 +1,4 @@
-"""Configuration package for thrift_assist."""
+"""Configuration package."""
 
 from .vision_config import VisionConfig
 

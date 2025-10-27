@@ -3,17 +3,56 @@
 import math
 from typing import Tuple, List
 
+
 def calculate_text_angle(vertices) -> float:
     """
-    Calculate the angle of text based on bounding box vertices.
+    Calculate the angle of text baseline from bounding box vertices.
+    
+    Google Vision API orders vertices starting from a corner and going
+    clockwise or counter-clockwise. For text, the longest edges represent
+    the text baseline and capline.
+    
     Returns angle in degrees (0 = horizontal, positive = clockwise).
     """
     if len(vertices) < 2:
         return 0
     
-    p1, p2 = vertices[0], vertices[1]
-    angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
-    return math.degrees(angle)
+    if len(vertices) < 4:
+        # Fallback: simple calculation if we don't have all 4 vertices
+        p1, p2 = vertices[0], vertices[1]
+        angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
+        return math.degrees(angle)
+
+    # Calculate all 4 edges
+    edges = []
+    for i in range(4):
+        p1 = vertices[i]
+        p2 = vertices[(i + 1) % 4]
+        dx = p2.x - p1.x
+        dy = p2.y - p1.y
+        length = math.sqrt(dx * dx + dy * dy)
+        edges.append((length, dx, dy))
+
+    # Find the longest edge - this is parallel to text baseline
+    longest = max(edges, key=lambda e: e[0])
+    dx, dy = longest[1], longest[2]
+    
+    # Calculate angle from horizontal
+    angle = math.atan2(dy, dx)
+    angle_degrees = math.degrees(angle)
+    
+    # Keep in 0-180 range:
+    # For angles in range [-90, 90], take absolute value
+    # For angles outside that range, normalize differently
+    if -90 <= angle_degrees <= 90:
+        angle_degrees = abs(angle_degrees)
+    else:
+        # angle is in range (90, 180] or [-180, -90)
+        if angle_degrees < 0:
+            angle_degrees += 360
+        angle_degrees = angle_degrees - 180
+    
+    return angle_degrees
 
 
 def rectangles_overlap(rect1: Tuple[int, int, int, int], 

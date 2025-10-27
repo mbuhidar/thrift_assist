@@ -1,0 +1,17 @@
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-asyncio>=0.21.0
+pytest-xdist>=3.0.0
+
+# FastAPI testing
+httpx>=0.24.0
+
+# Basic dependencies for testing
+numpy>=1.24.0
+
+# Optional dependencies for full testing (install separately if needed)
+# opencv-python>=4.8.0
+# Pillow>=10.0.0
+# fastapi[test]>=0.100.0

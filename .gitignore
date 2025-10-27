@@ -214,8 +214,8 @@ Thumbs.db
 .env.local
 
 # Test files
-test_*.py
-*_test.py
+# test_*.py
+# *_test.py
 
 # Credentials (DO NOT COMMIT)
 credentials/
@@ -226,4 +226,22 @@ credentials/
 temp/
 tmp/
 uploads/
+
+# Test artifacts (but NOT test files themselves!)
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+__pycache__/
+.tox/
+*.egg-info/
+
+# Temporary test files
+/tmp/
+*.tmp
+*.log
+
+# IDE test runner config
+.idea/
+.vscode/
 

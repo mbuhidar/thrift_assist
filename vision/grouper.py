@@ -1,8 +1,11 @@
 """Text line grouping utilities for OCR."""
 
+import logging
 from typing import List, Dict, Optional, Tuple
 # Changed to absolute import
 from utils.geometry_utils import calculate_text_angle
+
+logger = logging.getLogger(__name__)
 
 
 class TextLineGrouper:
@@ -38,13 +41,17 @@ class TextLineGrouper:
                 continue
             
             angle = calculate_text_angle(annotation.bounding_poly.vertices)
-            normalized_angle = angle % 360
-            if normalized_angle > 180:
-                normalized_angle -= 360
             
-            angle_key = self._find_angle_key(angle_groups.keys(), normalized_angle)
+            # Debug: Log first few angles
+            if len(angle_groups) < 5:
+                logger.info(f"Annotation '{annotation.description[:20]}': "
+                           f"calculated angle = {angle:.2f}°")
+            
+            # calculate_text_angle already returns normalized -90 to +90
+            # No need for additional normalization
+            angle_key = self._find_angle_key(angle_groups.keys(), angle)
             if angle_key is None:
-                angle_key = normalized_angle
+                angle_key = angle
                 angle_groups[angle_key] = []
             
             angle_groups[angle_key].append(annotation)
