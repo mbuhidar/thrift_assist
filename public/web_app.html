@@ -1432,11 +1432,17 @@
             const textarea = document.getElementById('searchPhrases');
             
             // Pre-populate with test data
-            textarea.value = 'Lee Child, Homegoing, homecoming, tom clancy';
-            
-            textarea.placeholder = `Enter phrases separated by commas
-Example: Homecoming, Lee Child, Circle of Three, David Foster Wallace`;
-            
+            textarea.value = '';
+
+            textarea.placeholder = 'Enter search phrases separated by commas. Example: Tom Clancy, Nora Roberts, Stephen King, War and Peace, etc.';
+
+            // Quick test shortcut: typing "ddd" auto-fills test phrases
+            textarea.addEventListener('input', function(e) {
+                if (this.value.toLowerCase() === 'ddd') {
+                    this.value = 'Lee Child, Homecoming, homegoing, tom clancy, circle of three';
+                }
+            });
+
             // Device-specific adjustments
             if (device.isMobile) {
                 console.log('📱 Mobile device detected - applying optimizations');
