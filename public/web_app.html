@@ -360,6 +360,12 @@
             100% { transform: rotate(360deg); }
         }
 
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
         .results {
             display: none;
         }
@@ -546,7 +552,7 @@
             position: absolute;
             bottom: 20px;
             right: 20px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.75);
             backdrop-filter: blur(10px);
             border-radius: 12px;
             padding: 8px;
@@ -555,10 +561,23 @@
             flex-direction: row;
             gap: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: opacity 0.3s ease, transform 0.3s ease;
         }
 
         .zoom-controls.visible {
             display: flex;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .zoom-btn {
@@ -576,20 +595,27 @@
             transition: all 0.2s ease;
             color: #333;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            user-select: none;
         }
         
         .zoom-btn svg {
             display: block;
         }
 
-        .zoom-btn:hover {
+        .zoom-btn:hover:not(:disabled) {
             background: white;
-            transform: scale(1.05);
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
 
-        .zoom-btn:active {
+        .zoom-btn:active:not(:disabled) {
             transform: scale(0.95);
             background: #f0f0f0;
+        }
+        
+        .zoom-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
         }
         
         /* Touch device zoom controls */
@@ -612,19 +638,23 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.75);
             backdrop-filter: blur(10px);
             color: white;
-            padding: 8px 14px;
+            padding: 10px 16px;
             border-radius: 8px;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 600;
             display: none;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: opacity 0.3s ease;
+            font-family: monospace;
+            letter-spacing: 0.5px;
         }
 
         .zoom-info.visible {
             display: block;
+            animation: slideIn 0.3s ease-out;
         }
 
         .explanation-panel {
@@ -2131,49 +2161,72 @@
                 this.panzoomInstance = Panzoom(this.image, {
                     maxScale: 5,
                     minScale: 1,
+                    step: 0.3,  // Smoother zoom increments
                     contain: 'outside',
-                    duration: 200,
-                    easing: 'ease-in-out',
+                    duration: 300,  // Slightly longer animation for smoothness
+                    easing: 'ease-out',
                     startScale: 1,
                     startX: 0,
                     startY: 0,
                     panOnlyWhenZoomed: true,
                     disablePan: false,
                     disableZoom: false,
-                    canvas: true  // Better for images
+                    canvas: true,
+                    noBind: false  // Let Panzoom bind its own events
                 });
         
                 // Enable wheel zoom on the parent container
                 const parent = this.image.parentElement;
                 parent.addEventListener('wheel', this.panzoomInstance.zoomWithWheel);
+                
+                // Add double-click to reset zoom
+                this.image.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    if (this.panzoomInstance.getScale() > 1) {
+                        this.resetZoom();
+                    } else {
+                        // Double-click when not zoomed: zoom to 2x at cursor
+                        this.panzoomInstance.zoomToPoint(2.5, { clientX: e.clientX, clientY: e.clientY });
+                        this.updateUI();
+                    }
+                });
+        
+                // Add double-click to reset zoom
+                this.image.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    if (this.panzoomInstance.getScale() > 1) {
+                        this.resetZoom();
+                    } else {
+                        // Double-click when not zoomed: zoom to 2x at cursor
+                        this.panzoomInstance.zoomToPoint(2.5, { clientX: e.clientX, clientY: e.clientY });
+                        this.updateUI();
+                    }
+                });
         
                 // Listen for zoom/pan events to update UI
                 this.image.addEventListener('panzoomchange', () => {
                     this.updateUI();
                 });
-        
-                // Handle click to zoom in (only when not zoomed)
-                let clickStartPos = null;
-                this.image.addEventListener('mousedown', (e) => {
-                    clickStartPos = { x: e.clientX, y: e.clientY };
-                });
                 
-                this.image.addEventListener('click', (e) => {
-                    if (!this.imageLoaded || !clickStartPos) return;
+                // Add keyboard shortcuts for zoom
+                document.addEventListener('keydown', (e) => {
+                    if (!this.imageLoaded) return;
                     
-                    // Only zoom if mouse didn't move (was a click, not a drag)
-                    const moved = Math.abs(e.clientX - clickStartPos.x) > 5 || 
-                                  Math.abs(e.clientY - clickStartPos.y) > 5;
-                    
-                    if (!moved) {
-                        const scale = this.panzoomInstance.getScale();
-                        if (scale === 1) {
-                            // Zoom to 2x at the clicked point
-                            this.panzoomInstance.zoomToPoint(2, { clientX: e.clientX, clientY: e.clientY });
-                            this.updateUI();
-                        }
+                    // Plus/Equals key to zoom in
+                    if (e.key === '+' || e.key === '=') {
+                        e.preventDefault();
+                        this.zoomIn();
                     }
-                    clickStartPos = null;
+                    // Minus key to zoom out
+                    else if (e.key === '-' || e.key === '_') {
+                        e.preventDefault();
+                        this.zoomOut();
+                    }
+                    // 0 or Escape to reset zoom
+                    else if (e.key === '0' || e.key === 'Escape') {
+                        e.preventDefault();
+                        this.resetZoom();
+                    }
                 });
         
                 // Initial UI update
@@ -2183,19 +2236,44 @@
     
             zoomIn() {
                 if (!this.panzoomInstance) return;
-                this.panzoomInstance.zoomIn();
+                // Zoom towards center of visible area
+                const rect = this.container.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const currentScale = this.panzoomInstance.getScale();
+                const newScale = Math.min(currentScale + 0.5, 5);
+                
+                this.panzoomInstance.zoomToPoint(newScale, { 
+                    clientX: centerX, 
+                    clientY: centerY 
+                });
                 this.updateUI();
             }
     
             zoomOut() {
                 if (!this.panzoomInstance) return;
-                this.panzoomInstance.zoomOut();
-                this.updateUI();
+                const currentScale = this.panzoomInstance.getScale();
+                const newScale = Math.max(currentScale - 0.5, 1);
+                
+                if (newScale === 1) {
+                    // Reset to center when zooming all the way out
+                    this.resetZoom();
+                } else {
+                    const rect = this.container.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    
+                    this.panzoomInstance.zoomToPoint(newScale, { 
+                        clientX: centerX, 
+                        clientY: centerY 
+                    });
+                    this.updateUI();
+                }
             }
     
             resetZoom() {
                 if (!this.panzoomInstance) return;
-                this.panzoomInstance.reset();
+                this.panzoomInstance.reset({ animate: true });
                 this.updateUI();
             }
     
@@ -2224,6 +2302,29 @@
                     zoomControls.classList.add('visible');
                     zoomInfo.classList.add('visible');
                     zoomInfo.textContent = `${Math.round(scale * 100)}%`;
+                    
+                    // Add a tooltip hint on first zoom
+                    if (!this.hasShownHint) {
+                        this.hasShownHint = true;
+                        const hint = document.createElement('div');
+                        hint.style.cssText = `
+                            position: fixed;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            background: rgba(0, 0, 0, 0.8);
+                            color: white;
+                            padding: 15px 25px;
+                            border-radius: 8px;
+                            font-size: 14px;
+                            z-index: 10000;
+                            pointer-events: none;
+                            animation: fadeOut 3s forwards;
+                        `;
+                        hint.textContent = '💡 Drag to pan • Scroll to zoom • Double-click to reset • Esc to exit';
+                        document.body.appendChild(hint);
+                        setTimeout(() => hint.remove(), 3000);
+                    }
                 } else {
                     zoomControls.classList.remove('visible');
                     zoomInfo.classList.remove('visible');
@@ -2238,6 +2339,11 @@
         
                 zoomInBtn.style.opacity = scale >= 5 ? '0.5' : '1';
                 zoomOutBtn.style.opacity = scale <= 1 ? '0.5' : '1';
+                
+                // Update button titles with keyboard shortcuts
+                zoomInBtn.title = 'Zoom In (+)';
+                zoomOutBtn.title = 'Zoom Out (-)';
+                document.getElementById('resetZoomBtn').title = 'Reset Zoom (0 or Esc)';
         
                 // Update cursor
                 this.updateCursor();
