@@ -2129,29 +2129,23 @@
         
                 // Initialize Panzoom with configuration
                 this.panzoomInstance = Panzoom(this.image, {
-                    maxScale: 5,           // Maximum zoom level
-                    minScale: 1,           // Minimum zoom level (original size)
-                    contain: 'outside',    // Allow panning beyond boundaries when zoomed
-                    cursor: 'move',        // Cursor when panning
-                    duration: 200,         // Animation duration in ms
-                    easing: 'ease-in-out', // Animation easing
-                    startScale: 1,         // Initial scale
-                    startX: 0,             // Initial X position
-                    startY: 0,             // Initial Y position
-                    excludeClass: 'panzoom-exclude', // Elements with this class won't trigger pan
-                    panOnlyWhenZoomed: true,         // Only allow panning when zoomed in
-                    pinchAndPan: true,     // Enable pinch zoom and pan simultaneously
-                    touchAction: 'auto'    // Browser touch handling
+                    maxScale: 5,
+                    minScale: 1,
+                    contain: 'outside',
+                    duration: 200,
+                    easing: 'ease-in-out',
+                    startScale: 1,
+                    startX: 0,
+                    startY: 0,
+                    panOnlyWhenZoomed: true,
+                    disablePan: false,
+                    disableZoom: false,
+                    canvas: true  // Better for images
                 });
         
-                // Enable wheel/pinch zoom on the parent container
+                // Enable wheel zoom on the parent container
                 const parent = this.image.parentElement;
-                parent.addEventListener('wheel', (e) => {
-                    if (!this.imageLoaded) return;
-                    // Panzoom's zoomWithWheel automatically handles zoom to cursor position
-                    this.panzoomInstance.zoomWithWheel(e);
-                    this.updateUI();
-                });
+                parent.addEventListener('wheel', this.panzoomInstance.zoomWithWheel);
         
                 // Listen for zoom/pan events to update UI
                 this.image.addEventListener('panzoomchange', () => {
@@ -2159,15 +2153,27 @@
                 });
         
                 // Handle click to zoom in (only when not zoomed)
+                let clickStartPos = null;
+                this.image.addEventListener('mousedown', (e) => {
+                    clickStartPos = { x: e.clientX, y: e.clientY };
+                });
+                
                 this.image.addEventListener('click', (e) => {
-                    if (!this.imageLoaded) return;
-            
-                    const scale = this.panzoomInstance.getScale();
-                    if (scale === 1) {
-                        // Zoom to 2x at the clicked point
-                        this.panzoomInstance.zoomToPoint(2, { clientX: e.clientX, clientY: e.clientY });
-                        this.updateUI();
+                    if (!this.imageLoaded || !clickStartPos) return;
+                    
+                    // Only zoom if mouse didn't move (was a click, not a drag)
+                    const moved = Math.abs(e.clientX - clickStartPos.x) > 5 || 
+                                  Math.abs(e.clientY - clickStartPos.y) > 5;
+                    
+                    if (!moved) {
+                        const scale = this.panzoomInstance.getScale();
+                        if (scale === 1) {
+                            // Zoom to 2x at the clicked point
+                            this.panzoomInstance.zoomToPoint(2, { clientX: e.clientX, clientY: e.clientY });
+                            this.updateUI();
+                        }
                     }
+                    clickStartPos = null;
                 });
         
                 // Initial UI update
@@ -2198,11 +2204,9 @@
         
                 const scale = this.panzoomInstance.getScale();
                 if (scale > 1) {
-                    this.image.style.cursor = 'grab';
                     this.image.classList.add('zoomed');
                     this.image.classList.remove('zoomable');
                 } else {
-                    this.image.style.cursor = 'zoom-in';
                     this.image.classList.remove('zoomed');
                     this.image.classList.add('zoomable');
                 }
