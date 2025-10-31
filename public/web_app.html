@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>ThriftAssist - AI Media Finder</title>
+    <!-- Panzoom library for image zoom/pan -->
+    <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -2085,498 +2087,118 @@
             }
         });
 
-        // Image zoom functionality
+
+        // Image zoom functionality using Panzoom library
         class ImageZoom {
             constructor(imageElement, containerElement) {
                 this.image = imageElement;
                 this.container = containerElement;
-                this.scale = 1;
-                this.translateX = 0;
-                this.translateY = 0;
-                this.isDragging = false;
-                this.dragStart = { x: 0, y: 0 };
-                this.lastTouch = { x: 0, y: 0, distance: 0 };
+                this.panzoomInstance = null;
                 this.imageLoaded = false;
-                this.hasMoved = false;
-                this.isTouchDevice = device.isTouchDevice;
-                this.pinchZoomActive = false;
-                this.pinchCenter = { x: 0.5, y: 0.5 };
-                this.lastPinchTime = 0;
-                this.wheelZoomActive = false;
-                this.wheelCenter = { x: 0.5, y: 0.5 };
-                this.lastWheelTime = 0;
-                
-                // Mobile zoom detection
-                this.nativeZoomActive = false;
-                this.lastViewportWidth = window.innerWidth;
-                this.lastViewportHeight = window.innerHeight;
-                
+        
                 this.init();
             }
-            
+    
             init() {
+                // Wait for image to load before initializing Panzoom
                 this.image.addEventListener('load', () => {
                     this.imageLoaded = true;
-                    this.resetZoom();
+                    this.initPanzoom();
                 });
-                
-                this.image.addEventListener('click', (e) => this.handleClick(e));
-                
-                // Always add mouse events (they work on mobile too as fallback)
-                this.image.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-                this.image.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-                this.image.addEventListener('mouseup', (e) => this.handleMouseUp(e));
-                this.image.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
-                
-                // Desktop-only: wheel events
-                if (!device.isMobile) {
-                    this.image.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
-                }
-                
-                // Touch events for all touch-capable devices
-                if (this.isTouchDevice) {
-                    this.image.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-                    this.image.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
-                    this.image.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
-                }
-                
-                // Monitor viewport changes for native zoom detection on mobile
-                if (device.isMobile) {
-                    window.addEventListener('resize', () => this.detectNativeZoom());
-                    window.addEventListener('orientationchange', () => {
-                        setTimeout(() => this.detectNativeZoom(), 500);
-                    });
-                }
-                
-                this.image.addEventListener('contextmenu', (e) => e.preventDefault());
-                
+        
+                // Setup zoom control buttons
                 document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
                 document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
                 document.getElementById('resetZoomBtn').addEventListener('click', () => this.resetZoom());
-                
-                this.image.addEventListener('dragstart', (e) => e.preventDefault());
-            }
-            
-            detectNativeZoom() {
-                // Detect if user is using native browser zoom
-                const currentWidth = window.innerWidth;
-                const currentHeight = window.innerHeight;
-                
-                // If viewport size changed significantly, assume native zoom
-                const widthChange = Math.abs(currentWidth - this.lastViewportWidth);
-                const heightChange = Math.abs(currentHeight - this.lastViewportHeight);
-                
-                this.nativeZoomActive = (widthChange > 50 || heightChange > 50) && 
-                                      (window.devicePixelRatio !== 1);
-                
-                console.log(`📱 Native zoom detection: ${this.nativeZoomActive ? 'ACTIVE' : 'inactive'} (${currentWidth}×${currentHeight})`);
-                
-                this.lastViewportWidth = currentWidth;
-                this.lastViewportHeight = currentHeight;
-                
-                // If native zoom is active, disable our custom zoom
-                if (this.nativeZoomActive && this.scale > 1) {
-                    console.log('🔄 Resetting custom zoom due to native zoom');
-                    this.resetZoom();
+        
+                // Prevent context menu
+                this.image.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+                // If image is already loaded (e.g., from cache)
+                if (this.image.complete && this.image.naturalWidth > 0) {
+                    this.imageLoaded = true;
+                    this.initPanzoom();
                 }
             }
+    
+            initPanzoom() {
+                // Destroy existing instance if any
+                if (this.panzoomInstance) {
+                    this.panzoomInstance.destroy();
+                }
+        
+                // Initialize Panzoom with configuration
+                this.panzoomInstance = Panzoom(this.image, {
+                    maxScale: 5,           // Maximum zoom level
+                    minScale: 1,           // Minimum zoom level (original size)
+                    contain: 'outside',    // Allow panning beyond boundaries when zoomed
+                    cursor: 'move',        // Cursor when panning
+                    duration: 200,         // Animation duration in ms
+                    easing: 'ease-in-out', // Animation easing
+                    startScale: 1,         // Initial scale
+                    startX: 0,             // Initial X position
+                    startY: 0,             // Initial Y position
+                    excludeClass: 'panzoom-exclude', // Elements with this class won't trigger pan
+                    panOnlyWhenZoomed: true,         // Only allow panning when zoomed in
+                    pinchAndPan: true,     // Enable pinch zoom and pan simultaneously
+                    touchAction: 'auto'    // Browser touch handling
+                });
+        
+                // Enable wheel/pinch zoom on the parent container
+                const parent = this.image.parentElement;
+                parent.addEventListener('wheel', (e) => {
+                    if (!this.imageLoaded) return;
+                    // Panzoom's zoomWithWheel automatically handles zoom to cursor position
+                    this.panzoomInstance.zoomWithWheel(e);
+                    this.updateUI();
+                });
+        
+                // Listen for zoom/pan events to update UI
+                this.image.addEventListener('panzoomchange', () => {
+                    this.updateUI();
+                });
+        
+                // Handle click to zoom in (only when not zoomed)
+                this.image.addEventListener('click', (e) => {
+                    if (!this.imageLoaded) return;
             
-            handleClick(e) {
-                if (!this.imageLoaded || this.hasMoved) {
-                    this.hasMoved = false;
-                    return;
-                }
-                
-                e.preventDefault();
-                e.stopPropagation();
-                
-                if (this.scale === 1) {
-                    // Get click position relative to the image
-                    const rect = this.image.getBoundingClientRect();
-                    const x = (e.clientX - rect.left) / rect.width;
-                    const y = (e.clientY - rect.top) / rect.height;
-                    
-                    // Zoom to the clicked point
-                    this.zoomToPoint(1.8, x, y);
-                }
-            }
-            
-            handleMouseDown(e) {
-                if (!this.imageLoaded) return;
-                
-                this.hasMoved = false;
-                this.dragStartPosition = { x: e.clientX, y: e.clientY };  // Store initial position
-                
-                if (this.scale > 1) {
-                    this.isDragging = true;
-                    this.dragStart.x = e.clientX - this.translateX;
-                    this.dragStart.y = e.clientY - this.translateY;
-                    this.image.style.cursor = 'grabbing';
-                }
-                e.preventDefault();
-            }
-            
-            handleMouseMove(e) {
-                if (!this.imageLoaded) return;
-                
-                if (this.isDragging && this.scale > 1) {
-                    const newTranslateX = e.clientX - this.dragStart.x;
-                    const newTranslateY = e.clientY - this.dragStart.y;
-                    
-                    if (Math.abs(newTranslateX - this.translateX) > 2 || Math.abs(newTranslateY - this.translateY) > 2) {
-                        this.hasMoved = true;
+                    const scale = this.panzoomInstance.getScale();
+                    if (scale === 1) {
+                        // Zoom to 2x at the clicked point
+                        this.panzoomInstance.zoomToPoint(2, { clientX: e.clientX, clientY: e.clientY });
+                        this.updateUI();
                     }
-                    
-                    this.translateX = newTranslateX;
-                    this.translateY = newTranslateY;
-                    this.constrainTranslation();
-                    this.updateTransform();
-                    e.preventDefault();
-                } else if (this.scale === 1 && this.dragStartPosition) {
-                    // Check if mouse has moved significantly (to distinguish click from drag)
-                    const dx = Math.abs(e.clientX - this.dragStartPosition.x);
-                    const dy = Math.abs(e.clientY - this.dragStartPosition.y);
-                    
-                    if (dx > 5 || dy > 5) {
-                        this.hasMoved = true;
-                    }
-                }
-            }
-            
-            handleMouseUp(e) {
-                if (!this.imageLoaded) return;
-                
-                this.isDragging = false;
-                this.dragStartPosition = null;  // Clear drag start position
-                
-                if (this.scale > 1) {
-                    this.image.style.cursor = 'grab';
-                } else {
-                    this.image.style.cursor = 'zoom-in';
-                }
-            }
-            
-            handleWheel(e) {
-                if (!this.imageLoaded) return;
-                
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const rect = this.image.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
-                
-                const now = Date.now();
-                const isPinchZoom = e.ctrlKey;
-                
-                if (isPinchZoom) {
-                    // Touchpad pinch zoom
-                    // If this is the start of a new pinch gesture (>150ms since last event)
-                    if (!this.pinchZoomActive || (now - this.lastPinchTime) > 150) {
-                        this.pinchZoomActive = true;
-                        this.pinchCenter.x = x;
-                        this.pinchCenter.y = y;
-                        this.pinchStartScale = this.scale;
-                    }
-                    
-                    this.lastPinchTime = now;
-                    
-                    // Use smaller delta for smoother touchpad pinch zoom
-                    const zoomDelta = Math.abs(e.deltaY) > 10 ? (e.deltaY > 0 ? 0.985 : 1.015) : (e.deltaY > 0 ? 0.995 : 1.005);
-                    const newScale = Math.max(1, Math.min(5, this.scale * zoomDelta));
-                    
-                    if (newScale !== this.scale) {
-                        // Use the pinch center point, not the current cursor position
-                       
-                        this.zoomToPoint(newScale, this.pinchCenter.x, this.pinchCenter.y);
-                    }
-                    
-                    // Reset pinch zoom active flag after a delay
-                    clearTimeout(this.pinchZoomTimeout);
-                    this.pinchZoomTimeout = setTimeout(() => {
-                        this.pinchZoomActive = false;
-                    }, 150);
-                } else {
-                    // Regular scroll wheel zoom
-                    // If this is the start of a new wheel zoom (>300ms since last event)
-                    if (!this.wheelZoomActive || (now - this.lastWheelTime) > 300) {
-                        this.wheelZoomActive = true;
-                        this.wheelCenter.x = x;
-                        this.wheelCenter.y = y;
-                    }
-                    
-                    this.lastWheelTime = now;
-                    
-                    const delta = e.deltaY > 0 ? 0.95 : 1.05;
-                    const newScale = Math.max(1, Math.min(5, this.scale * delta));
-                    
-                    if (newScale !== this.scale) {
-                        // Use the wheel center point, not the current cursor position
-                        this.zoomToPoint(newScale, this.wheelCenter.x, this.wheelCenter.y);
-                    }
-                    
-                    // Reset wheel zoom active flag after a delay
-                    clearTimeout(this.wheelZoomTimeout);
-                    this.wheelZoomTimeout = setTimeout(() => {
-                        this.wheelZoomActive = false;
-                    }, 300);
-                }
-            }
-            
-            handleTouchStart(e) {
-                if (!this.imageLoaded) return;
-                
-                // If native zoom is detected, allow default behavior
-                if (this.nativeZoomActive) {
-                    console.log('📱 Native zoom active - allowing default touch behavior');
-                    return;
-                }
-                
-                // Detect potential native zoom gesture (pinch with specific characteristics)
-                if (e.touches.length === 2) {
-                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
-                    // If touches are very far apart, might be native zoom
-                    if (distance > window.innerWidth * 0.8) {
-                        console.log('📱 Large touch distance detected - allowing native zoom');
-                        this.nativeZoomActive = true;
-                        return;
-                    }
-                }
-                
-                if (e.touches.length === 1) {
-                    this.hasMoved = false;
-                    this.lastTouch.x = e.touches[0].clientX;
-                    this.lastTouch.y = e.touches[0].clientY;
-                    this.lastTouch.startTime = Date.now();
-                    
-                    if (this.scale > 1) {
-                        this.isDragging = true;
-                        this.dragStart.x = e.touches[0].clientX - this.translateX;
-                        this.dragStart.y = e.touches[0].clientY - this.translateY;
-                        
-                        // Disable default scrolling when zoomed in
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                } else if (e.touches.length === 2) {
-                    this.isDragging = false;
-                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
-                    this.lastTouch.distance = distance;
-                    
-                    const rect = this.image.getBoundingClientRect();
-                    const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width;
-                    const centerY = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) / rect.height;
-                    this.lastTouch.centerX = centerX;
-                    this.lastTouch.centerY = centerY;
-                    
-                    this.lastTouch.initialTranslateX = this.translateX;
-                    this.lastTouch.initialTranslateY = this.translateY;
-                    this.lastTouch.initialScale = this.scale;
-                    
-                    // Always prevent default for pinch zoom
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            }
-            
-            handleTouchMove(e) {
-                if (!this.imageLoaded) return;
-                
-                // If native zoom is active, don't interfere
-                if (this.nativeZoomActive) {
-                    return;
-                }
-                
-                if (e.touches.length === 1 && this.scale > 1) {
-                    // Single finger drag when zoomed
-                    const touchX = e.touches[0].clientX;
-                    const touchY = e.touches[0].clientY;
-                    
-                    if (this.isDragging) {
-                        const newTranslateX = touchX - this.dragStart.x;
-                        const newTranslateY = touchY - this.dragStart.y;
-                        
-                        // Smooth panning - update immediately without whiteout
-                        this.translateX = newTranslateX;
-                        this.translateY = newTranslateY;
-                        this.constrainTranslation();
-                        this.updateTransform();
-                        this.hasMoved = true;
-                        
-                        // Prevent default scrolling
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                } else if (e.touches.length === 2) {
-                    // Two finger pinch zoom
-                    const distance = this.getTouchDistance(e.touches[0], e.touches[1]);
-                    
-                    // Check for rapid scale changes that might indicate native zoom
-                    if (this.lastTouch.distance) {
-                        const scaleDiff = Math.abs(distance - this.lastTouch.distance);
-                        const scaleChange = scaleDiff / this.lastTouch.distance;
-                        
-                        // If scale change is very rapid, might be native zoom
-                        if (scaleChange > 0.3) {
-                            console.log('📱 Rapid scale change detected - switching to native zoom');
-                            this.nativeZoomActive = true;
-                            this.resetZoom();
-                            return;
-                        }
-                    }
-                    
-                    const scaleFactor = distance / this.lastTouch.distance;
-                    const newScale = Math.max(1, Math.min(5, this.lastTouch.initialScale * scaleFactor));
-                    
-                    if (newScale !== this.scale) {
-                        this.zoomToPoint(newScale, this.lastTouch.centerX, this.lastTouch.centerY);
-                        this.hasMoved = true;
-                    }
-                    
-                    // Always prevent default for pinch zoom
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            }
-            
-            handleTouchEnd(e) {
-                if (!this.imageLoaded) return;
-                
-                // If native zoom was active, reset detection after a delay
-                if (this.nativeZoomActive) {
-                    setTimeout(() => {
-                        this.nativeZoomActive = false;
-                        console.log('📱 Native zoom detection reset');
-                    }, 1000);
-                    return;
-                }
-                
-                
-                if (e.touches.length === 0) {
-                    const now = Date.now();
-                    const touchDuration = now - (this.lastTouch.startTime || now);
-                    
-                    this.isDragging = false;
-                    
-                    // Double tap to zoom (only if no movement and quick tap)
-                    if (!this.hasMoved && touchDuration < 300) {
-                        if (this.lastTap && (now - this.lastTap) < 300) {
-                            if (this.scale === 1) {
-                                const rect = this.image.getBoundingClientRect();
-                                const x = (this.lastTouch.x - rect.left) / rect.width;
-                                const y = (this.lastTouch.y - rect.top) / rect.height;
-                                this.zoomToPoint(1.8, x, y);
-                            } else {
-                                this.resetZoom();
-                            }
-                            this.lastTap = 0;
-                        } else {
-                            this.lastTap = now;
-                        }
-                    } else {
-                        this.lastTap = 0;
-                    }
-                    
-                    this.hasMoved = false;
-                }
-                
-                // Only prevent default if we handled the gesture
-                if (!this.nativeZoomActive) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            }
-            
-            getTouchDistance(touch1, touch2) {
-                const dx = touch1.clientX - touch2.clientX;
-                const dy = touch1.clientY - touch2.clientY;
-                return Math.sqrt(dx * dx + dy * dy);
-            }
-            
-            zoomToPoint(newScale, pointX, pointY) {
-                if (!this.imageLoaded) return;
-                
-                // Get the image's natural dimensions
-                const imageWidth = this.image.naturalWidth || this.image.width;
-                const imageHeight = this.image.naturalHeight || this.image.height;
-                
-                // Calculate the display size of the image at current scale
-                const displayWidth = this.image.offsetWidth;
-                const displayHeight = this.image.offsetHeight;
-                
-                // Convert normalized point (0-1) to actual pixel position in the displayed image
-                const displayPointX = pointX * displayWidth;
-                const displayPointY = pointY * displayHeight;
-                
-                // Calculate where this point currently is on screen (in viewport coordinates)
-                const currentScreenX = this.translateX + (displayPointX * this.scale);
-                const currentScreenY = this.translateY + (displayPointY * this.scale);
-                
-                // After zoom, we want that same screen position to map to the same image point
-                // So: screenPos = newTranslate + (displayPoint * newScale)
-                // Therefore: newTranslate = screenPos - (displayPoint * newScale)
-                this.translateX = currentScreenX - (displayPointX * newScale);
-                this.translateY = currentScreenY - (displayPointY * newScale);
-                
-                this.scale = newScale;
-                this.constrainTranslation();
-                this.updateTransform();
+                });
+        
+                // Initial UI update
+                this.updateCursor();
                 this.updateUI();
             }
-            
+    
             zoomIn() {
-                if (!this.imageLoaded) return;
-                const newScale = Math.min(5, this.scale * 1.15);
-                this.zoomToContainerCenter(newScale);
+                if (!this.panzoomInstance) return;
+                this.panzoomInstance.zoomIn();
+                this.updateUI();
             }
-            
+    
             zoomOut() {
-                if (!this.imageLoaded) return;
-                const newScale = Math.max(1, this.scale / 1.15);
-                this.zoomToContainerCenter(newScale);
-            }
-            
-            zoomToContainerCenter(newScale) {
-                if (!this.imageLoaded) return;
-                
-                const containerCenterX = this.container.clientWidth / 2;
-                const containerCenterY = this.container.clientHeight / 2;
-                
-                const baseWidth = this.image.naturalWidth || this.image.width;
-                const baseHeight = this.image.naturalHeight || this.image.height;
-                
-                const imagePointX = (containerCenterX - this.translateX) / this.scale;
-                const imagePointY = (containerCenterY - this.translateY) / this.scale;
-                
-                this.scale = newScale;
-                
-                this.translateX = containerCenterX - (imagePointX * this.scale);
-                this.translateY = containerCenterY - (imagePointY * this.scale);
-                
-                this.constrainTranslation();
-                this.updateTransform();
+                if (!this.panzoomInstance) return;
+                this.panzoomInstance.zoomOut();
                 this.updateUI();
             }
-            
+    
             resetZoom() {
-                this.scale = 1;
-                this.translateX = 0;
-                this.translateY = 0;
-                this.nativeZoomActive = false; // Reset native zoom detection
-                this.updateTransform();
+                if (!this.panzoomInstance) return;
+                this.panzoomInstance.reset();
                 this.updateUI();
             }
-            
-            updateTransform() {
-                const transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
-                this.image.style.transform = transform;
-                this.image.style.transformOrigin = '0 0';
-                this.image.style.willChange = this.isDragging ? 'transform' : 'auto';
-                this.image.style.backfaceVisibility = 'hidden';
-                this.image.style.webkitBackfaceVisibility = 'hidden';
-                
-                if (this.scale > 1) {
-                    this.image.style.cursor = this.isDragging ? 'grabbing' : 'grab';
+    
+            updateCursor() {
+                if (!this.panzoomInstance) return;
+        
+                const scale = this.panzoomInstance.getScale();
+                if (scale > 1) {
+                    this.image.style.cursor = 'grab';
                     this.image.classList.add('zoomed');
                     this.image.classList.remove('zoomable');
                 } else {
@@ -2585,67 +2207,43 @@
                     this.image.classList.add('zoomable');
                 }
             }
-            
-            constrainTranslation() {
-                if (this.scale <= 1) {
-                    this.translateX = 0;
-                    this.translateY = 0;
-                    return;
-                }
-                
-                const containerWidth = this.container.clientWidth;
-                const containerHeight = this.container.clientHeight;
-                
-                // Use the actual displayed width/height, not natural dimensions
-                const baseWidth = this.image.offsetWidth;
-                const baseHeight = this.image.offsetHeight;
-                
-                const scaledWidth = baseWidth * this.scale;
-                const scaledHeight = baseHeight * this.scale;
-                
-                if (scaledWidth <= containerWidth) {
-                    this.translateX = (containerWidth - scaledWidth) / 2;
-                } else {
-                    const minX = containerWidth - scaledWidth;
-                    const maxX = 0;
-                    this.translateX = Math.max(minX, Math.min(maxX, this.translateX));
-                }
-                
-                if (scaledHeight <= containerHeight) {
-                    this.translateY = (containerHeight - scaledHeight) / 2;
-                } else {
-                    const minY = containerHeight - scaledHeight;
-                    const maxY = 0;
-                    this.translateY = Math.max(minY, Math.min(maxY, this.translateY));
-                }
-            }
-            
+    
             updateUI() {
+                if (!this.panzoomInstance) return;
+        
+                const scale = this.panzoomInstance.getScale();
                 const zoomControls = document.getElementById('zoomControls');
                 const zoomInfo = document.getElementById('zoomInfo');
-                
-                if (this.scale > 1.01) {
+        
+                // Show/hide zoom controls and info based on zoom level
+                if (scale > 1.01) {
                     zoomControls.classList.add('visible');
                     zoomInfo.classList.add('visible');
-                    zoomInfo.textContent = `${Math.round(this.scale * 100)}%`;
+                    zoomInfo.textContent = `${Math.round(scale * 100)}%`;
                 } else {
                     zoomControls.classList.remove('visible');
                     zoomInfo.classList.remove('visible');
                 }
-                
+        
+                // Enable/disable zoom buttons based on scale limits
                 const zoomInBtn = document.getElementById('zoomInBtn');
                 const zoomOutBtn = document.getElementById('zoomOutBtn');
-                
-                zoomInBtn.disabled = this.scale >= 5;
-                zoomOutBtn.disabled = this.scale <= 1;
-                
-                zoomInBtn.style.opacity = this.scale >= 5 ? '0.5' : '1';
-                zoomOutBtn.style.opacity = this.scale <= 1 ? '0.5' : '1';
+        
+                zoomInBtn.disabled = scale >= 5;
+                zoomOutBtn.disabled = scale <= 1;
+        
+                zoomInBtn.style.opacity = scale >= 5 ? '0.5' : '1';
+                zoomOutBtn.style.opacity = scale <= 1 ? '0.5' : '1';
+        
+                // Update cursor
+                this.updateCursor();
             }
-            
+    
             setImage(src) {
                 this.imageLoaded = false;
-                this.resetZoom();
+                if (this.panzoomInstance) {
+                    this.panzoomInstance.reset();
+                }
                 this.image.src = src;
             }
         }
