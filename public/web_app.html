@@ -1063,38 +1063,66 @@
                 <p>AI-powered media finder for thrift stores</p>
             </div>
 
+            <!-- App Instructions -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="collapsible">
+                    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                        <span>📖 How to Use ThriftAssist</span>
+                        <span class="collapsible-icon">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="help-text">
+                            <h3 style="margin-top: 0; color: #5a67d8;">🎯 What is ThriftAssist?</h3>
+                            <p>ThriftAssist helps you quickly find specific items (books, CDs, DVDs, etc.) in photos of shelves at thrift stores, estate sales, or your own collection. Simply tell it what you're looking for, upload a photo, and it will highlight matching items for you.</p>
+                            
+                            <h3 style="color: #5a67d8;">🚀 Quick Start Guide</h3>
+                            <ol style="line-height: 1.8;">
+                                <li><strong>Enter search phrases:</strong> Type the titles, authors, or names you're looking for (e.g., "Stephen King, Harry Potter, The Beatles")</li>
+                                <li><strong>Upload your image:</strong> Select a photo of a bookshelf, media rack, or collection</li>
+                                <li><strong>Adjust threshold (optional):</strong> Start with 80% - increase for fewer results, decrease for more matches</li>
+                                <li><strong>Click "Analyze Image":</strong> Wait a few seconds while AI detects text and finds your items</li>
+                                <li><strong>View results:</strong> Matched items are highlighted on the image with confidence scores</li>
+                            </ol>
+                            
+                            <h3 style="color: #5a67d8;">💡 Tips for Best Results</h3>
+                            <ul style="line-height: 1.8;">
+                                <li><strong>Image quality matters:</strong> Use well-lit, clear photos where text is readable</li>
+                                <li><strong>Get closer:</strong> For best accuracy, capture text at a readable size</li>
+                                <li><strong>Multiple photos:</strong> For large collections, take several photos and search each separately</li>
+                                <li><strong>Be specific:</strong> Use exact titles or author names for better matching</li>
+                                <li><strong>Adjust threshold:</strong> If you get too many false matches, increase the threshold; if missing items, decrease it</li>
+                            </ul>
+                            
+                            <h3 style="color: #5a67d8;">📱 Image Viewing & Navigation</h3>
+                            <ul style="line-height: 1.8;">
+                                <li><strong>Pinch to zoom:</strong> Use two fingers to zoom in/out on the image</li>
+                                <li><strong>Double-tap:</strong> Quickly zoom in 2.5x or reset to normal view</li>
+                                <li><strong>Drag to pan:</strong> Move around the zoomed image with one finger</li>
+                                <li><strong>Zoom buttons:</strong> Use the +/- buttons in the bottom-right corner</li>
+                                <li><strong>Mouse wheel:</strong> Scroll to zoom (desktop only)</li>
+                                <li><strong>Keyboard:</strong> +/- to zoom, 0 or Esc to reset (desktop only)</li>
+                            </ul>
+                            
+                            <h3 style="color: #5a67d8;">🎨 Font Size Controls</h3>
+                            <p><strong>Page Font Size:</strong> Adjusts the text size of this entire interface<br>
+                            <strong>Annotation Font Size:</strong> Adjusts the size of labels on the analyzed image<br>
+                            Click the 🔗 button to sync both sizes together.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="main-content">
                 <!-- Input Form -->
                 <div class="card">
                     <h2>📤 Upload & Search</h2>
                     <form id="ocrForm">
                         <div class="form-group">
-                            <label for="imageFile">Select Image</label>
-                            <input type="file" id="imageFile" accept="image/*" required>
-                            <div class="collapsible">
-                                <div class="collapsible-header" onclick="toggleCollapsible(this)">
-                                    <span>📝 Supported formats & tips</span>
-                                    <span class="collapsible-icon">▼</span>
-                                </div>
-                                <div class="collapsible-content">
-                                    <div class="help-text">
-                                        <strong>Supported formats:</strong> JPG, PNG, GIF, BMP<br><br>
-                                        <strong>Tips for best results:</strong><br>
-                                        • Ensure text is clearly visible<br>
-                                        • Good lighting improves accuracy<br>
-                                        • Higher resolution images work better<br>
-                                        • Multiple angles of text are supported
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
                             <label for="searchPhrases">Search Phrases</label>
                             <textarea id="searchPhrases" placeholder="Enter phrases separated by commas" required></textarea>
                             <div class="collapsible">
                                 <div class="collapsible-header" onclick="toggleCollapsible(this)">
-                                    <span>💡 Search tips & examples</span>
+                                    <span>� Search tips & examples</span>
                                     <span class="collapsible-icon">▼</span>
                                 </div>
                                 <div class="collapsible-content">
@@ -1108,6 +1136,27 @@
                                         • Separate multiple phrases with commas<br>
                                         • Both exact and partial matches are found<br>
                                         • Case doesn't matter
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="imageFile">Select Image</label>
+                            <input type="file" id="imageFile" accept="image/*" required>
+                            <div class="collapsible">
+                                <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                                    <span>� Supported formats & tips</span>
+                                    <span class="collapsible-icon">▼</span>
+                                </div>
+                                <div class="collapsible-content">
+                                    <div class="help-text">
+                                        <strong>Supported formats:</strong> JPG, PNG, GIF, BMP<br><br>
+                                        <strong>Tips for best results:</strong><br>
+                                        • Ensure text is clearly visible<br>
+                                        • Good lighting improves accuracy<br>
+                                        • Higher resolution images work better<br>
+                                        • Multiple angles of text are supported
                                     </div>
                                 </div>
                             </div>
@@ -1140,51 +1189,59 @@
                         </div>
 
                         <div class="form-group">
-                            <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;">
-                                <div>
-                                    <label for="uiTextScale" style="text-align: center; line-height: 1.2;">
-                                        <div>Page</div>
-                                        <div>Font Size</div>
-                                    </label>
-                                    <select id="uiTextScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
-                                        <option value="50">50%</option>
-                                        <option value="75">75%</option>
-                                        <option value="100" selected>100%</option>
-                                        <option value="125">125%</option>
-                                        <option value="150">150%</option>
-                                        <option value="175">175%</option>
-                                        <option value="200">200%</option>
-                                        <option value="250">250%</option>
-                                        <option value="300">300%</option>
-                                    </select>
+                            <div class="collapsible">
+                                <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                                    <span>🎨 Font Size Controls</span>
+                                    <span class="collapsible-icon">▼</span>
                                 </div>
-                                <div style="position: relative; display: flex; align-items: center; padding: 0 10px;">
-                                    <div style="position: absolute; left: -10px; right: 50%; height: 2px; background: #e2e8f0; top: 50%;"></div>
-                                    <div style="position: absolute; left: 50%; right: -10px; height: 2px; background: #e2e8f0; top: 50%;"></div>
-                                    <button type="button" id="syncTextScales" title="Sync font sizes" style="position: relative; z-index: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; cursor: pointer; font-size: 16px; transition: all 0.2s;">
-                                        🔗
-                                    </button>
+                                <div class="collapsible-content">
+                                    <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 10px;">
+                                        <div>
+                                            <label for="uiTextScale" style="text-align: center; line-height: 1.2;">
+                                                <div>Page</div>
+                                                <div>Font Size</div>
+                                            </label>
+                                            <select id="uiTextScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
+                                                <option value="50">50%</option>
+                                                <option value="75">75%</option>
+                                                <option value="100" selected>100%</option>
+                                                <option value="125">125%</option>
+                                                <option value="150">150%</option>
+                                                <option value="175">175%</option>
+                                                <option value="200">200%</option>
+                                                <option value="250">250%</option>
+                                                <option value="300">300%</option>
+                                            </select>
+                                        </div>
+                                        <div style="position: relative; display: flex; align-items: center; padding: 0 10px;">
+                                            <div style="position: absolute; left: -10px; right: 50%; height: 2px; background: #e2e8f0; top: 50%;"></div>
+                                            <div style="position: absolute; left: 50%; right: -10px; height: 2px; background: #e2e8f0; top: 50%;"></div>
+                                            <button type="button" id="syncTextScales" title="Sync font sizes" style="position: relative; z-index: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; cursor: pointer; font-size: 16px; transition: all 0.2s;">
+                                                🔗
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <label for="textScale" style="text-align: center; line-height: 1.2;">
+                                                <div>Annotation</div>
+                                                <div>Font Size</div>
+                                            </label>
+                                            <select id="textScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
+                                                <option value="50">50%</option>
+                                                <option value="75">75%</option>
+                                                <option value="100" selected>100%</option>
+                                                <option value="125">125%</option>
+                                                <option value="150">150%</option>
+                                                <option value="175">175%</option>
+                                                <option value="200">200%</option>
+                                                <option value="250">250%</option>
+                                                <option value="300">300%</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="help-text" style="margin-top: 10px;">
+                                        Page font size adjusts the font size on this interface and annotation font size adjusts the text size on the results image. Click 🔗 to sync both size controls.
+                                    </div>
                                 </div>
-                                <div>
-                                    <label for="textScale" style="text-align: center; line-height: 1.2;">
-                                        <div>Annotation</div>
-                                        <div>Font Size</div>
-                                    </label>
-                                    <select id="textScale" style="width: 100%; padding: 0.75em; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1.125em; cursor: pointer; text-align: center; text-align-last: center;">
-                                        <option value="50">50%</option>
-                                        <option value="75">75%</option>
-                                        <option value="100" selected>100%</option>
-                                        <option value="125">125%</option>
-                                        <option value="150">150%</option>
-                                        <option value="175">175%</option>
-                                        <option value="200">200%</option>
-                                        <option value="250">250%</option>
-                                        <option value="300">300%</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div style="font-size: 0.85em; color: #666; margin-top: 8px;">
-                                Page font adjusts this interface, annotation font adjusts text on images. Click 🔗 to sync both.
                             </div>
                         </div>
 
