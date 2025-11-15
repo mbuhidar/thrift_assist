@@ -2421,6 +2421,14 @@
                     this.panzoomInstance.reset();
                 }
                 this.image.src = src;
+                
+                // Force scale to exactly 1 (100%) after image loads
+                this.image.onload = () => {
+                    if (this.panzoomInstance) {
+                        this.panzoomInstance.zoom(1, { animate: false });
+                        this.panzoomInstance.pan(0, 0, { animate: false });
+                    }
+                };
             }
         }
 
