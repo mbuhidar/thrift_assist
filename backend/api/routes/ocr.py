@@ -5,7 +5,7 @@ OCR phrase detection endpoints.
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Annotated
 import json
 import os
 import io
@@ -29,8 +29,8 @@ async def upload_and_detect(
     search_phrases: str = Form(...),
     threshold: int = Form(settings.DEFAULT_THRESHOLD),
     text_scale: int = Form(settings.DEFAULT_TEXT_SCALE),
-    max_image_width: int = Form(2560),  # New parameter with default
-    ocr_provider: str = Form("google")  # OCR provider selection
+    max_image_width: int = Form(2560),
+    ocr_provider: Annotated[str, Form()] = "google"
 ):
     """
     Upload an image file and detect phrases.
@@ -56,6 +56,7 @@ async def upload_and_detect(
         
         # Log received parameters
         print(f"📥 Received request: max_image_width={max_image_width}, text_scale={text_scale}")
+        print(f"🔍 RAW ocr_provider parameter: {ocr_provider!r} (type: {type(ocr_provider).__name__})")
         
         # Read and validate image data
         image_data = await file.read()
@@ -63,8 +64,9 @@ async def upload_and_detect(
         if not image_service.validate_image_data(image_data, settings.MAX_UPLOAD_SIZE_MB):
             raise HTTPException(status_code=400, detail="Invalid or oversized image")
         
-        # Generate cache key
-        image_hash = cache_service.get_image_hash(image_data, text_scale)
+        # Generate cache key (include provider to separate caches)
+        provider_value = ocr_provider or "google"
+        image_hash = cache_service.get_image_hash(image_data, text_scale, provider_value)
         
         # Check cache
         cached_result = cache_service.get_cached_result(image_hash)
@@ -148,9 +150,7 @@ async def upload_and_detect(
             print(f"⏭️ No pre-processing resize needed (image ≤ {max_image_width}px)")
         
         # Run OCR detection on the appropriately-sized image
-        # Ensure provider is a clean string value
-        provider_value = str(ocr_provider) if ocr_provider else "google"
-        print(f"🔧 Using OCR provider: {provider_value}")
+        print(f"🔍 API received provider: '{provider_value}'")
         
         results = ocr_service.detect_phrases(
             image_path=processing_image_path,
@@ -221,11 +221,15 @@ async def upload_and_detect(
         # Calculate total matches correctly
         total_matches = sum(len(matches) for matches in serializable_matches.values())
         
-        # Get OCR provider name
+        # Get OCR provider name from the detector that was actually used
         provider_name = None
-        if hasattr(ocr_service, 'detector'):
-            if hasattr(ocr_service.detector, 'provider'):
-                provider_name = ocr_service.detector.provider.name
+        try:
+            # Get the detector that was used for this request
+            detector = ocr_service.get_detector(provider_value)
+            if hasattr(detector, 'provider') and detector.provider:
+                provider_name = detector.provider.name
+        except Exception:
+            pass  # Fallback to None if we can't get provider name
         
         # Clear results from memory
         del results

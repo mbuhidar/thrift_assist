@@ -2,6 +2,7 @@
 FastAPI application entry point.
 """
 
+from typing import Annotated
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -111,11 +112,14 @@ async def upload_and_detect_legacy(
     search_phrases: str = Form(...),
     threshold: int = Form(settings.DEFAULT_THRESHOLD),
     text_scale: int = Form(settings.DEFAULT_TEXT_SCALE),
-    max_image_width: int = Form(2560)
+    max_image_width: int = Form(2560),
+    ocr_provider: Annotated[str, Form()] = "google"
 ):
     """Legacy endpoint - redirects to /ocr/upload"""
     from backend.api.routes.ocr import upload_and_detect
-    return await upload_and_detect(file, search_phrases, threshold, text_scale, max_image_width)
+    return await upload_and_detect(
+        file, search_phrases, threshold, text_scale, max_image_width, ocr_provider
+    )
 
 
 @app.get("/")

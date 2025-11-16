@@ -28,18 +28,19 @@ class CacheService:
         self._max_size = settings.MAX_CACHE_SIZE
         self._expiry_seconds = settings.CACHE_EXPIRY_SECONDS
     
-    def get_image_hash(self, image_data: bytes, text_scale: int = 100) -> str:
+    def get_image_hash(self, image_data: bytes, text_scale: int = 100, provider: str = 'google') -> str:
         """
-        Generate a hash for image data combined with text_scale.
+        Generate a hash for image data combined with text_scale and provider.
         
         Args:
             image_data: Raw image bytes
             text_scale: Text scale percentage
+            provider: OCR provider name
             
         Returns:
             MD5 hash string
         """
-        combined_data = image_data + str(text_scale).encode('utf-8')
+        combined_data = image_data + str(text_scale).encode('utf-8') + provider.encode('utf-8')
         return hashlib.md5(combined_data).hexdigest()
     
     def _get_cache_size_mb(self) -> float:

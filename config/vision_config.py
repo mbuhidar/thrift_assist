@@ -2,7 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
-from typing import Set, Optional
+from typing import Set
 
 @dataclass
 class VisionConfig:
@@ -17,9 +17,16 @@ class VisionConfig:
     )
     
     # DeepSeek Settings (via Google Cloud Vertex AI)
-    google_cloud_project: Optional[str] = None  # For DeepSeek via Vertex AI
+    google_cloud_project: str = "direct-bonsai-473201-t2"
     google_cloud_location: str = "global"  # Vertex AI region
-    google_cloud_endpoint: str = "aiplatform.googleapis.com"  # API endpoint
+    google_cloud_endpoint: str = "aiplatform.googleapis.com"
+    
+    def __post_init__(self):
+        """Initialize configuration after creation."""
+        # Allow environment variable to override if set
+        env_project = os.getenv('GOOGLE_CLOUD_PROJECT')
+        if env_project:
+            self.google_cloud_project = env_project
     
     # Legacy compatibility
     @property

@@ -1782,6 +1782,7 @@
             try {
                 // Get OCR provider selection
                 const ocrProvider = document.getElementById('ocrProvider').value;
+                console.log('🔍 Selected OCR provider:', ocrProvider);
                 
                 // Prepare form data
                 formData.append('file', imageFile);
@@ -1789,6 +1790,9 @@
                 formData.append('threshold', threshold);
                 formData.append('text_scale', textScale);  // Add boosted text scale to form data
                 formData.append('ocr_provider', ocrProvider);  // Add OCR provider selection
+                
+                // Debug: verify FormData contents
+                console.log('📦 FormData ocr_provider:', formData.get('ocr_provider'));
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',

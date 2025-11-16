@@ -14,7 +14,7 @@ class PhraseDetectionRequest(BaseModel):
     text_scale: Optional[int] = Field(100, ge=50, le=200, description="Text size scale (50-200)")
     image_base64: Optional[str] = Field(None, description="Base64 encoded image")
     max_image_width: int = Field(2560, description="Maximum image width")
-    ocr_provider: Optional[str] = Field("google", description="OCR provider to use (google or deepseek)")
+    ocr_provider: str = Field(default="google", description="OCR provider (google or deepseek)")
     
     @field_validator('search_phrases')
     @classmethod

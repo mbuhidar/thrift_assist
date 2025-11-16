@@ -54,7 +54,8 @@ class VisionPhraseDetector:
     
     def _setup_provider(self):
         """Initialize the OCR provider based on configuration."""
-        provider_name = str(os.getenv('OCR_PROVIDER', self.config.ocr_provider)).lower().strip()
+        # Use config provider (don't override with env var since we're passing it per-request)
+        provider_name = str(self.config.ocr_provider).lower().strip()
         
         # Initialize provider attribute to None
         self.provider = None
@@ -71,6 +72,9 @@ class VisionPhraseDetector:
                            os.getenv('GOOGLE_CLOUD_LOCATION', 'global'))
                 endpoint = (getattr(self.config, 'google_cloud_endpoint', None) or
                            os.getenv('GOOGLE_CLOUD_ENDPOINT', 'aiplatform.googleapis.com'))
+                
+                print(f"🔧 DeepSeek config: project_id={project_id!r}, location={location!r}, endpoint={endpoint!r}")
+                
                 self.provider = DeepSeekProvider(
                     project_id=project_id,
                     location=location,
