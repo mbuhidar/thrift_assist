@@ -1,4 +1,4 @@
-"""Main Google Cloud Vision API phrase detector."""
+"""Main OCR phrase detector with multi-provider support."""
 
 import cv2
 import os
@@ -13,6 +13,11 @@ from config.vision_config import VisionConfig
 from vision.grouper import TextLineGrouper
 from vision.matcher import PhraseMatcher
 from vision.annotator import ImageAnnotator
+from vision.providers import (
+    GoogleVisionProvider,
+    DeepSeekProvider,
+    DEEPSEEK_AVAILABLE
+)
 
 # Suppress warnings
 os.environ.update({
@@ -35,22 +40,65 @@ def suppress_stderr_warnings():
     return redirect_stderr(FilteredStringIO())
 
 
-with suppress_stderr_warnings():
-    from google.cloud import vision
-
-
 class VisionPhraseDetector:
-    """Main class for Vision API phrase detection."""
+    """Main class for OCR phrase detection with multiple provider support."""
     
     def __init__(self, config: VisionConfig = None):
         self.config = config or VisionConfig()
         self.config.setup_credentials()
         self.grouper = TextLineGrouper(self.config.angle_tolerance)
         self.matcher = PhraseMatcher(self.config)
+        
+        # Initialize OCR provider based on config
+        self._setup_provider()
     
-    def detect(self, image_path: str, search_phrases: List[str],
-              threshold: int = None, show_plot: bool = True,
-              text_scale: int = None) -> Optional[Dict]:
+    def _setup_provider(self):
+        """Initialize the OCR provider based on configuration."""
+        provider_name = str(os.getenv('OCR_PROVIDER', self.config.ocr_provider)).lower().strip()
+        
+        # Initialize provider attribute to None
+        self.provider = None
+        
+        if provider_name == "deepseek":
+            if not DEEPSEEK_AVAILABLE:
+                print("⚠️ DeepSeek provider not available, falling back to "
+                      "Google Vision")
+                provider_name = "google"
+            else:
+                project_id = (self.config.google_cloud_project or
+                             os.getenv('GOOGLE_CLOUD_PROJECT'))
+                location = (self.config.google_cloud_location or
+                           os.getenv('GOOGLE_CLOUD_LOCATION', 'global'))
+                endpoint = (getattr(self.config, 'google_cloud_endpoint', None) or
+                           os.getenv('GOOGLE_CLOUD_ENDPOINT', 'aiplatform.googleapis.com'))
+                self.provider = DeepSeekProvider(
+                    project_id=project_id,
+                    location=location,
+                    endpoint=endpoint
+                )
+                if not self.provider.is_available():
+                    print("⚠️ DeepSeek provider not configured (missing "
+                          "Google Cloud project), falling back to Google Vision")
+                    provider_name = "google"
+        
+        if provider_name == "google" or self.provider is None:
+            self.provider = GoogleVisionProvider(
+                credentials_path=self.config.google_credentials_path
+            )
+            if not self.provider.is_available():
+                print("❌ Google Vision provider not available - check "
+                      "credentials")
+        
+        if self.provider:
+            print(f"✅ Using OCR provider: {self.provider.name}")
+        else:
+            print("❌ No OCR provider available")
+    
+    def detect(
+        self, image_path: str, search_phrases: List[str],
+        threshold: int = None, show_plot: bool = True,
+        text_scale: int = None
+    ) -> Optional[Dict]:
         """Detect and annotate phrases in image."""
         threshold = threshold or self.config.fuzz_threshold
         text_scale = text_scale or self.config.default_text_scale
@@ -65,7 +113,7 @@ class VisionPhraseDetector:
             print(f"❌ Could not load image: {image_path}")
             return None
         
-        # Detect text
+        # Detect text using selected provider
         text_annotations = self._detect_text(image_path)
         if not text_annotations:
             print("No text detected in image.")
@@ -83,16 +131,23 @@ class VisionPhraseDetector:
         # Find matches
         phrase_matches = {}
         for phrase in search_phrases:
-            matches = self.matcher.find_matches(phrase, text_lines, 
-                                               text_annotations[0].description, threshold)
+            matches = self.matcher.find_matches(
+                phrase, text_lines,
+                text_annotations[0].description, threshold
+            )
             if matches:
                 phrase_matches[phrase] = matches
                 print(f"🎯 Found {len(matches)} matches for '{phrase}'")
         
         if not phrase_matches:
             print("❌ No phrase matches found.")
-            return {'image': image, 'annotated_image': image.copy(), 
-                   'matches': {}, 'total_matches': 0}
+            return {
+                'image': image,
+                'annotated_image': image.copy(),
+                'matches': {},
+                'total_matches': 0,
+                'all_text': text_annotations[0].description
+            }
         
         # Annotate
         annotator = ImageAnnotator(text_scale)
@@ -110,21 +165,48 @@ class VisionPhraseDetector:
         }
     
     def _detect_text(self, image_path: str):
-        """Detect text using Vision API."""
-        with suppress_stderr_warnings():
-            client = vision.ImageAnnotatorClient()
-        
-        with open(image_path, 'rb') as f:
-            content = f.read()
-        
-        image = vision.Image(content=content)
-        response = client.document_text_detection(image=image)
-        
-        if not response.text_annotations:
-            print("📐 No text found with document detection, trying basic detection...")
-            response = client.text_detection(image=image)
-        
-        return response.text_annotations
+        """Detect text using the configured OCR provider."""
+        try:
+            full_text, annotations = self.provider.detect_text(image_path)
+            
+            # Convert provider-specific annotations to format expected
+            # by rest of the code. For backward compatibility, create a
+            # list where first element is full text object
+            class TextAnnotationWrapper:
+                def __init__(self, text):
+                    self.description = text
+            
+            result = [TextAnnotationWrapper(full_text)]
+            
+            # Add individual text annotations
+            for ann in annotations:
+                class DetailedAnnotation:
+                    def __init__(self, text_ann):
+                        self.description = text_ann.text
+                        self.locale = text_ann.locale
+                        
+                        # Convert bounding box to Google Vision format
+                        class BoundingPoly:
+                            def __init__(self, coords):
+                                class Vertex:
+                                    def __init__(self, x, y):
+                                        self.x = int(x)
+                                        self.y = int(y)
+                                self.vertices = [
+                                    Vertex(x, y) for x, y in coords
+                                ]
+                        
+                        self.bounding_poly = BoundingPoly(
+                            text_ann.bounding_box
+                        )
+                
+                result.append(DetailedAnnotation(ann))
+            
+            return result
+            
+        except Exception as e:
+            print(f"❌ OCR detection error: {e}")
+            return []
     
     def _print_orientation_info(self, text_lines: List[Dict]):
         """Print information about detected text orientations."""
@@ -152,13 +234,18 @@ class VisionPhraseDetector:
         """Display annotated results."""
         plt.figure(figsize=(15, 10))
         plt.imshow(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB))
-        plt.title(f"Phrase Detection - {sum(len(m) for m in phrase_matches.values())} matches")
+        total_matches = sum(len(m) for m in phrase_matches.values())
+        plt.title(f"Phrase Detection - {total_matches} matches")
         plt.axis('off')
         
-        legend = [f"{phrase}: {len(matches)}" 
-                 for phrase, matches in phrase_matches.items()]
+        legend = [
+            f"{phrase}: {len(matches)}"
+            for phrase, matches in phrase_matches.items()
+        ]
         if legend:
-            plt.figtext(0.02, 0.02, '\n'.join(legend), fontsize=10, va='bottom')
+            plt.figtext(
+                0.02, 0.02, '\n'.join(legend), fontsize=10, va='bottom'
+            )
         
         plt.tight_layout()
         plt.show()

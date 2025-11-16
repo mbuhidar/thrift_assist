@@ -1210,9 +1210,12 @@
                         <div class="form-group">
                             <label for="imageFile">Select Image</label>
                             <input type="file" id="imageFile" accept="image/*" required>
+                            <div id="fileInfoText" class="help-text" style="margin-top: 8px; display: none;">
+                                <!-- File info will be displayed here -->
+                            </div>
                             <div class="collapsible">
                                 <div class="collapsible-header" onclick="toggleCollapsible(this)">
-                                    <span>� Supported formats & tips</span>
+                                    <span>📷 Supported formats & tips</span>
                                     <span class="collapsible-icon">▼</span>
                                 </div>
                                 <div class="collapsible-content">
@@ -1223,6 +1226,33 @@
                                         • Good lighting improves accuracy<br>
                                         • Higher resolution images work better<br>
                                         • Multiple angles of text are supported
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ocrProvider">OCR Provider</label>
+                            <select id="ocrProvider" style="font-size: 1.125em;">
+                                <option value="google" selected>Google Cloud Vision (Fast & Accurate)</option>
+                                <option value="deepseek">DeepSeek-OCR via Google Cloud (AI-Powered)</option>
+                            </select>
+                            <div class="collapsible">
+                                <div class="collapsible-header" onclick="toggleCollapsible(this)">
+                                    <span>🤖 OCR Provider info</span>
+                                    <span class="collapsible-icon">▼</span>
+                                </div>
+                                <div class="collapsible-content">
+                                    <div class="help-text">
+                                        <strong>Google Cloud Vision:</strong><br>
+                                        • Fastest processing speed<br>
+                                        • Excellent for printed text and structured documents<br>
+                                        • Industry-standard accuracy<br><br>
+                                        <strong>DeepSeek-OCR (Google Cloud):</strong><br>
+                                        • AI-powered understanding<br>
+                                        • Better for complex layouts and unusual text<br>
+                                        • Runs on Google Cloud Vertex AI<br>
+                                        • May be slower but more contextually aware
                                     </div>
                                 </div>
                             </div>
@@ -1750,11 +1780,15 @@
             hideResults();
             
             try {
+                // Get OCR provider selection
+                const ocrProvider = document.getElementById('ocrProvider').value;
+                
                 // Prepare form data
                 formData.append('file', imageFile);
                 formData.append('search_phrases', JSON.stringify(searchPhrases));
                 formData.append('threshold', threshold);
                 formData.append('text_scale', textScale);  // Add boosted text scale to form data
+                formData.append('ocr_provider', ocrProvider);  // Add OCR provider selection
                 
                 const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
                     method: 'POST',
@@ -1817,6 +1851,7 @@
             
             // Update summary with explainability metrics
             const avgConfidence = calculateAverageConfidence(result.matches);
+            const ocrProvider = result.ocr_provider || 'Unknown';
             
             resultsSummary.innerHTML = `
                 <h3>✅ Analysis Complete</h3>
@@ -1824,6 +1859,7 @@
                     <span class="stat">📊 Total: ${result.total_matches}</span>
                     <span class="stat">⏱️ ${Math.round(result.processing_time_ms)}ms</span>
                     <span class="stat">🎯 Avg Confidence: ${avgConfidence}%</span>
+                    <span class="stat">🤖 OCR: ${ocrProvider}</span>
                 </div>
             `;
             
@@ -2171,15 +2207,19 @@
         // Handle file input change to show preview information
         document.getElementById('imageFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
+            const fileInfoDiv = document.getElementById('fileInfoText');
+            
             if (file) {
                 const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
                 const fileType = file.type.split('/')[1].toUpperCase();
                 
-                // Update help text with file information
-                document.querySelector('.help-text').innerHTML = `
-                    Supported formats: JPG, PNG, GIF, BMP<br>
+                // Update file info div with file information
+                fileInfoDiv.innerHTML = `
                     Selected file: ${file.name} (${fileSizeMB} MB, ${fileType})
                 `;
+                fileInfoDiv.style.display = 'block';
+            } else {
+                fileInfoDiv.style.display = 'none';
             }
         });
 

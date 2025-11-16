@@ -29,13 +29,15 @@ async def upload_and_detect(
     search_phrases: str = Form(...),
     threshold: int = Form(settings.DEFAULT_THRESHOLD),
     text_scale: int = Form(settings.DEFAULT_TEXT_SCALE),
-    max_image_width: int = Form(2560)  # New parameter with default
+    max_image_width: int = Form(2560),  # New parameter with default
+    ocr_provider: str = Form("google")  # OCR provider selection
 ):
     """
     Upload an image file and detect phrases.
     
     This endpoint supports caching to allow fast threshold updates without re-running OCR.
     Device-optimized image resizing ensures optimal performance across mobile, tablet, and desktop.
+    OCR provider can be selected per request: 'google' or 'deepseek'.
     """
     start_time = datetime.now()
     
@@ -146,12 +148,17 @@ async def upload_and_detect(
             print(f"⏭️ No pre-processing resize needed (image ≤ {max_image_width}px)")
         
         # Run OCR detection on the appropriately-sized image
+        # Ensure provider is a clean string value
+        provider_value = str(ocr_provider) if ocr_provider else "google"
+        print(f"🔧 Using OCR provider: {provider_value}")
+        
         results = ocr_service.detect_phrases(
             image_path=processing_image_path,
             search_phrases=phrases_list,
             threshold=threshold,
             text_scale=text_scale,
-            show_plot=False
+            show_plot=False,
+            provider=provider_value
         )
         
         # Clean up resized temp file if it was created
@@ -214,6 +221,12 @@ async def upload_and_detect(
         # Calculate total matches correctly
         total_matches = sum(len(matches) for matches in serializable_matches.values())
         
+        # Get OCR provider name
+        provider_name = None
+        if hasattr(ocr_service, 'detector'):
+            if hasattr(ocr_service.detector, 'provider'):
+                provider_name = ocr_service.detector.provider.name
+        
         # Clear results from memory
         del results
         gc.collect()
@@ -227,7 +240,8 @@ async def upload_and_detect(
             "annotated_image_base64": annotated_image_base64,
             "all_detected_text": "",
             "filename": file.filename,
-            "cached": cached_result is not None
+            "cached": cached_result is not None,
+            "ocr_provider": provider_name
         })
         
     except HTTPException:
@@ -277,13 +291,16 @@ async def detect_phrases(request: PhraseDetectionRequest):
         gc.collect()
         
         try:
-            # Run OCR detection
+            # Run OCR detection with specified provider
+            provider_value = str(request.ocr_provider) if request.ocr_provider else "google"
+            
             results = ocr_service.detect_phrases(
                 image_path=temp_image_path,
                 search_phrases=request.search_phrases,
                 threshold=request.threshold,
                 text_scale=request.text_scale,
-                show_plot=False
+                show_plot=False,
+                provider=provider_value
             )
             
             if not results:
@@ -352,6 +369,12 @@ async def detect_phrases(request: PhraseDetectionRequest):
             del results
             gc.collect()
             
+            # Get OCR provider name
+            provider_name = None
+            if hasattr(ocr_service, 'detector'):
+                if hasattr(ocr_service.detector, 'provider'):
+                    provider_name = ocr_service.detector.provider.name
+            
             return PhraseDetectionResponse(
                 success=True,
                 total_matches=len(serializable_matches),
@@ -359,7 +382,8 @@ async def detect_phrases(request: PhraseDetectionRequest):
                 processing_time_ms=processing_time,
                 image_dimensions=original_dims,
                 annotated_image_base64=annotated_image_base64,
-                all_detected_text=""  # Don't return full text to save memory
+                all_detected_text="",  # Don't return full text to save memory
+                ocr_provider=provider_name
             )
             
         finally:

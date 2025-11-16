@@ -1,6 +1,6 @@
 # ThriftAssist - OCR Phrase Detection
 
-A powerful OCR tool for detecting and annotating phrases in images using Google Cloud Vision API with fuzzy matching support.
+A powerful OCR tool for detecting and annotating phrases in images with multi-provider support (Google Cloud Vision or DeepSeek-OCR) and fuzzy matching capabilities.
 
 ## Features
 
@@ -8,6 +8,7 @@ A powerful OCR tool for detecting and annotating phrases in images using Google 
 - 🎯 **Fuzzy phrase matching** - Finds phrases even with OCR errors or variations
 - 📦 **Spanning detection** - Matches phrases that span multiple lines
 - 🎨 **Visual annotation** - Draws color-coded bounding boxes with smart label placement
+- 🔌 **Multiple OCR providers** - Choose between Google Cloud Vision or DeepSeek-OCR
 - ⚡ **Configurable** - Easy configuration for thresholds, angles, and text filtering
 
 ## Project Structure
@@ -45,14 +46,38 @@ A powerful OCR tool for detecting and annotating phrases in images using Google 
    pip install -r requirements.txt
    ```
 
-3. Set up your Google Cloud Vision API credentials:
+3. Set up your OCR provider credentials:
 
+   **Option A: Google Cloud Vision (default)**
+   
    - Follow the [Google Cloud Vision API Quickstart](https://cloud.google.com/vision/docs/quickstart-client-libraries) to create a project and obtain credentials.
    - Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of your service account key file:
 
      ```bash
      export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-file.json"
      ```
+   
+   **Option B: DeepSeek-OCR**
+   
+   - Obtain an API key from [DeepSeek](https://platform.deepseek.com/)
+   - Set the provider and API key as environment variables:
+
+     ```bash
+     export OCR_PROVIDER=deepseek
+     export DEEPSEEK_API_KEY="your-api-key-here"
+     ```
+
+   **Switching Providers**
+   
+   You can switch between providers by setting the `OCR_PROVIDER` environment variable:
+   
+   ```bash
+   # Use Google Cloud Vision (default)
+   export OCR_PROVIDER=google
+   
+   # Use DeepSeek-OCR
+   export OCR_PROVIDER=deepseek
+   ```
 
 ## Usage
 

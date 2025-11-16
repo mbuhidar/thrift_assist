@@ -446,13 +446,16 @@ class OCRService:
     
     def __init__(self):
         self.ocr_available = OCR_AVAILABLE
+        self.detector_cache = {}  # Cache detectors by provider
+        
         if self.ocr_available:
-            # Initialize detector with config
+            # Initialize default detector with config
             try:
                 config = VisionConfig()
                 config.fuzz_threshold = settings.DEFAULT_THRESHOLD
                 config.default_text_scale = settings.DEFAULT_TEXT_SCALE
                 self.detector = VisionPhraseDetector(config)
+                self.detector_cache['google'] = self.detector
                 print("✅ OCR service initialized with VisionPhraseDetector")
             except Exception as e:
                 print(f"⚠️ Failed to initialize VisionPhraseDetector: {e}")
@@ -460,6 +463,24 @@ class OCRService:
                 self.detector = VisionPhraseDetector()  # Stub version
         else:
             self.detector = VisionPhraseDetector()  # Stub version
+    
+    def get_detector(self, provider: str = 'google'):
+        """Get or create a detector for the specified provider."""
+        # Ensure provider is a string and normalized
+        provider = str(provider).lower().strip()
+        
+        if provider in self.detector_cache:
+            return self.detector_cache[provider]
+        
+        # Create new detector with specified provider
+        config = VisionConfig()
+        config.fuzz_threshold = settings.DEFAULT_THRESHOLD
+        config.default_text_scale = settings.DEFAULT_TEXT_SCALE
+        config.ocr_provider = provider
+        
+        detector = VisionPhraseDetector(config)
+        self.detector_cache[provider] = detector
+        return detector
     
     def is_available(self) -> bool:
         """Check if OCR service is available."""
@@ -471,10 +492,11 @@ class OCRService:
         search_phrases: List[str],
         threshold: int = None,
         text_scale: int = None,
-        show_plot: bool = False
+        show_plot: bool = False,
+        provider: str = 'google'
     ) -> Optional[Dict[str, Any]]:
         """
-        Detect phrases in an image using Google Cloud Vision API.
+        Detect phrases in an image using specified OCR provider.
         Enhanced with multi-pass matching and spanning text detection.
         """
         if not self.ocr_available:
@@ -517,10 +539,13 @@ class OCRService:
                 filtered_phrases = search_phrases
                 print("⚠️ All phrases filtered, using original list")
             
-            print(f"📝 Searching for {len(filtered_phrases)} phrases")
+            print(f"📝 Searching for {len(filtered_phrases)} phrases using {provider} provider")
+            
+            # Get detector for specified provider
+            detector = self.get_detector(provider)
             
             # Run the detector with original phrases only
-            results = self.detector.detect(
+            results = detector.detect(
                 image_path=image_path,
                 search_phrases=filtered_phrases,
                 threshold=threshold,

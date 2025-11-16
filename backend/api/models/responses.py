@@ -26,6 +26,7 @@ class PhraseDetectionResponse(BaseModel):
     annotated_image_base64: Optional[str] = None
     all_detected_text: Optional[str] = None
     cached: bool = False
+    ocr_provider: Optional[str] = None
     error_message: Optional[str] = None
     
     class Config:
