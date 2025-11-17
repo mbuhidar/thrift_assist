@@ -72,13 +72,16 @@ class VisionPhraseDetector:
                            os.getenv('GOOGLE_CLOUD_LOCATION', 'global'))
                 endpoint = (getattr(self.config, 'google_cloud_endpoint', None) or
                            os.getenv('GOOGLE_CLOUD_ENDPOINT', 'aiplatform.googleapis.com'))
+                model_name = (getattr(self.config, 'deepseek_model', None) or
+                             os.getenv('DEEPSEEK_MODEL', 'deepseek-ai/deepseek-ocr-maas'))
                 
-                print(f"🔧 DeepSeek config: project_id={project_id!r}, location={location!r}, endpoint={endpoint!r}")
+                print(f"🔧 DeepSeek config: project_id={project_id!r}, location={location!r}, model={model_name!r}")
                 
                 self.provider = DeepSeekProvider(
                     project_id=project_id,
                     location=location,
-                    endpoint=endpoint
+                    endpoint=endpoint,
+                    model_name=model_name
                 )
                 if not self.provider.is_available():
                     print("⚠️ DeepSeek provider not configured (missing "

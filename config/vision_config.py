@@ -20,6 +20,7 @@ class VisionConfig:
     google_cloud_project: str = "direct-bonsai-473201-t2"
     google_cloud_location: str = "global"  # Vertex AI region
     google_cloud_endpoint: str = "aiplatform.googleapis.com"
+    deepseek_model: str = "deepseek-ai/deepseek-ocr-maas"  # DeepSeek OCR
     
     def __post_init__(self):
         """Initialize configuration after creation."""

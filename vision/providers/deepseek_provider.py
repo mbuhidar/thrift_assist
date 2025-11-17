@@ -1,4 +1,4 @@
-"""DeepSeek-OCR provider implementation using Google Cloud AI."""
+"""DeepSeek-OCR provider implementation using Google Cloud Vertex AI."""
 
 import os
 import base64
@@ -8,8 +8,6 @@ from .base_provider import OCRProvider, TextAnnotation
 
 try:
     from google.cloud import aiplatform
-    from google.protobuf import json_format
-    from google.protobuf.struct_pb2 import Value
     GOOGLE_AI_AVAILABLE = True
 except ImportError:
     GOOGLE_AI_AVAILABLE = False
@@ -19,18 +17,24 @@ except ImportError:
 class DeepSeekProvider(OCRProvider):
     """DeepSeek-OCR provider using Google Cloud Vertex AI."""
     
-    def __init__(self, project_id: str = None, location: str = "global", endpoint: str = None):
+    def __init__(self, project_id: str = None, location: str = "global",
+                 endpoint: str = None, model_name: str = None):
         """
-        Initialize DeepSeek provider with Google Cloud.
+        Initialize DeepSeek OCR provider with Google Cloud.
         
         Args:
-            project_id: Google Cloud project ID (or set GOOGLE_CLOUD_PROJECT)
+            project_id: Google Cloud project ID
             location: Google Cloud region (default: global)
             endpoint: API endpoint (default: aiplatform.googleapis.com)
+            model_name: DeepSeek model (default: deepseek-ai/deepseek-ocr-maas)
         """
         self.project_id = project_id or os.getenv('GOOGLE_CLOUD_PROJECT')
         self.location = location or os.getenv('GOOGLE_CLOUD_LOCATION', 'global')
-        self.endpoint = endpoint or os.getenv('GOOGLE_CLOUD_ENDPOINT', 'aiplatform.googleapis.com')
+        self.endpoint = endpoint or os.getenv('GOOGLE_CLOUD_ENDPOINT',
+                                             'aiplatform.googleapis.com')
+        model_default = 'deepseek-ai/deepseek-ocr-maas'
+        self.model_name = model_name or os.getenv('DEEPSEEK_MODEL',
+                                                   model_default)
         self._client = None
     
     @property
@@ -88,80 +92,218 @@ class DeepSeekProvider(OCRProvider):
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Image not found: {image_path}")
         
-        # Encode image
-        image_base64 = self._encode_image(image_path)
+        # Get image file size for verification
+        image_size = os.path.getsize(image_path)
+        print(f"📷 DeepSeek reading image: {image_path}")
+        print(f"   File size: {image_size:,} bytes")
         
-        # Initialize Vertex AI
-        self._get_client()
+        # Verify this is the same image by checking first few bytes
+        with open(image_path, 'rb') as f:
+            first_bytes = f.read(16)
+            import hashlib
+            f.seek(0)
+            img_hash = hashlib.md5(f.read()).hexdigest()
+        print(f"   MD5 hash: {img_hash}")
+        print(f"   First bytes: {first_bytes[:8].hex()}")
         
-        # Prepare the prediction request
-        from vertexai.preview.vision_models import ImageTextModel
+        # Initialize Vertex AI (not needed for OpenAPI endpoint)
+        # OpenAPI endpoint uses different authentication
         
         try:
-            # Load the DeepSeek model from Vertex AI Model Garden
-            model = ImageTextModel.from_pretrained("deepseek-ai/deepseek-vl2")
+            # Use OpenAPI chat completions endpoint for DeepSeek OCR
+            import subprocess
+            import requests
+            import tempfile  # noqa: F401
             
-            # Create prompt for OCR with structured output
-            prompt = """Extract all text from this image. 
-For each text element, provide:
-1. The text content
-2. Bounding box coordinates (x1, y1, x2, y2) as percentages (0-100)
-
-Format as JSON:
-{
-  "full_text": "all text concatenated",
-  "text_elements": [
-    {"text": "word or phrase", "bbox": [x1, y1, x2, y2]}
-  ]
-}"""
-            
-            # Get predictions
-            response = model.predict(
-                prompt=prompt,
-                image=f"data:image/jpeg;base64,{image_base64}",
-                temperature=0.1,
-                max_output_tokens=4096
+            # Get access token using gcloud
+            result = subprocess.run(
+                ['gcloud', 'auth', 'print-access-token'],
+                capture_output=True,
+                text=True,
+                check=True
             )
+            access_token = result.stdout.strip()
             
-            # Parse response
-            import json
-            import re
+            # Resize image if too large for API
+            # DeepSeek OCR may have size limits, resize to max 2048px
+            from PIL import Image
+            import io
             
-            content = response.text
-            
-            # Extract JSON from markdown code blocks if present
-            json_match = re.search(
-                r'```json\s*(.*?)\s*```', content, re.DOTALL
-            )
-            if json_match:
-                content = json_match.group(1)
-            
-            ocr_result = json.loads(content)
-            
-            # Extract full text
-            full_text = ocr_result.get('full_text', '')
-            
-            # Convert to standardized annotations
-            annotations = []
-            for element in ocr_result.get('text_elements', []):
-                text = element.get('text', '')
-                bbox_pct = element.get('bbox', [0, 0, 100, 100])
+            with Image.open(image_path) as img:
+                width, height = img.size
+                print(f"📐 Original image: {width}x{height}")
                 
-                # Convert percentage coordinates
+                # Resize if larger than 2048px on longest side
+                max_size = 2048
+                if max(width, height) > max_size:
+                    ratio = max_size / max(width, height)
+                    new_width = int(width * ratio)
+                    new_height = int(height * ratio)
+                    img = img.resize((new_width, new_height), Image.LANCZOS)
+                    print(f"📉 Resized to: {new_width}x{new_height}")
+                else:
+                    print(f"✓ Image size OK, no resize needed")
+                
+                # Convert to JPEG with quality 85 to reduce size
+                img_buffer = io.BytesIO()
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    # Convert to RGB for JPEG
+                    img = img.convert('RGB')
+                img.save(img_buffer, format='JPEG', quality=85, optimize=True)
+                image_bytes = img_buffer.getvalue()
+            
+            print(f"✅ Prepared image: {len(image_bytes):,} bytes")
+            
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            print(f"✅ Encoded to base64: {len(image_b64):,} chars")
+            
+            # Determine image type for proper MIME type
+            if image_path.lower().endswith('.png'):
+                mime_type = 'image/png'
+            elif (image_path.lower().endswith('.jpg') or
+                  image_path.lower().endswith('.jpeg')):
+                mime_type = 'image/jpeg'
+            else:
+                mime_type = 'image/jpeg'
+            
+            # Create properly formatted data URL for vision models
+            image_url = f"data:{mime_type};base64,{image_b64}"
+            
+            # Prepare request to OpenAPI endpoint
+            url = (
+                f"https://{self.endpoint}/v1/projects/{self.project_id}/"
+                f"locations/{self.location}/endpoints/openapi/chat/completions"
+            )
+            
+            print(f"🌐 API endpoint: {url}")
+            print(f"📤 Sending {mime_type} as data URL")
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Match OpenAI vision API format exactly
+            # Reference: https://platform.openai.com/docs/guides/vision
+            # Add detailed OCR instructions to extract ALL text
+            payload = {
+                "model": self.model_name,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": ("Please perform OCR on this image. "
+                                   "Extract ALL visible text including: "
+                                   "book titles, author names, labels, "
+                                   "signs, prices, and any other text. "
+                                   "List every piece of text you can see, "
+                                   "no matter how small.")
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_url,
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }],
+                "max_tokens": 4096,
+                "temperature": 0.1
+            }
+            
+            print(f"📨 Request: model={self.model_name}, "
+                  f"detail=high, temp=0.1")
+            
+            # Make request
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            result_data = response.json()
+            
+            # Parse OpenAPI chat completion response
+            # Response format: {"choices": [{"message": {"content": "..."}}]}
+            if 'choices' not in result_data or not result_data['choices']:
+                raise ValueError("No response from DeepSeek OCR model")
+            
+            content = result_data['choices'][0]['message']['content']
+            
+            # Debug: print what DeepSeek returned
+            print("🔍 DeepSeek OCR raw response:")
+            print(f"   Content length: {len(content)} chars")
+            print(f"   First 500 chars: {content[:500]}")
+            
+            # The model returns the extracted text directly
+            # DeepSeek OCR returns plain text, not JSON structured data
+            full_text = content.strip()
+            
+            print(f"📝 Full text extracted: {len(full_text)} chars")
+            print(f"   Preview: {full_text[:200]}")
+            
+            # Create simple annotations from the extracted text
+            # Split into words/phrases for annotation
+            
+            annotations = []
+            
+            # Split by whitespace and newlines to get individual text elements
+            # Create annotations for both full lines AND individual words
+            # to improve phrase matching
+            lines = content.strip().split('\n')
+            
+            # Give each line a unique Y-coordinate so grouper treats as separate
+            y_offset = 0
+            y_increment = 10  # Pixels between lines
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Create annotation with unique Y-coordinate for each line
                 bounding_box = [
-                    (bbox_pct[0], bbox_pct[1]),  # top-left
-                    (bbox_pct[2], bbox_pct[1]),  # top-right
-                    (bbox_pct[2], bbox_pct[3]),  # bottom-right
-                    (bbox_pct[0], bbox_pct[3])   # bottom-left
+                    (0, y_offset),           # top-left
+                    (100, y_offset),         # top-right
+                    (100, y_offset + 5),     # bottom-right
+                    (0, y_offset + 5)        # bottom-left
                 ]
                 
                 text_ann = TextAnnotation(
-                    text=text,
-                    confidence=0.9,
+                    text=line,
+                    confidence=0.95,
                     bounding_box=bounding_box,
                     locale=None
                 )
                 annotations.append(text_ann)
+                
+                # Also create word-level annotations for better matching
+                import re
+                words = re.findall(r'\S+', line)
+                x_offset = 0
+                x_increment = 100 / max(len(words), 1)
+                
+                for word in words:
+                    word_bbox = [
+                        (x_offset, y_offset),
+                        (x_offset + x_increment, y_offset),
+                        (x_offset + x_increment, y_offset + 5),
+                        (x_offset, y_offset + 5)
+                    ]
+                    word_ann = TextAnnotation(
+                        text=word,
+                        confidence=0.95,
+                        bounding_box=word_bbox,
+                        locale=None
+                    )
+                    annotations.append(word_ann)
+                    x_offset += x_increment
+                
+                y_offset += y_increment
+            
+            num_lines = len(lines)
+            num_ann = len(annotations)
+            print(f"✅ Created {num_ann} annotations from {num_lines} lines")
             
             return full_text, annotations
             
