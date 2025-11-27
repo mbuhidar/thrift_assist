@@ -12,16 +12,22 @@ def calculate_text_angle(vertices) -> float:
     clockwise or counter-clockwise. For text, the longest edges represent
     the text baseline and capline.
     
-    Returns angle in degrees (0 = horizontal, positive = clockwise).
+    Returns angle in degrees normalized to 0-360 range:
+    - 0° = horizontal text (left to right)
+    - 90° = vertical text (bottom facing left)
+    - 180° = upside down text (right to left)
+    - 270° = vertical text (bottom facing right)
     """
     if len(vertices) < 2:
-        return 0
+        return 0.0
     
     if len(vertices) < 4:
         # Fallback: simple calculation if we don't have all 4 vertices
         p1, p2 = vertices[0], vertices[1]
         angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
-        return math.degrees(angle)
+        angle_degrees = math.degrees(angle)
+        # Normalize to 0-360 range
+        return angle_degrees % 360
 
     # Calculate all 4 edges
     edges = []
@@ -37,22 +43,17 @@ def calculate_text_angle(vertices) -> float:
     longest = max(edges, key=lambda e: e[0])
     dx, dy = longest[1], longest[2]
     
-    # Calculate angle from horizontal
+    # Calculate angle from horizontal (positive x-axis)
+    # atan2 returns angle in range [-180, 180]
     angle = math.atan2(dy, dx)
     angle_degrees = math.degrees(angle)
     
-    # Keep in 0-180 range:
-    # For angles in range [-90, 90], take absolute value
-    # For angles outside that range, normalize differently
-    if -90 <= angle_degrees <= 90:
-        angle_degrees = abs(angle_degrees)
-    else:
-        # angle is in range (90, 180] or [-180, -90)
-        if angle_degrees < 0:
-            angle_degrees += 360
-        angle_degrees = angle_degrees - 180
+    # Normalize to 0-360 range (all positive values)
+    # 0° = horizontal, 90° = vertical (bottom left),
+    # 180° = upside down, 270° = vertical (bottom right)
+    normalized_angle = angle_degrees % 360
     
-    return angle_degrees
+    return normalized_angle
 
 
 def rectangles_overlap(rect1: Tuple[int, int, int, int], 

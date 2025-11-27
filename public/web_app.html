@@ -1873,7 +1873,7 @@
                                                         ${confidenceLevel}
                                                     </span>
                                                     <span class="match-score">${Math.round(match.score)}%</span>
-                                                    ${match.angle !== 0 ? `<span style="font-size: 0.9em;">🔄 ${Math.round(match.angle)}°</span>` : ''}
+                                                    <span style="font-size: 0.9em; color: #666;">∠${Math.round(match.angle || 0)}°</span>
                                                     <span class="toggle-explanation" onclick="toggleExplanation('${matchId}-${idx}')">
                                                         <span id="toggle-exp-${matchId}-${idx}">Why? 🔍</span>
                                                     </span>
