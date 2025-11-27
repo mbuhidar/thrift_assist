@@ -9,18 +9,17 @@ class VisionConfig:
     """Configuration for OCR processing with multiple provider support."""
     
     # Provider Selection
-    ocr_provider: str = "google"  # Options: "google", "deepseek"
+    ocr_provider: str = "google"  # Options: "google", "gemini"
     
     # Google Cloud Vision Settings
     google_credentials_path: str = (
         "credentials/direct-bonsai-473201-t2-f19c1eb1cb53.json"
     )
     
-    # DeepSeek Settings (via Google Cloud Vertex AI)
+    # Gemini Vision Settings (via Google Cloud Vertex AI)
     google_cloud_project: str = "direct-bonsai-473201-t2"
-    google_cloud_location: str = "global"  # Vertex AI region
-    google_cloud_endpoint: str = "aiplatform.googleapis.com"
-    deepseek_model: str = "deepseek-ai/deepseek-ocr-maas"  # DeepSeek OCR
+    google_cloud_location: str = "us-central1"  # Vertex AI region for Gemini
+    gemini_model: str = "gemini-1.5-flash-001"  # Gemini Vision model
     
     def __post_init__(self):
         """Initialize configuration after creation."""
@@ -66,7 +65,9 @@ class VisionConfig:
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = (
                     self.google_credentials_path
                 )
-        elif provider == "deepseek":
-            # DeepSeek uses API key from environment variable DEEPSEEK_API_KEY
-            # or from config (already handled in DeepSeekProvider)
-            pass
+        elif provider == "gemini":
+            # Gemini uses same credentials as Google Cloud
+            if os.path.exists(self.google_credentials_path):
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = (
+                    self.google_credentials_path
+                )

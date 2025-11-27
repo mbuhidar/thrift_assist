@@ -15,8 +15,8 @@ from vision.matcher import PhraseMatcher
 from vision.annotator import ImageAnnotator
 from vision.providers import (
     GoogleVisionProvider,
-    DeepSeekProvider,
-    DEEPSEEK_AVAILABLE
+    GeminiProvider,
+    GEMINI_AVAILABLE
 )
 
 # Suppress warnings
@@ -60,31 +60,29 @@ class VisionPhraseDetector:
         # Initialize provider attribute to None
         self.provider = None
         
-        if provider_name == "deepseek":
-            if not DEEPSEEK_AVAILABLE:
-                print("⚠️ DeepSeek provider not available, falling back to "
+        if provider_name == "gemini":
+            if not GEMINI_AVAILABLE:
+                print("⚠️ Gemini provider not available, falling back to "
                       "Google Vision")
                 provider_name = "google"
             else:
                 project_id = (self.config.google_cloud_project or
                              os.getenv('GOOGLE_CLOUD_PROJECT'))
                 location = (self.config.google_cloud_location or
-                           os.getenv('GOOGLE_CLOUD_LOCATION', 'global'))
-                endpoint = (getattr(self.config, 'google_cloud_endpoint', None) or
-                           os.getenv('GOOGLE_CLOUD_ENDPOINT', 'aiplatform.googleapis.com'))
-                model_name = (getattr(self.config, 'deepseek_model', None) or
-                             os.getenv('DEEPSEEK_MODEL', 'deepseek-ai/deepseek-ocr-maas'))
+                           os.getenv('GOOGLE_CLOUD_LOCATION', 'us-central1'))
+                model_name = (getattr(self.config, 'gemini_model', None) or
+                             os.getenv('GEMINI_MODEL',
+                                      'gemini-1.5-flash-001'))
                 
-                print(f"🔧 DeepSeek config: project_id={project_id!r}, location={location!r}, model={model_name!r}")
+                print(f"🔧 Gemini config: project_id={project_id!r}, location={location!r}, model={model_name!r}")
                 
-                self.provider = DeepSeekProvider(
+                self.provider = GeminiProvider(
                     project_id=project_id,
                     location=location,
-                    endpoint=endpoint,
                     model_name=model_name
                 )
                 if not self.provider.is_available():
-                    print("⚠️ DeepSeek provider not configured (missing "
+                    print("⚠️ Gemini provider not configured (missing "
                           "Google Cloud project), falling back to Google Vision")
                     provider_name = "google"
         
@@ -113,12 +111,29 @@ class VisionPhraseDetector:
         # Load image
         if not os.path.exists(image_path):
             print(f"❌ Image not found: {image_path}")
-            return None
+            # Create empty image for error case
+            import numpy as np
+            dummy_image = np.zeros((100, 100, 3), dtype=np.uint8)
+            return {
+                'image': dummy_image,
+                'annotated_image': dummy_image.copy(),
+                'matches': {},
+                'total_matches': 0,
+                'all_text': 'Image file not found'
+            }
         
         image = cv2.imread(image_path)
         if image is None:
             print(f"❌ Could not load image: {image_path}")
-            return None
+            import numpy as np
+            dummy_image = np.zeros((100, 100, 3), dtype=np.uint8)
+            return {
+                'image': dummy_image,
+                'annotated_image': dummy_image.copy(),
+                'matches': {},
+                'total_matches': 0,
+                'all_text': 'Could not load image'
+            }
         
         # Detect text using selected provider
         text_annotations = self._detect_text(image_path)

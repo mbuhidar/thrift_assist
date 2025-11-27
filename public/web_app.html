@@ -1231,32 +1231,8 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="ocrProvider">OCR Provider</label>
-                            <select id="ocrProvider" style="font-size: 1.125em;">
-                                <option value="google" selected>Google Cloud Vision (Fast & Accurate)</option>
-                                <option value="deepseek">DeepSeek-OCR via Google Cloud (AI-Powered)</option>
-                            </select>
-                            <div class="collapsible">
-                                <div class="collapsible-header" onclick="toggleCollapsible(this)">
-                                    <span>🤖 OCR Provider info</span>
-                                    <span class="collapsible-icon">▼</span>
-                                </div>
-                                <div class="collapsible-content">
-                                    <div class="help-text">
-                                        <strong>Google Cloud Vision:</strong><br>
-                                        • Fastest processing speed<br>
-                                        • Excellent for printed text and structured documents<br>
-                                        • Industry-standard accuracy<br><br>
-                                        <strong>DeepSeek-OCR (Google Cloud):</strong><br>
-                                        • AI-powered understanding<br>
-                                        • Better for complex layouts and unusual text<br>
-                                        • Runs on Google Cloud Vertex AI<br>
-                                        • May be slower but more contextually aware
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- OCR Provider: Google Cloud Vision only -->
+                        <input type="hidden" id="ocrProvider" value="google">
 
                         <div class="form-group">
                             <label for="threshold">Detection Threshold: <span id="thresholdValue" class="slider-value">80%</span></label>

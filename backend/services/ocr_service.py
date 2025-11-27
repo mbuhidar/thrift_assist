@@ -553,7 +553,7 @@ class OCRService:
                 show_plot=show_plot
             )
             
-            if results:
+            if results is not None:
                 print(f"✅ Initial OCR: {results.get('total_matches', 0)} matches found")
                 
                 # Only apply advanced matching for phrases that had NO matches
@@ -565,9 +565,15 @@ class OCRService:
                 results = self._enhance_with_explanations(results, threshold)
             else:
                 print("⚠️ OCR returned no results")
+                # Load image to return in error response
+                import cv2
+                image = cv2.imread(image_path)
+                if image is None:
+                    import numpy as np
+                    image = np.zeros((100, 100, 3), dtype=np.uint8)
                 return {
-                    'image': None,
-                    'annotated_image': None,
+                    'image': image,
+                    'annotated_image': image.copy(),
                     'matches': {},
                     'total_matches': 0,
                     'all_text': 'No text detected'
@@ -579,9 +585,17 @@ class OCRService:
             print(f"❌ OCR error: {e}")
             import traceback
             traceback.print_exc()
+            # Load image to return in error response
+            import cv2
+            image = None
+            if os.path.exists(image_path):
+                image = cv2.imread(image_path)
+            if image is None:
+                import numpy as np
+                image = np.zeros((100, 100, 3), dtype=np.uint8)
             return {
-                'image': None,
-                'annotated_image': None,
+                'image': image,
+                'annotated_image': image.copy(),
                 'matches': {},
                 'total_matches': 0,
                 'all_text': f'OCR error: {str(e)}'
