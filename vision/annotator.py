@@ -14,9 +14,17 @@ class ImageAnnotator:
     
     def __init__(self, text_scale: int = 100):
         self.text_scale = text_scale
+        # High contrast, bright colors for better visibility (values BGR)
         self.default_colors = [
-            (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
-            (255, 0, 255), (0, 255, 255), (128, 0, 128), (255, 165, 0)
+            (200, 200, 0),     # Cyan (darker)
+            (128, 128, 0),     # Teal
+            (255, 0, 255),     # Magenta
+            (0, 200, 0),       # Lime green (darker)
+            (0, 128, 255),     # Orange
+            (255, 0, 128),     # Purple/Violet (high blue, low red)
+            (128, 0, 255),     # Hot pink (high red, low blue)
+            (0, 255, 128),     # Spring green
+            (255, 64, 255)     # Neon pink/fuchsia
         ]
     
     def draw_annotations(self, image, phrase_matches: Dict, 
@@ -69,8 +77,9 @@ class ImageAnnotator:
                         continue
                     
                     # Determine line style based on validation status
+                    # Increased box thickness for better visibility
                     is_validated = match_data.get('validated', True)
-                    thickness = 3 if is_validated else 2
+                    thickness = 4 if is_validated else 3
                     line_type = cv2.LINE_AA
                     
                     # Try to draw rotated bounding box if vertices available
