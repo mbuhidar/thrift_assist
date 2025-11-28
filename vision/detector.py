@@ -134,14 +134,15 @@ class VisionPhraseDetector:
         
         angle_info = []
         for angle in sorted(angles):
-            if abs(angle) < 5:
+            # All angles are now in 0-360 range
+            if angle < 5 or angle > 355:
                 angle_info.append("horizontal")
-            elif abs(angle - 90) < 15:
-                angle_info.append("vertical↑")
-            elif abs(angle + 90) < 15:
-                angle_info.append("vertical↓")
-            elif abs(abs(angle) - 180) < 15:
-                angle_info.append("upside-down")
+            elif 85 <= angle <= 95:
+                angle_info.append("vertical↓")  # 90° = bottom facing left
+            elif 175 <= angle <= 185:
+                angle_info.append("upside-down")  # 180°
+            elif 265 <= angle <= 275:
+                angle_info.append("vertical↑")  # 270° = bottom facing right
             else:
                 angle_info.append(f"{angle:.0f}°")
         

@@ -772,11 +772,14 @@ class OCRService:
         for phrase, matches in results.get('matches', {}).items():
             serializable_matches[phrase] = []
             for match_data, score, match_type in matches:
+                # Extract angle
+                angle_value = match_data.get('angle', 0) if isinstance(match_data, dict) else 0
+                
                 match_dict = {
                     'text': match_data.get('text', '') if isinstance(match_data, dict) else str(match_data),
                     'score': float(score) if score is not None else 0.0,
                     'match_type': match_type or 'unknown',
-                    'angle': match_data.get('angle', 0) if isinstance(match_data, dict) else 0,
+                    'angle': float(angle_value),
                     'is_spanning': match_data.get('is_spanning', False) if isinstance(match_data, dict) else False
                 }
                 

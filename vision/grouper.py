@@ -47,8 +47,7 @@ class TextLineGrouper:
                 logger.info(f"Annotation '{annotation.description[:20]}': "
                            f"calculated angle = {angle:.2f}°")
             
-            # calculate_text_angle already returns normalized -90 to +90
-            # No need for additional normalization
+            # Angles are now in 0-360 range from calculate_text_angle
             angle_key = self._find_angle_key(angle_groups.keys(), angle)
             if angle_key is None:
                 angle_key = angle
@@ -83,14 +82,23 @@ class TextLineGrouper:
         return lines
     
     def _calculate_position(self, annotation, angle: float) -> Tuple[float, float]:
-        """Calculate position and sort key based on text angle."""
+        """Calculate position and sort key based on text angle (0-360 range)."""
         vertices = annotation.bounding_poly.vertices
         
-        if abs(angle) < 45:  # Horizontal
+        # Horizontal text: 0° or 360° (±45°)
+        if angle < 45 or angle > 315:
             return vertices[0].y, vertices[0].x
-        elif abs(angle - 90) < 45 or abs(angle + 90) < 45:  # Vertical
+        # Vertical text (bottom left): 90° (±45°)
+        elif 45 <= angle < 135:
             return vertices[0].x, -vertices[0].y
-        else:  # Diagonal
+        # Upside down: 180° (±45°)
+        elif 135 <= angle < 225:
+            return -vertices[0].y, -vertices[0].x
+        # Vertical text (bottom right): 270° (±45°)
+        elif 225 <= angle < 315:
+            return -vertices[0].x, vertices[0].y
+        # Diagonal (shouldn't normally hit this)
+        else:
             center_x = sum(v.x for v in vertices) / 4
             center_y = sum(v.y for v in vertices) / 4
             return center_y, center_x
