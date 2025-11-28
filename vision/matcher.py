@@ -369,6 +369,21 @@ class PhraseMatcher:
             
             if phrase_annotations:
                 enhanced['annotations'] = phrase_annotations
+                
+                # Recalculate angle from the filtered phrase annotations
+                # The line angle might not match the actual phrase angle
+                from utils.geometry_utils import calculate_text_angle
+                if phrase_annotations and hasattr(phrase_annotations[0], 'bounding_poly'):
+                    # If we have multiple annotations, calculate from first one's vertices
+                    # (they should all have similar angles since they're on same line)
+                    try:
+                        phrase_angle = calculate_text_angle(
+                            phrase_annotations[0].bounding_poly.vertices
+                        )
+                        enhanced['angle'] = phrase_angle
+                    except (AttributeError, TypeError):
+                        # Keep original line angle if calculation fails
+                        pass
         
         return enhanced
     
