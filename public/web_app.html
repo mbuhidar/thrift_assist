@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>ThriftAssist - AI Media Finder</title>
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
     <!-- Panzoom library for image zoom/pan -->
     <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     <style>
@@ -784,9 +785,25 @@
             padding-bottom: 0.625em;
         }
         
+        .header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .header-logo {
+            width: 60px;
+            height: 60px;
+            flex-shrink: 0;
+        }
+        
         .header h1 {
             font-size: 2.5em;  /* Proportional to body */
             margin-bottom: 0.625em;
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
         .header p {
@@ -1068,7 +1085,7 @@
     <div class="container">
         <div class="text-content">
             <div class="header">
-                <h1>🔍 ThriftAssist</h1>
+                <h1><img src="/icon.svg" alt="ThriftAssist Logo" class="header-logo">ThriftAssist</h1>
                 <p>AI-powered Physical Media Finder</p>
             </div>
 
@@ -2174,11 +2191,16 @@
                 const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
                 const fileType = file.type.split('/')[1].toUpperCase();
                 
-                // Update help text with file information
-                document.querySelector('.help-text').innerHTML = `
-                    Supported formats: JPG, PNG, GIF, BMP<br>
-                    Selected file: ${file.name} (${fileSizeMB} MB, ${fileType})
-                `;
+                // Find the file input's help text (not the instructions help text)
+                const fileInputGroup = this.closest('.form-group');
+                const helpText = fileInputGroup.querySelector('.help-text');
+                if (helpText) {
+                    helpText.innerHTML = `
+                        <strong>Supported formats:</strong> JPG, PNG, GIF, BMP<br><br>
+                        <strong>Selected file:</strong> ${file.name}<br>
+                        <strong>Size:</strong> ${fileSizeMB} MB (${fileType})
+                    `;
+                }
             }
         });
 

@@ -154,3 +154,25 @@ async def favicon():
         return FileResponse(favicon_path)
     else:
         return JSONResponse(content={}, status_code=204)
+
+
+@app.get("/icon.svg")
+async def icon_svg():
+    """Serve icon SVG."""
+    icon_path = os.path.join(public_dir, "icon.svg")
+    
+    if os.path.exists(icon_path):
+        return FileResponse(icon_path, media_type="image/svg+xml")
+    else:
+        return JSONResponse(content={"error": "Icon not found"}, status_code=404)
+
+
+@app.get("/logo.svg")
+async def logo_svg():
+    """Serve logo SVG."""
+    logo_path = os.path.join(public_dir, "logo.svg")
+    
+    if os.path.exists(logo_path):
+        return FileResponse(logo_path, media_type="image/svg+xml")
+    else:
+        return JSONResponse(content={"error": "Logo not found"}, status_code=404)
