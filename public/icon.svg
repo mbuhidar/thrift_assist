@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Background -->
+  <circle cx="64" cy="64" r="64" fill="#667eea"/>
+  
+  <!-- Magnifying glass -->
+  <g transform="translate(35, 28)">
+    <!-- Glass circle -->
+    <circle cx="28" cy="28" r="22" fill="none" stroke="white" stroke-width="7" stroke-linecap="round"/>
+    <!-- Handle -->
+    <line x1="44" y1="44" x2="62" y2="62" stroke="white" stroke-width="7" stroke-linecap="round"/>
+    
+    <!-- Book inside -->
+    <rect x="18" y="20" width="20" height="16" fill="white" opacity="0.9" rx="2"/>
+    <line x1="20" y1="24" x2="36" y2="24" stroke="#667eea" stroke-width="1.5" opacity="0.6"/>
+    <line x1="20" y1="28" x2="36" y2="28" stroke="#667eea" stroke-width="1.5" opacity="0.6"/>
+    <line x1="20" y1="32" x2="32" y2="32" stroke="#667eea" stroke-width="1.5" opacity="0.4"/>
+  </g>
+  
+  <!-- AI sparkles -->
+  <g fill="white" opacity="0.9">
+    <path d="M 90 35 L 92 39 L 96 41 L 92 43 L 90 47 L 88 43 L 84 41 L 88 39 Z"/>
+    <path d="M 100 55 L 101.5 58 L 104.5 59.5 L 101.5 61 L 100 64 L 98.5 61 L 95.5 59.5 L 98.5 58 Z"/>
+  </g>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="95" fill="#667eea" opacity="0.1"/>
+  
+  <!-- Magnifying glass (search) -->
+  <g transform="translate(60, 50)">
+    <!-- Glass circle -->
+    <circle cx="30" cy="30" r="25" fill="none" stroke="#667eea" stroke-width="6"/>
+    <!-- Handle -->
+    <line x1="48" y1="48" x2="68" y2="68" stroke="#667eea" stroke-width="6" stroke-linecap="round"/>
+    
+    <!-- Book/media inside magnifying glass -->
+    <rect x="18" y="20" width="24" height="20" fill="#764ba2" rx="2"/>
+    <line x1="20" y1="24" x2="40" y2="24" stroke="white" stroke-width="1.5" opacity="0.6"/>
+    <line x1="20" y1="28" x2="40" y2="28" stroke="white" stroke-width="1.5" opacity="0.6"/>
+    <line x1="20" y1="32" x2="35" y2="32" stroke="white" stroke-width="1.5" opacity="0.4"/>
+  </g>
+  
+  <!-- AI sparkle/star elements -->
+  <g fill="#764ba2">
+    <path d="M 140 45 L 142 50 L 147 52 L 142 54 L 140 59 L 138 54 L 133 52 L 138 50 Z" opacity="0.8"/>
+    <path d="M 155 70 L 156.5 73.5 L 160 75 L 156.5 76.5 L 155 80 L 153.5 76.5 L 150 75 L 153.5 73.5 Z" opacity="0.6"/>
+    <path d="M 150 100 L 151.5 103.5 L 155 105 L 151.5 106.5 L 150 110 L 148.5 106.5 L 145 105 L 148.5 103.5 Z" opacity="0.7"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="100" y="155" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" fill="#667eea" text-anchor="middle">ThriftAssist</text>
+  <text x="100" y="175" font-family="'Segoe UI', Arial, sans-serif" font-size="12" font-weight="500" fill="#764ba2" text-anchor="middle" opacity="0.8">AI Media Finder</text>
+</svg>
