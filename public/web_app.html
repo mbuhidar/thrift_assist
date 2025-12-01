@@ -263,6 +263,144 @@
             overflow-wrap: break-word;
         }
 
+        /* Image Gallery Styles */
+        .image-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #e2e8f0;
+        }
+
+        .gallery-item {
+            position: relative;
+            aspect-ratio: 1;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .gallery-item:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .gallery-item.selected {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.2);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .gallery-item-checkbox {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 20px !important;
+            height: 20px;
+            cursor: pointer;
+            z-index: 2;
+            accent-color: #667eea;
+        }
+
+        .gallery-item-remove {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            background: rgba(220, 38, 38, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            transition: all 0.2s ease;
+        }
+
+        .gallery-item-remove:hover {
+            background: rgba(185, 28, 28, 1);
+            transform: scale(1.1);
+        }
+
+        .gallery-item-name {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            color: white;
+            padding: 20px 8px 6px 8px;
+            font-size: 0.75em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 1;
+        }
+
+        .gallery-item-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            cursor: pointer;
+            z-index: 0;
+        }
+
+        .gallery-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .gallery-controls button {
+            padding: 8px 16px;
+            font-size: 0.9em;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .gallery-controls button:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .gallery-controls button.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+
+        .gallery-controls button.primary:hover {
+            background: linear-gradient(135deg, #5a67d8 0%, #6a3f8f 100%);
+            color: white;
+        }
+
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -1224,21 +1362,38 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="imageFile">Select Image</label>
+                            <label style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Select Image(s)</span>
+                                <label style="font-weight: normal; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="batchMode" style="width: auto; cursor: pointer;">
+                                    <span>Batch Mode</span>
+                                </label>
+                            </label>
                             <input type="file" id="imageFile" accept="image/*" required>
+                            <div id="imageGallery" class="image-gallery" style="display: none;"></div>
+                            <div id="galleryControls" class="gallery-controls" style="display: none;">
+                                <button type="button" id="selectAllBtn">✓ Select All</button>
+                                <button type="button" id="deselectAllBtn">☐ Deselect All</button>
+                                <button type="button" id="removeSelectedBtn">🗑️ Remove Selected</button>
+                                <button type="button" id="addMoreBtn" class="primary">➕ Add More Images</button>
+                                <span id="selectionCount" style="margin-left: auto; align-self: center; font-size: 0.9em; color: #667eea; font-weight: 600;"></span>
+                            </div>
                             <div class="collapsible">
                                 <div class="collapsible-header" onclick="toggleCollapsible(this)">
-                                    <span>� Supported formats & tips</span>
+                                    <span>📷 Supported formats & tips</span>
                                     <span class="collapsible-icon">▼</span>
                                 </div>
                                 <div class="collapsible-content">
                                     <div class="help-text">
                                         <strong>Supported formats:</strong> JPG, PNG, GIF, BMP<br><br>
+                                        <strong>Single Mode:</strong> Upload one image at a time<br>
+                                        <strong>Batch Mode:</strong> Upload multiple images, review them, and choose which ones to analyze<br><br>
                                         <strong>Tips for best results:</strong><br>
                                         • Ensure text is clearly visible<br>
                                         • Good lighting improves accuracy<br>
                                         • Higher resolution images work better<br>
-                                        • Multiple angles of text are supported
+                                        • Multiple angles of text are supported<br>
+                                        • In batch mode, you can add/remove images before analyzing
                                     </div>
                                 </div>
                             </div>
@@ -1271,7 +1426,7 @@
                         </div>
 
                         <button type="submit" class="btn" id="submitBtn">
-                            🚀 Analyze Image
+                            🚀 <span id="btnText">Analyze Image</span>
                         </button>
                     </form>
 
@@ -1725,14 +1880,166 @@
             }
         }
         
+        // Batch mode image gallery management
+        const batchModeCheckbox = document.getElementById('batchMode');
+        const imageFileInput = document.getElementById('imageFile');
+        const imageGallery = document.getElementById('imageGallery');
+        const galleryControls = document.getElementById('galleryControls');
+        const btnText = document.getElementById('btnText');
+        
+        let imageFiles = [];  // Store File objects with selection state
+        
+        batchModeCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                imageFileInput.setAttribute('multiple', 'multiple');
+                imageFileInput.removeAttribute('required');
+                btnText.textContent = 'Analyze Selected Images';
+                console.log('📦 Batch mode enabled');
+            } else {
+                imageFileInput.removeAttribute('multiple');
+                imageFileInput.setAttribute('required', 'required');
+                imageFileInput.value = '';
+                imageFiles = [];
+                imageGallery.style.display = 'none';
+                galleryControls.style.display = 'none';
+                imageGallery.innerHTML = '';
+                btnText.textContent = 'Analyze Image';
+                console.log('📄 Single mode enabled');
+            }
+        });
+        
+        imageFileInput.addEventListener('change', function(e) {
+            const newFiles = Array.from(this.files);
+            if (batchModeCheckbox.checked && newFiles.length > 0) {
+                addImagesToGallery(newFiles);
+            }
+        });
+        
+        function addImagesToGallery(files) {
+            files.forEach(file => {
+                if (!imageFiles.find(f => f.file.name === file.name && f.file.size === file.size)) {
+                    imageFiles.push({
+                        file: file,
+                        selected: true,
+                        id: Date.now() + Math.random()
+                    });
+                }
+            });
+            renderGallery();
+        }
+        
+        function renderGallery() {
+            if (imageFiles.length === 0) {
+                imageGallery.style.display = 'none';
+                galleryControls.style.display = 'none';
+                return;
+            }
+            
+            imageGallery.style.display = 'grid';
+            galleryControls.style.display = 'flex';
+            imageGallery.innerHTML = '';
+            
+            imageFiles.forEach((item, index) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const galleryItem = document.createElement('div');
+                    galleryItem.className = `gallery-item ${item.selected ? 'selected' : ''}`;
+                    galleryItem.innerHTML = `
+                        <input type="checkbox" class="gallery-item-checkbox" data-index="${index}" ${item.selected ? 'checked' : ''}>
+                        <button type="button" class="gallery-item-remove" data-index="${index}">×</button>
+                        <img src="${e.target.result}" alt="${item.file.name}">
+                        <div class="gallery-item-name" title="${item.file.name}">${item.file.name}</div>
+                        <div class="gallery-item-overlay"></div>
+                    `;
+                    
+                    // Toggle selection on click
+                    galleryItem.querySelector('.gallery-item-overlay').addEventListener('click', () => {
+                        toggleImageSelection(index);
+                    });
+                    
+                    // Handle checkbox
+                    galleryItem.querySelector('.gallery-item-checkbox').addEventListener('change', (e) => {
+                        e.stopPropagation();
+                        toggleImageSelection(index);
+                    });
+                    
+                    // Handle remove button
+                    galleryItem.querySelector('.gallery-item-remove').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        removeImage(index);
+                    });
+                    
+                    imageGallery.appendChild(galleryItem);
+                };
+                reader.readAsDataURL(item.file);
+            });
+            
+            updateSelectionCount();
+        }
+        
+        function toggleImageSelection(index) {
+            imageFiles[index].selected = !imageFiles[index].selected;
+            renderGallery();
+        }
+        
+        function removeImage(index) {
+            imageFiles.splice(index, 1);
+            renderGallery();
+        }
+        
+        function updateSelectionCount() {
+            const selectedCount = imageFiles.filter(f => f.selected).length;
+            const totalCount = imageFiles.length;
+            const countEl = document.getElementById('selectionCount');
+            countEl.textContent = `${selectedCount} of ${totalCount} selected`;
+        }
+        
+        // Gallery control buttons
+        document.getElementById('selectAllBtn').addEventListener('click', () => {
+            imageFiles.forEach(f => f.selected = true);
+            renderGallery();
+        });
+        
+        document.getElementById('deselectAllBtn').addEventListener('click', () => {
+            imageFiles.forEach(f => f.selected = false);
+            renderGallery();
+        });
+        
+        document.getElementById('removeSelectedBtn').addEventListener('click', () => {
+            imageFiles = imageFiles.filter(f => !f.selected);
+            renderGallery();
+        });
+        
+        document.getElementById('addMoreBtn').addEventListener('click', () => {
+            imageFileInput.click();
+        });
+        
         document.getElementById('ocrForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData();
-            const imageFile = document.getElementById('imageFile').files[0];
             const searchPhrasesText = document.getElementById('searchPhrases').value;
             const threshold = document.getElementById('threshold').value;
-            let textScale = document.getElementById('textScale').value;  // Get text scale value
+            let textScale = document.getElementById('textScale').value;
+            
+            // Get selected images
+            let selectedImages;
+            if (batchModeCheckbox.checked) {
+                selectedImages = imageFiles.filter(f => f.selected).map(f => f.file);
+                if (selectedImages.length === 0) {
+                    showError('Please select at least one image to analyze');
+                    return;
+                }
+            } else {
+                const singleFile = imageFileInput.files[0];
+                if (!singleFile) {
+                    showError('Please select an image file');
+                    return;
+                }
+                selectedImages = [singleFile];
+            }
+            
+            const isBatchMode = selectedImages.length > 1;
             
             // Boost annotation text size for mobile devices - 4.0x multiplier
             if (device.isMobile || device.isTablet) {
@@ -1740,11 +2047,6 @@
                 // Multiply by 4.0 for mobile/tablet so 100% becomes 400%
                 textScale = Math.round(scaleInt * 4.0).toString();
                 console.log(`📱 Mobile boost: annotation text scale ${document.getElementById('textScale').value}% → ${textScale}%`);
-            }
-
-            if (!imageFile) {
-                showError('Please select an image file');
-                return;
             }
             
             if (!searchPhrasesText.trim()) {
@@ -1761,28 +2063,17 @@
             }
             
             // Show loading state
-            showLoading(true);
+            showLoading(true, selectedImages.length);
             hideError();
             hideResults();
             
             try {
-                // Prepare form data
-                formData.append('file', imageFile);
-                formData.append('search_phrases', JSON.stringify(searchPhrases));
-                formData.append('threshold', threshold);
-                formData.append('text_scale', textScale);  // Add boosted text scale to form data
-                
-                const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    displayResults(result, searchPhrases);
+                if (isBatchMode) {
+                    // Batch processing
+                    await processBatchImages(selectedImages, searchPhrases, threshold, textScale);
                 } else {
-                    showError(result.error_message || 'An error occurred while processing the image');
+                    // Single image processing
+                    await processSingleImage(selectedImages[0], searchPhrases, threshold, textScale);
                 }
                 
             } catch (error) {
@@ -1793,18 +2084,237 @@
             }
         });
         
-        function showLoading(show) {
+        async function processSingleImage(imageFile, searchPhrases, threshold, textScale) {
+            console.log('🔍 Processing single image:', imageFile.name);
+            console.log('   Search phrases:', searchPhrases);
+            console.log('   Threshold:', threshold);
+            console.log('   Text scale:', textScale);
+            
+            const formData = new FormData();
+            formData.append('file', imageFile);
+            formData.append('search_phrases', JSON.stringify(searchPhrases));
+            formData.append('threshold', threshold);
+            formData.append('text_scale', textScale);
+            
+            console.log('📤 Sending request to:', `${API_BASE_URL}/upload-and-detect`);
+            
+            const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            console.log('📥 Response status:', response.status, response.statusText);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ API error response:', errorText);
+                showError(`API returned error ${response.status}: ${errorText}`);
+                return;
+            }
+            
+            const result = await response.json();
+            console.log('📊 API result:', result);
+            
+            if (result.success) {
+                displayResults(result, searchPhrases);
+            } else {
+                showError(result.error_message || 'An error occurred while processing the image');
+            }
+        }
+        
+        async function processBatchImages(imageFiles, searchPhrases, threshold, textScale) {
+            const results = [];
+            const totalImages = imageFiles.length;
+            
+            for (let i = 0; i < totalImages; i++) {
+                const file = imageFiles[i];
+                console.log(`Processing image ${i + 1}/${totalImages}: ${file.name}`);
+                
+                // Update progress
+                updateBatchProgress(i + 1, totalImages, file.name);
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('search_phrases', JSON.stringify(searchPhrases));
+                formData.append('threshold', threshold);
+                formData.append('text_scale', textScale);
+                
+                try {
+                    console.log(`📤 Batch ${i + 1}/${totalImages}: Sending ${file.name}`);
+                    
+                    const response = await fetch(`${API_BASE_URL}/upload-and-detect`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    console.log(`📥 Batch ${i + 1}/${totalImages}: Response status ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`❌ Batch ${i + 1}/${totalImages}: API error:`, errorText);
+                        throw new Error(`API returned error ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    console.log(`📊 Batch ${i + 1}/${totalImages}: Result:`, result);
+                    
+                    if (result.success) {
+                        results.push({
+                            filename: file.name,
+                            success: true,
+                            data: result
+                        });
+                    } else {
+                        results.push({
+                            filename: file.name,
+                            success: false,
+                            error: result.error_message || 'Processing failed'
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error processing ${file.name}:`, error);
+                    results.push({
+                        filename: file.name,
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
+            
+            displayBatchResults(results, searchPhrases);
+        }
+        
+        function updateBatchProgress(current, total, filename) {
+            const loading = document.getElementById('loading');
+            const progressText = loading.querySelector('p');
+            if (progressText) {
+                progressText.innerHTML = `Processing image ${current}/${total}...<br><small>${filename}</small>`;
+            }
+        }
+        
+        function displayBatchResults(results, searchPhrases) {
+            const resultsSummary = document.getElementById('resultsSummary');
+            const matchesList = document.getElementById('matchesList');
+            
+            // Show results section
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('noResults').style.display = 'none';
+            
+            // Calculate totals
+            const totalProcessed = results.length;
+            const successCount = results.filter(r => r.success).length;
+            const totalMatches = results.filter(r => r.success).reduce((sum, r) => sum + r.data.total_matches, 0);
+            const avgTime = results.filter(r => r.success).reduce((sum, r) => sum + (r.data.processing_time_ms || 0), 0) / successCount;
+            
+            // Display summary
+            resultsSummary.innerHTML = `
+                <h3>✅ Batch Processing Complete</h3>
+                <div>
+                    <span class="stat">📦 Images: ${totalProcessed}</span>
+                    <span class="stat">✅ Success: ${successCount}</span>
+                    <span class="stat">🎯 Total Matches: ${totalMatches}</span>
+                    <span class="stat">⏱️ Avg Time: ${Math.round(avgTime)}ms</span>
+                </div>
+            `;
+            
+            // Display results for each image
+            let batchHTML = '<h3>📸 Image Results</h3>';
+            
+            results.forEach((result, index) => {
+                if (result.success) {
+                    const data = result.data;
+                    batchHTML += `
+                        <div class="match-item" style="margin-bottom: 20px; border-left: 4px solid #48bb78;">
+                            <div class="match-header" style="margin-bottom: 10px;">
+                                <strong style="color: #2d3748; font-size: 1.1em;">📷 ${result.filename}</strong>
+                                <div class="match-scores">
+                                    <span class="match-count">${data.total_matches} matches</span>
+                                </div>
+                            </div>
+                            <div id="image-result-${index}" style="margin-top: 10px;">
+                                ${data.annotated_image_base64 ? `
+                                    <div class="image-container" style="margin-top: 10px;">
+                                        <img src="data:image/jpeg;base64,${data.annotated_image_base64}" 
+                                             alt="Annotated ${result.filename}"
+                                             class="image-preview zoomable"
+                                             style="max-width: 100%; cursor: pointer;"
+                                             onclick="openImageModal(this.src)">
+                                    </div>
+                                ` : ''}
+                                ${data.matches && data.matches.length > 0 ? `
+                                    <div style="margin-top: 10px;">
+                                        <strong>Matches:</strong>
+                                        <ul style="margin: 5px 0; padding-left: 20px;">
+                                            ${data.matches.map(m => `
+                                                <li>${m.phrase} <span style="color: #48bb78;">(${Math.round(m.avg_similarity * 100)}%)</span></li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+                                ` : '<p style="color: #666; margin-top: 10px;">No matches found</p>'}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    batchHTML += `
+                        <div class="match-item" style="margin-bottom: 20px; border-left: 4px solid #f56565;">
+                            <div class="match-header">
+                                <strong style="color: #c53030;">❌ ${result.filename}</strong>
+                            </div>
+                            <p style="color: #666; margin-top: 5px;">Error: ${result.error}</p>
+                        </div>
+                    `;
+                }
+            });
+            
+            matchesList.innerHTML = batchHTML;
+        }
+        
+        function openImageModal(imageSrc) {
+            // Simple modal implementation
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                cursor: pointer;
+            `;
+            
+            const img = document.createElement('img');
+            img.src = imageSrc;
+            img.style.cssText = 'max-width: 95%; max-height: 95%; object-fit: contain;';
+            
+            modal.appendChild(img);
+            modal.onclick = () => modal.remove();
+            document.body.appendChild(modal);
+        }
+        
+        function showLoading(show, imageCount = 1) {
             const loading = document.getElementById('loading');
             const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
             
             if (show) {
                 loading.style.display = 'block';
                 submitBtn.disabled = true;
-                submitBtn.textContent = '⏳ Processing...';
+                if (imageCount > 1) {
+                    loading.querySelector('p').innerHTML = `Processing ${imageCount} images...`;
+                    btnText.textContent = 'Processing...';
+                } else {
+                    loading.querySelector('p').textContent = 'Processing image and detecting phrases...';
+                    btnText.textContent = 'Processing...';
+                }
             } else {
                 loading.style.display = 'none';
                 submitBtn.disabled = false;
-                submitBtn.textContent = '🚀 Analyze Image';
+                const isBatchMode = document.getElementById('batchMode').checked;
+                btnText.textContent = isBatchMode ? 'Analyze Images (Batch)' : 'Analyze Image';
             }
         }
         
@@ -1824,6 +2334,10 @@
         }
         
         function displayResults(result, searchPhrases) {
+            console.log('📊 displayResults called with:', result);
+            console.log('   Has annotated_image_base64:', !!result.annotated_image_base64);
+            console.log('   Image data length:', result.annotated_image_base64?.length || 0);
+            
             const resultsSummary = document.getElementById('resultsSummary');
             const matchesList = document.getElementById('matchesList');
             
@@ -1916,8 +2430,12 @@
             
             // Update annotated image
             if (result.annotated_image_base64) {
+                console.log('🖼️ Setting annotated image...');
                 const annotatedImage = document.getElementById('annotatedImage');
                 const imageContainer = document.getElementById('imageContainer');
+                
+                console.log('   annotatedImage element:', annotatedImage);
+                console.log('   imageContainer element:', imageContainer);
                 
                 // Create temp image to get actual dimensions for logging
                 const tempImg = new Image();
@@ -1995,12 +2513,21 @@
                 };
                 tempImg.src = `data:image/jpeg;base64,${result.annotated_image_base64}`;
                 
+                console.log('🎯 Setting image source on annotatedImage element');
+                annotatedImage.src = tempImg.src;
+                
                 if (!imageZoom) {
+                    console.log('🔧 Creating new ImageZoom instance');
                     imageZoom = new ImageZoom(annotatedImage, imageContainer);
+                } else {
+                    console.log('♻️ Reusing existing ImageZoom instance');
                 }
                 
                 imageZoom.setImage(`data:image/jpeg;base64,${result.annotated_image_base64}`);
                 annotatedImage.style.display = 'block';
+                console.log('✅ Image display complete');
+            } else {
+                console.warn('⚠️ No annotated_image_base64 in result');
             }
         }
         
