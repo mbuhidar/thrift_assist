@@ -76,24 +76,47 @@ class ImageAnnotator:
                         stats['skipped'] += 1
                         continue
                     
-                    # Determine line style based on validation status
-                    # Increased box thickness for better visibility
+                    # Calculate adaptive thickness based on box dimensions
+                    x1, y1, x2, y2 = bbox
+                    box_width = x2 - x1
+                    box_height = y2 - y1
+                    min_dimension = min(box_width, box_height)
+
+                    # Scale thickness: thinner lines for narrow boxes
+                    # Base thickness is 3-4, scale down for small boxes
                     is_validated = match_data.get('validated', True)
-                    thickness = 4 if is_validated else 3
+                    base_thickness = 4 if is_validated else 3
+
+                    # Scale down thickness for boxes with small dimensions
+                    # min_dimension < 30px: thickness 1-2
+                    # min_dimension 30-60px: thickness 2-3
+                    # min_dimension > 60px: thickness 3-4
+                    if min_dimension < 30:
+                        thickness = max(1, base_thickness - 2)
+                    elif min_dimension < 60:
+                        thickness = max(2, base_thickness - 1)
+                    else:
+                        thickness = base_thickness
+
                     line_type = cv2.LINE_AA
-                    
+
                     # Try to draw rotated bounding box if vertices available
-                    if self._draw_rotated_bbox(annotated, match_data, phrase, color, thickness, line_type):
+                    if self._draw_rotated_bbox(
+                            annotated, match_data, phrase, color,
+                            thickness, line_type):
                         # Successfully drew rotated box
                         pass
                     else:
                         # Fallback to axis-aligned rectangle
                         x1, y1, x2, y2 = bbox
-                        cv2.rectangle(annotated, (x1, y1), (x2, y2), color, thickness, line_type)
-                    
+                        cv2.rectangle(
+                            annotated, (x1, y1), (x2, y2), color,
+                            thickness, line_type)
+
                     # Draw label with metadata
-                    self._draw_label(annotated, phrase, score, bbox, color, 
-                                   label_positions, match_data, match_type)
+                    self._draw_label(
+                        annotated, phrase, score, bbox, color,
+                        label_positions, match_data, match_type)
                     
                     stats['drawn'] += 1
                     
@@ -163,7 +186,7 @@ class ImageAnnotator:
         if not all_x or not all_y:
             return None
         
-        padding = 3
+        padding = 6
         return (min(all_x) - padding, min(all_y) - padding,
                 max(all_x) + padding, max(all_y) + padding)
     
@@ -258,9 +281,14 @@ class ImageAnnotator:
         if not all_vertices:
             return False
         
-        # If single word, draw its rotated box
+        # Add padding to rotated boxes for better text spacing
+        padding = 4
+        
+        # If single word, expand its rotated box
         if len(all_vertices) == 1:
-            cv2.polylines(image, [all_vertices[0]], True, color,
+            expanded = self._expand_rotated_box(
+                all_vertices[0], padding)
+            cv2.polylines(image, [expanded], True, color,
                          thickness, line_type)
             return True
         
@@ -269,16 +297,45 @@ class ImageAnnotator:
             all_points = np.vstack(all_vertices)
             # Get minimum area rotated rectangle
             rect = cv2.minAreaRect(all_points)
-            box = cv2.boxPoints(rect)
+            # Expand the rectangle by padding
+            center, size, angle = rect
+            expanded_size = (size[0] + 2*padding, size[1] + 2*padding)
+            expanded_rect = (center, expanded_size, angle)
+            box = cv2.boxPoints(expanded_rect)
             box = np.int32(box)
             cv2.polylines(image, [box], True, color, thickness, line_type)
             return True
         except Exception:
             # If minAreaRect fails, draw individual boxes for each word
             for vertices in all_vertices:
-                cv2.polylines(image, [vertices], True, color,
+                expanded = self._expand_rotated_box(vertices, padding)
+                cv2.polylines(image, [expanded], True, color,
                              thickness, line_type)
             return True
+
+    def _expand_rotated_box(self, vertices: np.ndarray,
+                            padding: int) -> np.ndarray:
+        """
+        Expand a rotated bounding box outward by padding pixels.
+        Uses the center point and expands each vertex away from center.
+        """
+        # Calculate center of the box
+        center = np.mean(vertices, axis=0)
+
+        # Expand each vertex away from center
+        expanded = []
+        for vertex in vertices:
+            direction = vertex - center
+            length = np.linalg.norm(direction)
+            if length > 0:
+                # Normalize and extend by padding
+                unit_dir = direction / length
+                new_vertex = vertex + unit_dir * padding
+                expanded.append(new_vertex)
+            else:
+                expanded.append(vertex)
+
+        return np.array(expanded, dtype=np.int32)
     
     def _draw_label(self, image, phrase: str, score: float, bbox: Tuple,
                    color: Tuple, label_positions: List, match_data: Dict = None,
